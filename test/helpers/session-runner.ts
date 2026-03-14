@@ -9,12 +9,21 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import * as fs from 'fs';
 import * as path from 'path';
 
+export interface CostEstimate {
+  inputChars: number;
+  outputChars: number;
+  estimatedTokens: number;
+  estimatedCost: number;  // USD (approximate)
+  turnsUsed: number;
+}
+
 export interface SkillTestResult {
   messages: any[];
   toolCalls: Array<{ tool: string; input: any; output: string }>;
   browseErrors: string[];
   exitReason: string;
   duration: number;
+  costEstimate: CostEstimate;
 }
 
 const BROWSE_ERROR_PATTERNS = [
@@ -36,7 +45,7 @@ export async function runSkillTest(options: {
   if (process.env.CLAUDECODE || process.env.CLAUDE_CODE_ENTRYPOINT) {
     throw new Error(
       'Cannot run E2E skill tests inside a Claude Code session. ' +
-      'Run from a plain terminal: SKILL_E2E=1 bun test test/skill-e2e.test.ts'
+      'Run from a plain terminal: EVALS=1 bun test test/skill-e2e.test.ts'
     );
   }
 
@@ -156,5 +165,39 @@ export async function runSkillTest(options: {
     }
   }
 
-  return { messages, toolCalls, browseErrors, exitReason, duration };
+  // Estimate cost from message sizes (chars / 4 ≈ tokens, approximate)
+  let inputChars = 0;
+  let outputChars = 0;
+  let turnsUsed = 0;
+
+  for (const msg of messages) {
+    const content = msg.message?.content;
+    if (!content) continue;
+    const text = typeof content === 'string'
+      ? content
+      : JSON.stringify(content);
+
+    if (msg.type === 'user') {
+      inputChars += text.length;
+    } else if (msg.type === 'assistant') {
+      outputChars += text.length;
+      turnsUsed++;
+    }
+  }
+
+  const estimatedTokens = Math.round((inputChars + outputChars) / 4);
+  // Approximate pricing: sonnet input ~$3/M, output ~$15/M tokens
+  const inputTokens = Math.round(inputChars / 4);
+  const outputTokens = Math.round(outputChars / 4);
+  const estimatedCost = (inputTokens * 3 + outputTokens * 15) / 1_000_000;
+
+  const costEstimate: CostEstimate = {
+    inputChars,
+    outputChars,
+    estimatedTokens,
+    estimatedCost: Math.round(estimatedCost * 100) / 100,
+    turnsUsed,
+  };
+
+  return { messages, toolCalls, browseErrors, exitReason, duration, costEstimate };
 }

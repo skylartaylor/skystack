@@ -4,8 +4,8 @@
  * Uses the Anthropic API directly (not Agent SDK) to evaluate whether
  * generated command docs are clear, complete, and actionable for an AI agent.
  *
- * Requires: ANTHROPIC_API_KEY env var
- * Run: ANTHROPIC_API_KEY=sk-... bun test test/skill-llm-eval.test.ts
+ * Requires: ANTHROPIC_API_KEY env var (or EVALS=1 with key already set)
+ * Run: EVALS=1 bun run test:eval
  *
  * Cost: ~$0.05-0.15 per run (sonnet)
  */
@@ -14,62 +14,12 @@ import { describe, test, expect } from 'bun:test';
 import Anthropic from '@anthropic-ai/sdk';
 import * as fs from 'fs';
 import * as path from 'path';
+import { callJudge, judge } from './helpers/llm-judge';
+import type { JudgeScore } from './helpers/llm-judge';
 
 const ROOT = path.resolve(import.meta.dir, '..');
-const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
-const describeEval = hasApiKey ? describe : describe.skip;
-
-interface JudgeScore {
-  clarity: number;       // 1-5: can an agent understand what each command does?
-  completeness: number;  // 1-5: are all args, flags, valid values documented?
-  actionability: number; // 1-5: can an agent use this to construct correct commands?
-  reasoning: string;     // why the scores were given
-}
-
-async function judge(section: string, prompt: string): Promise<JudgeScore> {
-  const client = new Anthropic();
-
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
-    messages: [{
-      role: 'user',
-      content: `You are evaluating documentation quality for an AI coding agent's CLI tool reference.
-
-The agent reads this documentation to learn how to use a headless browser CLI. It needs to:
-1. Understand what each command does
-2. Know what arguments to pass
-3. Know valid values for enum-like parameters
-4. Construct correct command invocations without guessing
-
-Rate the following ${section} on three dimensions (1-5 scale):
-
-- **clarity** (1-5): Can an agent understand what each command/flag does from the description alone?
-- **completeness** (1-5): Are arguments, valid values, and important behaviors documented? Would an agent need to guess anything?
-- **actionability** (1-5): Can an agent construct correct command invocations from this reference alone?
-
-Scoring guide:
-- 5: Excellent — no ambiguity, all info present
-- 4: Good — minor gaps an experienced agent could infer
-- 3: Adequate — some guessing required
-- 2: Poor — significant info missing
-- 1: Unusable — agent would fail without external help
-
-Respond with ONLY valid JSON in this exact format:
-{"clarity": N, "completeness": N, "actionability": N, "reasoning": "brief explanation"}
-
-Here is the ${section} to evaluate:
-
-${prompt}`,
-    }],
-  });
-
-  const text = response.content[0].type === 'text' ? response.content[0].text : '';
-  // Extract JSON from response (handle markdown code blocks)
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error(`Judge returned non-JSON: ${text.slice(0, 200)}`);
-  return JSON.parse(jsonMatch[0]) as JudgeScore;
-}
+// Run when EVALS=1 is set (requires ANTHROPIC_API_KEY in env)
+const describeEval = process.env.EVALS ? describe : describe.skip;
 
 describeEval('LLM-as-judge quality evals', () => {
   test('command reference table scores >= 4 on all dimensions', async () => {
@@ -191,4 +141,170 @@ Scores are 1-5 overall quality.`,
     // Generated version should be at least as good as hand-maintained
     expect(result.b_score).toBeGreaterThanOrEqual(result.a_score);
   }, 30_000);
+});
+
+// --- Part 7: QA skill quality evals (C6) ---
+
+describeEval('QA skill quality evals', () => {
+  const qaContent = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+
+  test('qa/SKILL.md workflow quality scores >= 4', async () => {
+    // Extract the workflow section (Phases 1-7)
+    const start = qaContent.indexOf('## Workflow');
+    const end = qaContent.indexOf('## Health Score Rubric');
+    const section = qaContent.slice(start, end);
+
+    // Use workflow-specific prompt (not the CLI-reference judge, since this is a
+    // workflow doc that references $B commands defined in a separate browse SKILL.md)
+    const scores = await callJudge<JudgeScore>(`You are evaluating the quality of a QA testing workflow document for an AI coding agent.
+
+The agent reads this document to learn how to systematically QA test a web application. The workflow references
+a headless browser CLI ($B commands) that is documented separately — do NOT penalize for missing CLI definitions.
+Instead, evaluate whether the workflow itself is clear, complete, and actionable.
+
+Rate on three dimensions (1-5 scale):
+- **clarity** (1-5): Can an agent follow the step-by-step phases without ambiguity?
+- **completeness** (1-5): Are all phases, decision points, and outputs well-defined?
+- **actionability** (1-5): Can an agent execute the workflow and produce the expected deliverables?
+
+Respond with ONLY valid JSON:
+{"clarity": N, "completeness": N, "actionability": N, "reasoning": "brief explanation"}
+
+Here is the QA workflow to evaluate:
+
+${section}`);
+    console.log('QA workflow scores:', JSON.stringify(scores, null, 2));
+
+    expect(scores.clarity).toBeGreaterThanOrEqual(4);
+    expect(scores.completeness).toBeGreaterThanOrEqual(4);
+    expect(scores.actionability).toBeGreaterThanOrEqual(4);
+  }, 30_000);
+
+  test('qa/SKILL.md health score rubric is unambiguous', async () => {
+    const start = qaContent.indexOf('## Health Score Rubric');
+    const section = qaContent.slice(start);
+
+    // Use rubric-specific prompt
+    const scores = await callJudge<JudgeScore>(`You are evaluating a health score rubric that an AI agent must follow to compute a numeric QA score.
+
+The agent uses this rubric after QA testing a website. It needs to:
+1. Understand each scoring category and what counts as a deduction
+2. Apply the weights correctly to compute a final score out of 100
+3. Produce a consistent, reproducible score
+
+Rate on three dimensions (1-5 scale):
+- **clarity** (1-5): Are the categories, deduction criteria, and weights unambiguous?
+- **completeness** (1-5): Are all edge cases and scoring boundaries defined?
+- **actionability** (1-5): Can an agent compute a correct score from this rubric alone?
+
+Respond with ONLY valid JSON:
+{"clarity": N, "completeness": N, "actionability": N, "reasoning": "brief explanation"}
+
+Here is the rubric to evaluate:
+
+${section}`);
+    console.log('QA health rubric scores:', JSON.stringify(scores, null, 2));
+
+    expect(scores.clarity).toBeGreaterThanOrEqual(4);
+    expect(scores.completeness).toBeGreaterThanOrEqual(4);
+    expect(scores.actionability).toBeGreaterThanOrEqual(4);
+  }, 30_000);
+});
+
+// --- Part 7: Cross-skill consistency judge (C7) ---
+
+describeEval('Cross-skill consistency evals', () => {
+  test('greptile-history patterns are consistent across all skills', async () => {
+    const reviewContent = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
+    const shipContent = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    const triageContent = fs.readFileSync(path.join(ROOT, 'review', 'greptile-triage.md'), 'utf-8');
+    const retroContent = fs.readFileSync(path.join(ROOT, 'retro', 'SKILL.md'), 'utf-8');
+
+    // Extract greptile-related lines from each file
+    const extractGrepLines = (content: string, filename: string) => {
+      const lines = content.split('\n')
+        .filter(l => /greptile|history\.md|REMOTE_SLUG/i.test(l))
+        .map(l => l.trim());
+      return `--- ${filename} ---\n${lines.join('\n')}`;
+    };
+
+    const collected = [
+      extractGrepLines(reviewContent, 'review/SKILL.md'),
+      extractGrepLines(shipContent, 'ship/SKILL.md'),
+      extractGrepLines(triageContent, 'review/greptile-triage.md'),
+      extractGrepLines(retroContent, 'retro/SKILL.md'),
+    ].join('\n\n');
+
+    const result = await callJudge<{ consistent: boolean; issues: string[]; score: number; reasoning: string }>(`You are evaluating whether multiple skill configuration files implement the same data architecture consistently.
+
+INTENDED ARCHITECTURE:
+- greptile-history has TWO paths: per-project (~/.gstack/projects/{slug}/greptile-history.md) and global (~/.gstack/greptile-history.md)
+- /review and /ship WRITE to BOTH paths (per-project for suppressions, global for retro aggregation)
+- /review and /ship delegate write mechanics to greptile-triage.md
+- /retro READS from the GLOBAL path only (it aggregates across all projects)
+- REMOTE_SLUG derivation should be consistent across files that use it
+
+Below are greptile-related lines extracted from each skill file:
+
+${collected}
+
+Evaluate consistency. Respond with ONLY valid JSON:
+{
+  "consistent": true/false,
+  "issues": ["issue 1", "issue 2"],
+  "score": N,
+  "reasoning": "brief explanation"
+}
+
+score (1-5): 5 = perfectly consistent, 1 = contradictory`);
+
+    console.log('Cross-skill consistency:', JSON.stringify(result, null, 2));
+
+    expect(result.consistent).toBe(true);
+    expect(result.score).toBeGreaterThanOrEqual(4);
+  }, 30_000);
+});
+
+// --- Part 7: Baseline score pinning (C9) ---
+
+describeEval('Baseline score pinning', () => {
+  const baselinesPath = path.join(ROOT, 'test', 'fixtures', 'eval-baselines.json');
+
+  test('LLM eval scores do not regress below baselines', async () => {
+    if (!fs.existsSync(baselinesPath)) {
+      console.log('No baseline file found — skipping pinning check');
+      return;
+    }
+
+    const baselines = JSON.parse(fs.readFileSync(baselinesPath, 'utf-8'));
+    const regressions: string[] = [];
+
+    // Test command reference
+    const skillContent = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    const cmdStart = skillContent.indexOf('## Command Reference');
+    const cmdEnd = skillContent.indexOf('## Tips');
+    const cmdSection = skillContent.slice(cmdStart, cmdEnd);
+    const cmdScores = await judge('command reference table', cmdSection);
+
+    for (const dim of ['clarity', 'completeness', 'actionability'] as const) {
+      if (cmdScores[dim] < baselines.command_reference[dim]) {
+        regressions.push(`command_reference.${dim}: ${cmdScores[dim]} < baseline ${baselines.command_reference[dim]}`);
+      }
+    }
+
+    // Update baselines if requested
+    if (process.env.UPDATE_BASELINES) {
+      baselines.command_reference = {
+        clarity: cmdScores.clarity,
+        completeness: cmdScores.completeness,
+        actionability: cmdScores.actionability,
+      };
+      fs.writeFileSync(baselinesPath, JSON.stringify(baselines, null, 2) + '\n');
+      console.log('Updated eval baselines');
+    }
+
+    if (regressions.length > 0) {
+      throw new Error(`Score regressions detected:\n${regressions.join('\n')}`);
+    }
+  }, 60_000);
 });

@@ -4,15 +4,20 @@
 
 ```bash
 bun install          # install dependencies
-bun test             # run tests (browse + snapshot + skill validation)
-bun run test:eval    # run LLM-as-judge evals (needs ANTHROPIC_API_KEY)
-bun run test:e2e     # run E2E skill tests (needs SKILL_E2E=1, ~$0.50/run)
+bun test             # run free tests (browse + snapshot + skill validation)
+bun run test:evals   # run ALL paid evals: LLM judge + Agent SDK E2E (~$4/run)
+bun run test:eval    # run LLM-as-judge evals only (~$0.15/run)
+bun run test:e2e     # run Agent SDK E2E tests only (~$3.85/run)
+bun run test:all     # free tests + all evals
 bun run dev <cmd>    # run CLI in dev mode, e.g. bun run dev goto https://example.com
 bun run build        # gen docs + compile binaries
 bun run gen:skill-docs  # regenerate SKILL.md files from templates
 bun run skill:check  # health dashboard for all skills
 bun run dev:skill    # watch mode: auto-regen + validate on change
 ```
+
+All eval commands require `ANTHROPIC_API_KEY` in your environment. E2E tests must
+be run from a plain terminal (not inside Claude Code — nested sessions hang).
 
 ## Project structure
 
@@ -29,11 +34,12 @@ gstack/
 │   ├── skill-check.ts     # Health dashboard
 │   └── dev-skill.ts       # Watch mode
 ├── test/            # Skill validation + eval tests
-│   ├── helpers/     # skill-parser.ts, session-runner.ts
-│   ├── skill-validation.test.ts  # Tier 1: static command validation
-│   ├── gen-skill-docs.test.ts    # Tier 1: generator + quality evals
-│   ├── skill-e2e.test.ts         # Tier 2: Agent SDK E2E
-│   └── skill-llm-eval.test.ts   # Tier 3: LLM-as-judge
+│   ├── helpers/     # skill-parser.ts, session-runner.ts, llm-judge.ts
+│   ├── fixtures/    # Ground truth JSON, planted-bug fixtures, eval baselines
+│   ├── skill-validation.test.ts  # Tier 1: static validation (free, <1s)
+│   ├── gen-skill-docs.test.ts    # Tier 1: generator quality (free, <1s)
+│   ├── skill-llm-eval.test.ts   # Tier 3: LLM-as-judge (~$0.15/run)
+│   └── skill-e2e.test.ts         # Tier 2: Agent SDK E2E (~$3.85/run)
 ├── ship/            # Ship workflow skill
 ├── review/          # PR review skill
 ├── plan-ceo-review/ # /plan-ceo-review skill

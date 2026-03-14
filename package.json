@@ -13,9 +13,10 @@
     "dev": "bun run browse/src/cli.ts",
     "server": "bun run browse/src/server.ts",
     "test": "bun test browse/test/ test/ --ignore test/skill-e2e.test.ts --ignore test/skill-llm-eval.test.ts",
-    "test:e2e": "SKILL_E2E=1 bun test test/skill-e2e.test.ts",
-    "test:eval": "bun test test/skill-llm-eval.test.ts",
-    "test:all": "bun test browse/test/ test/ --ignore test/skill-e2e.test.ts --ignore test/skill-llm-eval.test.ts && SKILL_E2E=1 bun test test/skill-e2e.test.ts",
+    "test:evals": "EVALS=1 bun test test/skill-llm-eval.test.ts test/skill-e2e.test.ts",
+    "test:eval": "EVALS=1 bun test test/skill-llm-eval.test.ts",
+    "test:e2e": "EVALS=1 bun test test/skill-e2e.test.ts",
+    "test:all": "bun test browse/test/ test/ --ignore test/skill-e2e.test.ts --ignore test/skill-llm-eval.test.ts && EVALS=1 bun test test/skill-e2e.test.ts test/skill-llm-eval.test.ts",
     "skill:check": "bun run scripts/skill-check.ts",
     "dev:skill": "bun run scripts/dev-skill.ts",
     "start": "bun run browse/src/server.ts"
