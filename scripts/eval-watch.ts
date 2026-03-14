@@ -19,6 +19,7 @@ const STALE_THRESHOLD_SEC = 600; // 10 minutes
 
 export interface HeartbeatData {
   runId: string;
+  pid?: number;
   startedAt: string;
   currentTest: string;
   status: string;
@@ -48,6 +49,16 @@ function readJSON<T>(filePath: string): T | null {
     return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
   } catch {
     return null;
+  }
+}
+
+/** Check if a process is alive (signal 0 = existence check, doesn't kill). */
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -127,8 +138,16 @@ if (import.meta.main) {
   const showTail = process.argv.includes('--tail');
 
   const render = () => {
-    const heartbeat = readJSON<HeartbeatData>(HEARTBEAT_PATH);
+    let heartbeat = readJSON<HeartbeatData>(HEARTBEAT_PATH);
     const partial = readJSON<PartialData>(PARTIAL_PATH);
+
+    // Auto-clear heartbeat if the process is dead
+    if (heartbeat?.pid && !isProcessAlive(heartbeat.pid)) {
+      try { fs.unlinkSync(HEARTBEAT_PATH); } catch { /* already gone */ }
+      process.stdout.write('\x1B[2J\x1B[H');
+      process.stdout.write(`Cleared stale heartbeat — PID ${heartbeat.pid} is no longer running.\n\n`);
+      heartbeat = null;
+    }
 
     // Clear screen
     process.stdout.write('\x1B[2J\x1B[H');

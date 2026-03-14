@@ -216,6 +216,7 @@ export async function runSkillTest(options: {
                     const toolDesc = `${item.name}(${truncate(JSON.stringify(item.input || {}), 60)})`;
                     atomicWriteSync(HEARTBEAT_PATH, JSON.stringify({
                       runId,
+                      pid: proc.pid,
                       startedAt,
                       currentTest: testName,
                       status: 'running',
