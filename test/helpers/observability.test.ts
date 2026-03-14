@@ -153,7 +153,7 @@ describe('eval-store observability', () => {
     expect(partial.tests[1].last_tool_call).toBe('Bash(ls)');
   });
 
-  test('7: finalize() deletes partial file', async () => {
+  test('7: finalize() preserves partial file alongside final', async () => {
     const evalDir = path.join(tmpDir, 'evals');
     const collector = new EvalCollector('e2e', evalDir);
 
@@ -167,9 +167,10 @@ describe('eval-store observability', () => {
 
     await collector.finalize();
 
-    expect(fs.existsSync(partialPath)).toBe(false);
+    // Partial file preserved for observability — never cleaned up
+    expect(fs.existsSync(partialPath)).toBe(true);
 
-    // Final eval file should exist
+    // Final eval file should also exist
     const files = fs.readdirSync(evalDir).filter(f => f.endsWith('.json') && !f.startsWith('_'));
     expect(files.length).toBeGreaterThanOrEqual(1);
   });

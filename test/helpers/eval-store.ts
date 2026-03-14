@@ -444,9 +444,6 @@ export class EvalCollector {
       tests: this.tests,
     };
 
-    // Delete partial file now that we're writing the final
-    try { fs.unlinkSync(path.join(this.evalDir, '_partial-e2e.json')); } catch { /* may not exist */ }
-
     // Write eval file
     fs.mkdirSync(this.evalDir, { recursive: true });
     const dateStr = timestamp.replace(/[:.]/g, '').replace('T', '-').slice(0, 15);
