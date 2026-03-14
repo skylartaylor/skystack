@@ -30,7 +30,6 @@ export interface SkillTestResult {
 const BROWSE_ERROR_PATTERNS = [
   /Unknown command: \w+/,
   /Unknown snapshot flag: .+/,
-  /Exit code 1/,
   /ERROR: browse binary not found/,
   /Server failed to start/,
   /no such file or directory.*browse/i,

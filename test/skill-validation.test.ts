@@ -261,41 +261,34 @@ describe('Cross-skill path consistency', () => {
 describe('QA skill structure validation', () => {
   const qaContent = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
 
-  test('qa/SKILL.md has all 7 phases', () => {
+  test('qa/SKILL.md has all 6 phases', () => {
     const phases = [
       'Phase 1', 'Initialize',
       'Phase 2', 'Authenticate',
-      'Phase 3', 'Recon',
-      'Phase 4', 'Test Plan',
-      'Phase 5', 'Execute',
-      'Phase 6', 'Document',
-      'Phase 7', 'Wrap',
+      'Phase 3', 'Orient',
+      'Phase 4', 'Explore',
+      'Phase 5', 'Document',
+      'Phase 6', 'Wrap Up',
     ];
     for (const phase of phases) {
       expect(qaContent).toContain(phase);
     }
   });
 
-  test('risk heuristic table has all required patterns', () => {
-    const patterns = [
-      'Form/payment/auth/checkout',
-      'Controller/route with mutations',
-      'Config/env/deployment',
-      'API endpoint handlers',
-      'View/template/component',
-      'Model/service with business logic',
-      'CSS/style-only',
-      'Docs/readme/comments',
-      'Test files only',
+  test('has all four QA modes defined', () => {
+    const modes = [
+      'Diff-aware',
+      'Full',
+      'Quick',
+      'Regression',
     ];
-    for (const pattern of patterns) {
-      expect(qaContent).toContain(pattern);
+    for (const mode of modes) {
+      expect(qaContent).toContain(mode);
     }
 
-    // Risk levels
-    for (const level of ['HIGH', 'MEDIUM', 'LOW', 'SKIP']) {
-      expect(qaContent).toContain(level);
-    }
+    // Mode triggers/flags
+    expect(qaContent).toContain('--quick');
+    expect(qaContent).toContain('--regression');
   });
 
   test('health score weights sum to 100%', () => {
@@ -321,18 +314,18 @@ describe('QA skill structure validation', () => {
     expect(weights.size).toBe(8);
   });
 
-  test('has three tier definitions (Quick/Standard/Exhaustive)', () => {
-    expect(qaContent).toContain('Quick Depth');
-    expect(qaContent).toContain('Standard Depth');
-    expect(qaContent).toContain('Exhaustive Depth');
+  test('has four mode definitions (Diff-aware/Full/Quick/Regression)', () => {
+    expect(qaContent).toContain('### Diff-aware');
+    expect(qaContent).toContain('### Full');
+    expect(qaContent).toContain('### Quick');
+    expect(qaContent).toContain('### Regression');
   });
 
   test('output structure references report directory layout', () => {
-    expect(qaContent).toContain('index.md');
-    expect(qaContent).toContain('test-plan-');
     expect(qaContent).toContain('qa-report-');
     expect(qaContent).toContain('baseline.json');
     expect(qaContent).toContain('screenshots/');
+    expect(qaContent).toContain('.gstack/qa-reports/');
   });
 });
 
