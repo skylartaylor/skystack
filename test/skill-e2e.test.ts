@@ -450,11 +450,16 @@ Write every bug you found so far. Format each as:
 - Severity: high / medium / low
 - Evidence: what you observed
 
-PHASE 3 — Interactive testing (click links, fill forms, test edge cases):
-- Click every nav link, check for broken routes/404s
-- Fill and submit forms with valid AND invalid data (empty fields, bad email, etc.)
-- Run $B console --errors after each action
+PHASE 3 — Interactive testing (systematic form + edge case testing):
+- For EVERY input field on the page: fill it, clear it, try invalid values
+- Specifically test: empty fields, invalid email formats, extra-long text, clearing numeric fields
+- Submit the form and immediately run $B console --errors
+- Click every link/button and check for broken behavior
 - After finding more bugs, UPDATE ${reportPath} with new findings
+
+PHASE 4 — Finalize report:
+- UPDATE ${reportPath} with ALL bugs found across all phases
+- Include console errors, form validation issues, visual overflow, missing attributes
 
 CRITICAL RULES:
 - ONLY test the page at ${targetUrl} — do not navigate to other sites
