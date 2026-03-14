@@ -17,7 +17,10 @@
     "test:e2e": "EVALS=1 bun test test/skill-e2e.test.ts",
     "skill:check": "bun run scripts/skill-check.ts",
     "dev:skill": "bun run scripts/dev-skill.ts",
-    "start": "bun run browse/src/server.ts"
+    "start": "bun run browse/src/server.ts",
+    "eval:list": "bun run scripts/eval-list.ts",
+    "eval:compare": "bun run scripts/eval-compare.ts",
+    "eval:summary": "bun run scripts/eval-summary.ts"
   },
   "dependencies": {
     "playwright": "^1.58.2",
@@ -37,7 +40,6 @@
     "devtools"
   ],
   "devDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.75",
     "@anthropic-ai/sdk": "^0.78.0"
   }
 }

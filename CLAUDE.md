@@ -5,20 +5,21 @@
 ```bash
 bun install          # install dependencies
 bun test             # run free tests (browse + snapshot + skill validation)
-bun run test:evals   # run paid evals: LLM judge + Agent SDK E2E (~$4/run)
-bun run test:e2e     # run Agent SDK E2E tests only (~$3.85/run)
+bun run test:evals   # run paid evals: LLM judge + E2E (~$4/run)
+bun run test:e2e     # run E2E tests only (~$3.85/run)
 bun run dev <cmd>    # run CLI in dev mode, e.g. bun run dev goto https://example.com
 bun run build        # gen docs + compile binaries
 bun run gen:skill-docs  # regenerate SKILL.md files from templates
 bun run skill:check  # health dashboard for all skills
 bun run dev:skill    # watch mode: auto-regen + validate on change
+bun run eval:list    # list all eval runs from ~/.gstack-dev/evals/
+bun run eval:compare # compare two eval runs (auto-picks most recent)
+bun run eval:summary # aggregate stats across all eval runs
 ```
 
-`test:evals` requires `ANTHROPIC_API_KEY` and must be run from a plain terminal
-(not inside Claude Code — nested Agent SDK sessions hang).
-
-**Update (v0.3.5):** The session runner now strips CLAUDE* env vars automatically,
-so `test:evals` may work inside Claude Code. If E2E tests hang, run from a plain terminal.
+`test:evals` requires `ANTHROPIC_API_KEY`. E2E tests stream progress in real-time
+(tool-by-tool via `--output-format stream-json --verbose`). Results are persisted
+to `~/.gstack-dev/evals/` with auto-comparison against the previous run.
 
 ## Project structure
 
@@ -35,12 +36,12 @@ gstack/
 │   ├── skill-check.ts     # Health dashboard
 │   └── dev-skill.ts       # Watch mode
 ├── test/            # Skill validation + eval tests
-│   ├── helpers/     # skill-parser.ts, session-runner.ts, llm-judge.ts
+│   ├── helpers/     # skill-parser.ts, session-runner.ts, llm-judge.ts, eval-store.ts
 │   ├── fixtures/    # Ground truth JSON, planted-bug fixtures, eval baselines
 │   ├── skill-validation.test.ts  # Tier 1: static validation (free, <1s)
 │   ├── gen-skill-docs.test.ts    # Tier 1: generator quality (free, <1s)
 │   ├── skill-llm-eval.test.ts   # Tier 3: LLM-as-judge (~$0.15/run)
-│   └── skill-e2e.test.ts         # Tier 2: Agent SDK E2E (~$3.85/run)
+│   └── skill-e2e.test.ts         # Tier 2: E2E via claude -p (~$3.85/run)
 ├── ship/            # Ship workflow skill
 ├── review/          # PR review skill
 ├── plan-ceo-review/ # /plan-ceo-review skill
