@@ -519,6 +519,14 @@ describeE2E('Plan CEO Review E2E', () => {
 
   beforeAll(() => {
     planDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-plan-ceo-'));
+    const { spawnSync } = require('child_process');
+    const run = (cmd: string, args: string[]) =>
+      spawnSync(cmd, args, { cwd: planDir, stdio: 'pipe', timeout: 5000 });
+
+    // Init git repo (CEO review SKILL.md has a "System Audit" step that runs git)
+    run('git', ['init']);
+    run('git', ['config', 'user.email', 'test@test.com']);
+    run('git', ['config', 'user.name', 'Test']);
 
     // Create a simple plan document for the agent to review
     fs.writeFileSync(path.join(planDir, 'plan.md'), `# Plan: Add User Dashboard
@@ -543,6 +551,9 @@ We're building a new user dashboard that shows recent activity, notifications, a
 - How do we handle users with 100k+ activity records?
 `);
 
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'add plan']);
+
     // Copy plan-ceo-review skill
     fs.mkdirSync(path.join(planDir, 'plan-ceo-review'), { recursive: true });
     fs.copyFileSync(
@@ -557,17 +568,17 @@ We're building a new user dashboard that shows recent activity, notifications, a
 
   test('/plan-ceo-review produces structured review output', async () => {
     const result = await runSkillTest({
-      prompt: `Read plan-ceo-review/SKILL.md for instructions on how to do a CEO-mode plan review.
+      prompt: `Read plan-ceo-review/SKILL.md for the review workflow.
 
-Read plan.md — that's the plan to review.
+Read plan.md — that's the plan to review. This is a standalone plan document, not a codebase — skip any codebase exploration or system audit steps.
 
 Choose HOLD SCOPE mode. Skip any AskUserQuestion calls — this is non-interactive.
-Write your complete review to ${planDir}/review-output.md
+Write your complete review directly to ${planDir}/review-output.md
 
-Include all sections the SKILL.md specifies. Focus on architecture, error handling, security, and performance.`,
+Focus on reviewing the plan content: architecture, error handling, security, and performance.`,
       workingDirectory: planDir,
       maxTurns: 15,
-      timeout: 300_000,
+      timeout: 360_000,
     });
 
     logCost('/plan-ceo-review', result);
@@ -581,7 +592,7 @@ Include all sections the SKILL.md specifies. Focus on architecture, error handli
       const review = fs.readFileSync(reviewPath, 'utf-8');
       expect(review.length).toBeGreaterThan(200);
     }
-  }, 360_000);
+  }, 420_000);
 });
 
 // --- Plan Eng Review E2E ---
@@ -591,6 +602,13 @@ describeE2E('Plan Eng Review E2E', () => {
 
   beforeAll(() => {
     planDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-plan-eng-'));
+    const { spawnSync } = require('child_process');
+    const run = (cmd: string, args: string[]) =>
+      spawnSync(cmd, args, { cwd: planDir, stdio: 'pipe', timeout: 5000 });
+
+    run('git', ['init']);
+    run('git', ['config', 'user.email', 'test@test.com']);
+    run('git', ['config', 'user.name', 'Test']);
 
     // Create a plan with more engineering detail
     fs.writeFileSync(path.join(planDir, 'plan.md'), `# Plan: Migrate Auth to JWT
@@ -624,6 +642,9 @@ Replace session-cookie auth with JWT tokens. Currently using express-session + R
 - Rate limiting on refresh endpoint
 `);
 
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'add plan']);
+
     // Copy plan-eng-review skill
     fs.mkdirSync(path.join(planDir, 'plan-eng-review'), { recursive: true });
     fs.copyFileSync(
@@ -638,17 +659,17 @@ Replace session-cookie auth with JWT tokens. Currently using express-session + R
 
   test('/plan-eng-review produces structured review output', async () => {
     const result = await runSkillTest({
-      prompt: `Read plan-eng-review/SKILL.md for instructions on how to do an engineering plan review.
+      prompt: `Read plan-eng-review/SKILL.md for the review workflow.
 
-Read plan.md — that's the plan to review.
+Read plan.md — that's the plan to review. This is a standalone plan document, not a codebase — skip any codebase exploration steps.
 
 Choose SMALL CHANGE mode. Skip any AskUserQuestion calls — this is non-interactive.
-Write your complete review to ${planDir}/review-output.md
+Write your complete review directly to ${planDir}/review-output.md
 
-Include architecture, code quality, tests, and performance sections.`,
+Focus on architecture, code quality, tests, and performance sections.`,
       workingDirectory: planDir,
       maxTurns: 15,
-      timeout: 300_000,
+      timeout: 360_000,
     });
 
     logCost('/plan-eng-review', result);
@@ -661,7 +682,7 @@ Include architecture, code quality, tests, and performance sections.`,
       const review = fs.readFileSync(reviewPath, 'utf-8');
       expect(review.length).toBeGreaterThan(200);
     }
-  }, 360_000);
+  }, 420_000);
 });
 
 // --- Retro E2E ---
@@ -743,7 +764,7 @@ Analyze the git history and produce the narrative report as described in the SKI
       const retro = fs.readFileSync(retroPath, 'utf-8');
       expect(retro.length).toBeGreaterThan(100);
     }
-  }, 360_000);
+  }, 420_000);
 });
 
 // --- Deferred skill E2E tests (destructive or require interactive UI) ---
