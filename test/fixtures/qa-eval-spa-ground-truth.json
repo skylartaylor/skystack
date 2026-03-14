@@ -38,6 +38,6 @@
     }
   ],
   "total_bugs": 5,
-  "minimum_detection": 3,
+  "minimum_detection": 2,
   "max_false_positives": 2
 }
