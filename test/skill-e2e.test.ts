@@ -1,6 +1,9 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { runSkillTest } from './helpers/session-runner';
+import type { SkillTestResult } from './helpers/session-runner';
 import { outcomeJudge } from './helpers/llm-judge';
+import { EvalCollector } from './helpers/eval-store';
+import type { EvalTestEntry } from './helpers/eval-store';
 import { startTestServer } from '../browse/test/test-server';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -11,6 +14,24 @@ const ROOT = path.resolve(import.meta.dir, '..');
 // Skip unless EVALS=1. Session runner strips CLAUDE* env vars to avoid nested session issues.
 const evalsEnabled = !!process.env.EVALS;
 const describeE2E = evalsEnabled ? describe : describe.skip;
+
+// Eval result collector — accumulates test results, writes to ~/.gstack-dev/evals/ on finalize
+const evalCollector = evalsEnabled ? new EvalCollector('e2e') : null;
+
+/** DRY helper to record an E2E test result into the eval collector. */
+function recordE2E(name: string, suite: string, result: SkillTestResult, extra?: Partial<EvalTestEntry>) {
+  evalCollector?.addTest({
+    name, suite, tier: 'e2e',
+    passed: result.exitReason === 'success' && result.browseErrors.length === 0,
+    duration_ms: result.duration,
+    cost_usd: result.costEstimate.estimatedCost,
+    transcript: result.transcript,
+    output: result.output?.slice(0, 2000),
+    turns_used: result.costEstimate.turnsUsed,
+    browse_errors: result.browseErrors,
+    ...extra,
+  });
+}
 
 let testServer: ReturnType<typeof startTestServer>;
 let tmpDir: string;
@@ -110,6 +131,7 @@ Report the results of each command.`,
     });
 
     logCost('browse basic', result);
+    recordE2E('browse basic commands', 'Skill E2E tests', result);
     expect(result.browseErrors).toHaveLength(0);
     expect(result.exitReason).toBe('success');
   }, 90_000);
@@ -129,10 +151,10 @@ Report what each command returned.`,
     });
 
     logCost('browse snapshot', result);
+    recordE2E('browse snapshot flags', 'Skill E2E tests', result);
     expect(result.browseErrors).toHaveLength(0);
     expect(result.exitReason).toBe('success');
   }, 90_000);
-
 
   test('agent discovers browse binary via SKILL.md setup block', async () => {
     const skillMd = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
@@ -156,6 +178,7 @@ Report whether it worked.`,
       timeout: 60_000,
     });
 
+    recordE2E('SKILL.md setup block discovery', 'Skill E2E tests', result);
     expect(result.browseErrors).toHaveLength(0);
     expect(result.exitReason).toBe('success');
   }, 90_000);
@@ -182,6 +205,7 @@ Report the exact output. Do NOT try to fix or install anything — just report w
 
     // Agent should see NEEDS_SETUP (not crash or guess wrong paths)
     const allText = result.output || '';
+    recordE2E('SKILL.md NEEDS_SETUP', 'Skill E2E tests', result);
     expect(allText).toContain('NEEDS_SETUP');
 
     // Clean up
@@ -210,6 +234,7 @@ Report the exact output — either "READY: <path>" or "NEEDS_SETUP".`,
 
     // Should either find global binary (READY) or show NEEDS_SETUP — not crash
     const allText = result.output || '';
+    recordE2E('SKILL.md outside git repo', 'Skill E2E tests', result);
     expect(allText).toMatch(/READY|NEEDS_SETUP/);
 
     // Clean up
@@ -254,6 +279,7 @@ Write your report to ${qaDir}/qa-reports/qa-report.md`,
     });
 
     logCost('/qa quick', result);
+    recordE2E('/qa quick', 'QA skill E2E', result);
     expect(result.browseErrors).toHaveLength(0);
     expect(result.exitReason).toBe('success');
   }, 240_000);
@@ -311,6 +337,7 @@ Write your review findings to ${reviewDir}/review-output.md`,
     });
 
     logCost('/review', result);
+    recordE2E('/review SQL injection', 'Review skill E2E', result);
     expect(result.exitReason).toBe('success');
   }, 120_000);
 });
@@ -392,6 +419,15 @@ Be thorough: check console, check all links, check all forms, check mobile viewp
     const judgeResult = await outcomeJudge(groundTruth, report);
     console.log(`${label} outcome:`, JSON.stringify(judgeResult, null, 2));
 
+    // Record to eval collector with outcome judge results
+    recordE2E(`/qa ${label}`, 'Planted-bug outcome evals', result, {
+      detection_rate: judgeResult.detection_rate,
+      false_positives: judgeResult.false_positives,
+      evidence_quality: judgeResult.evidence_quality,
+      detected_bugs: judgeResult.detected,
+      missed_bugs: judgeResult.missed,
+    });
+
     // Diagnostic dump on failure (decision 1C)
     if (judgeResult.detection_rate < groundTruth.minimum_detection || judgeResult.false_positives > groundTruth.max_false_positives) {
       dumpOutcomeDiagnostic(outcomeDir, label, report, judgeResult);
@@ -420,4 +456,15 @@ Be thorough: check console, check all links, check all forms, check mobile viewp
 
   // Ship E2E deferred — too complex (requires full git + test suite + VERSION + CHANGELOG)
   test.todo('/ship completes without browse errors');
+});
+
+// Module-level afterAll — finalize eval collector after all tests complete
+afterAll(async () => {
+  if (evalCollector) {
+    try {
+      await evalCollector.finalize();
+    } catch (err) {
+      console.error('Failed to save eval results:', err);
+    }
+  }
 });

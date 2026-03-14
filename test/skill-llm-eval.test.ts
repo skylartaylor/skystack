@@ -10,21 +10,26 @@
  * Cost: ~$0.05-0.15 per run (sonnet)
  */
 
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect, afterAll } from 'bun:test';
 import Anthropic from '@anthropic-ai/sdk';
 import * as fs from 'fs';
 import * as path from 'path';
 import { callJudge, judge } from './helpers/llm-judge';
 import type { JudgeScore } from './helpers/llm-judge';
+import { EvalCollector } from './helpers/eval-store';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 // Run when EVALS=1 is set (requires ANTHROPIC_API_KEY in env)
-const describeEval = process.env.EVALS ? describe : describe.skip;
+const evalsEnabled = !!process.env.EVALS;
+const describeEval = evalsEnabled ? describe : describe.skip;
+
+// Eval result collector
+const evalCollector = evalsEnabled ? new EvalCollector('llm-judge') : null;
 
 describeEval('LLM-as-judge quality evals', () => {
   test('command reference table scores >= 4 on all dimensions', async () => {
+    const t0 = Date.now();
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    // Extract just the command reference section
     const start = content.indexOf('## Command Reference');
     const end = content.indexOf('## Tips');
     const section = content.slice(start, end);
@@ -32,12 +37,24 @@ describeEval('LLM-as-judge quality evals', () => {
     const scores = await judge('command reference table', section);
     console.log('Command reference scores:', JSON.stringify(scores, null, 2));
 
+    evalCollector?.addTest({
+      name: 'command reference table',
+      suite: 'LLM-as-judge quality evals',
+      tier: 'llm-judge',
+      passed: scores.clarity >= 4 && scores.completeness >= 4 && scores.actionability >= 4,
+      duration_ms: Date.now() - t0,
+      cost_usd: 0.02,
+      judge_scores: { clarity: scores.clarity, completeness: scores.completeness, actionability: scores.actionability },
+      judge_reasoning: scores.reasoning,
+    });
+
     expect(scores.clarity).toBeGreaterThanOrEqual(4);
     expect(scores.completeness).toBeGreaterThanOrEqual(4);
     expect(scores.actionability).toBeGreaterThanOrEqual(4);
   }, 30_000);
 
   test('snapshot flags section scores >= 4 on all dimensions', async () => {
+    const t0 = Date.now();
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     const start = content.indexOf('## Snapshot System');
     const end = content.indexOf('## Command Reference');
@@ -46,19 +63,41 @@ describeEval('LLM-as-judge quality evals', () => {
     const scores = await judge('snapshot flags reference', section);
     console.log('Snapshot flags scores:', JSON.stringify(scores, null, 2));
 
+    evalCollector?.addTest({
+      name: 'snapshot flags reference',
+      suite: 'LLM-as-judge quality evals',
+      tier: 'llm-judge',
+      passed: scores.clarity >= 4 && scores.completeness >= 4 && scores.actionability >= 4,
+      duration_ms: Date.now() - t0,
+      cost_usd: 0.02,
+      judge_scores: { clarity: scores.clarity, completeness: scores.completeness, actionability: scores.actionability },
+      judge_reasoning: scores.reasoning,
+    });
+
     expect(scores.clarity).toBeGreaterThanOrEqual(4);
     expect(scores.completeness).toBeGreaterThanOrEqual(4);
     expect(scores.actionability).toBeGreaterThanOrEqual(4);
   }, 30_000);
 
   test('browse/SKILL.md overall scores >= 4', async () => {
+    const t0 = Date.now();
     const content = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
-    // Just the reference sections (skip examples/patterns)
     const start = content.indexOf('## Snapshot Flags');
     const section = content.slice(start);
 
     const scores = await judge('browse skill reference (flags + commands)', section);
     console.log('Browse SKILL.md scores:', JSON.stringify(scores, null, 2));
+
+    evalCollector?.addTest({
+      name: 'browse/SKILL.md reference',
+      suite: 'LLM-as-judge quality evals',
+      tier: 'llm-judge',
+      passed: scores.clarity >= 4 && scores.completeness >= 4 && scores.actionability >= 4,
+      duration_ms: Date.now() - t0,
+      cost_usd: 0.02,
+      judge_scores: { clarity: scores.clarity, completeness: scores.completeness, actionability: scores.actionability },
+      judge_reasoning: scores.reasoning,
+    });
 
     expect(scores.clarity).toBeGreaterThanOrEqual(4);
     expect(scores.completeness).toBeGreaterThanOrEqual(4);
@@ -66,6 +105,7 @@ describeEval('LLM-as-judge quality evals', () => {
   }, 30_000);
 
   test('setup block scores >= 4 on actionability and clarity', async () => {
+    const t0 = Date.now();
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     const setupStart = content.indexOf('## SETUP');
     const setupEnd = content.indexOf('## IMPORTANT');
@@ -74,13 +114,23 @@ describeEval('LLM-as-judge quality evals', () => {
     const scores = await judge('setup/binary discovery instructions', section);
     console.log('Setup block scores:', JSON.stringify(scores, null, 2));
 
+    evalCollector?.addTest({
+      name: 'setup block',
+      suite: 'LLM-as-judge quality evals',
+      tier: 'llm-judge',
+      passed: scores.actionability >= 4 && scores.clarity >= 4,
+      duration_ms: Date.now() - t0,
+      cost_usd: 0.02,
+      judge_scores: { clarity: scores.clarity, completeness: scores.completeness, actionability: scores.actionability },
+      judge_reasoning: scores.reasoning,
+    });
+
     expect(scores.actionability).toBeGreaterThanOrEqual(4);
     expect(scores.clarity).toBeGreaterThanOrEqual(4);
   }, 30_000);
 
   test('regression check: compare branch vs baseline quality', async () => {
-    // This test compares the generated output against the hand-maintained
-    // baseline from main. The generated version should score equal or higher.
+    const t0 = Date.now();
     const generated = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     const genStart = generated.indexOf('## Command Reference');
     const genEnd = generated.indexOf('## Tips');
@@ -151,7 +201,17 @@ Scores are 1-5 overall quality.`,
     const result = JSON.parse(jsonMatch[0]);
     console.log('Regression comparison:', JSON.stringify(result, null, 2));
 
-    // Generated version should be at least as good as hand-maintained
+    evalCollector?.addTest({
+      name: 'regression vs baseline',
+      suite: 'LLM-as-judge quality evals',
+      tier: 'llm-judge',
+      passed: result.b_score >= result.a_score,
+      duration_ms: Date.now() - t0,
+      cost_usd: 0.02,
+      judge_scores: { a_score: result.a_score, b_score: result.b_score },
+      judge_reasoning: result.reasoning,
+    });
+
     expect(result.b_score).toBeGreaterThanOrEqual(result.a_score);
   }, 30_000);
 });
@@ -162,13 +222,11 @@ describeEval('QA skill quality evals', () => {
   const qaContent = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
 
   test('qa/SKILL.md workflow quality scores >= 4', async () => {
-    // Extract the workflow section (Phases 1-7)
+    const t0 = Date.now();
     const start = qaContent.indexOf('## Workflow');
     const end = qaContent.indexOf('## Health Score Rubric');
     const section = qaContent.slice(start, end);
 
-    // Use workflow-specific prompt (not the CLI-reference judge, since this is a
-    // workflow doc that references $B commands defined in a separate browse SKILL.md)
     const scores = await callJudge<JudgeScore>(`You are evaluating the quality of a QA testing workflow document for an AI coding agent.
 
 The agent reads this document to learn how to systematically QA test a web application. The workflow references
@@ -188,16 +246,27 @@ Here is the QA workflow to evaluate:
 ${section}`);
     console.log('QA workflow scores:', JSON.stringify(scores, null, 2));
 
+    evalCollector?.addTest({
+      name: 'qa/SKILL.md workflow',
+      suite: 'QA skill quality evals',
+      tier: 'llm-judge',
+      passed: scores.clarity >= 4 && scores.completeness >= 4 && scores.actionability >= 4,
+      duration_ms: Date.now() - t0,
+      cost_usd: 0.02,
+      judge_scores: { clarity: scores.clarity, completeness: scores.completeness, actionability: scores.actionability },
+      judge_reasoning: scores.reasoning,
+    });
+
     expect(scores.clarity).toBeGreaterThanOrEqual(4);
     expect(scores.completeness).toBeGreaterThanOrEqual(4);
     expect(scores.actionability).toBeGreaterThanOrEqual(4);
   }, 30_000);
 
   test('qa/SKILL.md health score rubric is unambiguous', async () => {
+    const t0 = Date.now();
     const start = qaContent.indexOf('## Health Score Rubric');
     const section = qaContent.slice(start);
 
-    // Use rubric-specific prompt
     const scores = await callJudge<JudgeScore>(`You are evaluating a health score rubric that an AI agent must follow to compute a numeric QA score.
 
 The agent uses this rubric after QA testing a website. It needs to:
@@ -218,11 +287,18 @@ Here is the rubric to evaluate:
 ${section}`);
     console.log('QA health rubric scores:', JSON.stringify(scores, null, 2));
 
+    evalCollector?.addTest({
+      name: 'qa/SKILL.md health rubric',
+      suite: 'QA skill quality evals',
+      tier: 'llm-judge',
+      passed: scores.clarity >= 4 && scores.completeness >= 3 && scores.actionability >= 4,
+      duration_ms: Date.now() - t0,
+      cost_usd: 0.02,
+      judge_scores: { clarity: scores.clarity, completeness: scores.completeness, actionability: scores.actionability },
+      judge_reasoning: scores.reasoning,
+    });
+
     expect(scores.clarity).toBeGreaterThanOrEqual(4);
-    // Completeness threshold is 3 — the rubric intentionally leaves some edge cases
-    // to agent judgment (e.g., partial testing, cross-category findings). The judge
-    // consistently flags these as gaps, but over-specifying would make the rubric
-    // rigid and harder to follow. Clarity + actionability >= 4 is what matters.
     expect(scores.completeness).toBeGreaterThanOrEqual(3);
     expect(scores.actionability).toBeGreaterThanOrEqual(4);
   }, 30_000);
@@ -232,12 +308,12 @@ ${section}`);
 
 describeEval('Cross-skill consistency evals', () => {
   test('greptile-history patterns are consistent across all skills', async () => {
+    const t0 = Date.now();
     const reviewContent = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
     const shipContent = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
     const triageContent = fs.readFileSync(path.join(ROOT, 'review', 'greptile-triage.md'), 'utf-8');
     const retroContent = fs.readFileSync(path.join(ROOT, 'retro', 'SKILL.md'), 'utf-8');
 
-    // Extract greptile-related lines from each file
     const extractGrepLines = (content: string, filename: string) => {
       const lines = content.split('\n')
         .filter(l => /greptile|history\.md|REMOTE_SLUG/i.test(l))
@@ -277,6 +353,17 @@ score (1-5): 5 = perfectly consistent, 1 = contradictory`);
 
     console.log('Cross-skill consistency:', JSON.stringify(result, null, 2));
 
+    evalCollector?.addTest({
+      name: 'cross-skill greptile consistency',
+      suite: 'Cross-skill consistency evals',
+      tier: 'llm-judge',
+      passed: result.consistent && result.score >= 4,
+      duration_ms: Date.now() - t0,
+      cost_usd: 0.02,
+      judge_scores: { consistency_score: result.score },
+      judge_reasoning: result.reasoning,
+    });
+
     expect(result.consistent).toBe(true);
     expect(result.score).toBeGreaterThanOrEqual(4);
   }, 30_000);
@@ -288,6 +375,7 @@ describeEval('Baseline score pinning', () => {
   const baselinesPath = path.join(ROOT, 'test', 'fixtures', 'eval-baselines.json');
 
   test('LLM eval scores do not regress below baselines', async () => {
+    const t0 = Date.now();
     if (!fs.existsSync(baselinesPath)) {
       console.log('No baseline file found — skipping pinning check');
       return;
@@ -296,7 +384,6 @@ describeEval('Baseline score pinning', () => {
     const baselines = JSON.parse(fs.readFileSync(baselinesPath, 'utf-8'));
     const regressions: string[] = [];
 
-    // Test command reference
     const skillContent = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     const cmdStart = skillContent.indexOf('## Command Reference');
     const cmdEnd = skillContent.indexOf('## Tips');
@@ -309,7 +396,6 @@ describeEval('Baseline score pinning', () => {
       }
     }
 
-    // Update baselines if requested
     if (process.env.UPDATE_BASELINES) {
       baselines.command_reference = {
         clarity: cmdScores.clarity,
@@ -320,8 +406,31 @@ describeEval('Baseline score pinning', () => {
       console.log('Updated eval baselines');
     }
 
-    if (regressions.length > 0) {
+    const passed = regressions.length === 0;
+    evalCollector?.addTest({
+      name: 'baseline score pinning',
+      suite: 'Baseline score pinning',
+      tier: 'llm-judge',
+      passed,
+      duration_ms: Date.now() - t0,
+      cost_usd: 0.02,
+      judge_scores: { clarity: cmdScores.clarity, completeness: cmdScores.completeness, actionability: cmdScores.actionability },
+      judge_reasoning: passed ? 'All scores at or above baseline' : regressions.join('; '),
+    });
+
+    if (!passed) {
       throw new Error(`Score regressions detected:\n${regressions.join('\n')}`);
     }
   }, 60_000);
+});
+
+// Module-level afterAll — finalize eval collector after all tests complete
+afterAll(async () => {
+  if (evalCollector) {
+    try {
+      await evalCollector.finalize();
+    } catch (err) {
+      console.error('Failed to save eval results:', err);
+    }
+  }
 });
