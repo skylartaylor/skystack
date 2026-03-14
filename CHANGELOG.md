@@ -22,12 +22,25 @@
 - Old META-based upgrade instructions from qa and setup-browser-cookies SKILL.md files
 - Legacy `/tmp/gstack-latest-version` cache file (cleaned up by `setup` script)
 
-## Unreleased — 2026-03-14
+## 0.3.5 — 2026-03-14
+
+### Fixed
+- **Browse binary discovery broken for agents** — replaced `find-browse` indirection with explicit `browse/dist/browse` path in SKILL.md setup blocks. Agents were guessing `bin/browse` (wrong) instead of running `find-browse` to discover `browse/dist/browse` (correct).
+- **Update check exit code 1 misleading agents** — `[ -n "$_UPD" ] && echo "$_UPD"` returned exit code 1 when no update available, causing agents to think gstack was broken. Added `|| true`.
+- **browse/SKILL.md missing setup block** — `/browse` used `$B` in every example but never defined it. Added `{{BROWSE_SETUP}}` placeholder.
 
 ### Changed
 - Enriched 14 command descriptions with specific arg formats, valid values, error behavior, and return types
 - Fixed `header` usage from `<name> <value>` to `<name>:<value>` (matching actual implementation)
 - Added `cookie` usage syntax: `cookie <name>=<value>`
+- **Template system expanded** — added `{{UPDATE_CHECK}}` and `{{BROWSE_SETUP}}` placeholders to `gen-skill-docs.ts`. Converted `qa/SKILL.md` and `setup-browser-cookies/SKILL.md` to `.tmpl` templates. All 4 browse-using skills now generate from a single source of truth.
+- Setup block now checks workspace-local path first (for development), then falls back to global `~/.claude/skills/gstack/browse/dist/browse`
+
+### Added
+- 3 new e2e test cases for SKILL.md setup flow: happy path, NEEDS_SETUP, non-git-repo
+- LLM eval for setup block clarity (actionability + clarity >= 4)
+- `no such file or directory.*browse` error pattern in session-runner
+- TODO: convert remaining 5 non-browse skills to .tmpl files
 - Enriched 4 snapshot flag descriptions with defaults, output paths, and behavior details
 - Snapshot flags section now shows long flag names (`-i / --interactive`) alongside short
 - Added ref numbering explanation and output format example to snapshot docs

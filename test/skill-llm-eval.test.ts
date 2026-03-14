@@ -115,6 +115,19 @@ describeEval('LLM-as-judge quality evals', () => {
     expect(scores.actionability).toBeGreaterThanOrEqual(4);
   }, 30_000);
 
+  test('setup block scores >= 4 on actionability and clarity', async () => {
+    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    const setupStart = content.indexOf('## SETUP');
+    const setupEnd = content.indexOf('## IMPORTANT');
+    const section = content.slice(setupStart, setupEnd);
+
+    const scores = await judge('setup/binary discovery instructions', section);
+    console.log('Setup block scores:', JSON.stringify(scores, null, 2));
+
+    expect(scores.actionability).toBeGreaterThanOrEqual(4);
+    expect(scores.clarity).toBeGreaterThanOrEqual(4);
+  }, 30_000);
+
   test('regression check: compare branch vs baseline quality', async () => {
     // This test compares the generated output against the hand-maintained
     // baseline from main. The generated version should score equal or higher.

@@ -20,7 +20,7 @@ allowed-tools:
 
 ```bash
 _UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
-[ -n "$_UPD" ] && echo "$_UPD"
+[ -n "$_UPD" ] && echo "$_UPD" || true
 ```
 
 If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/gstack/gstack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (AskUserQuestion → upgrade if yes, `touch ~/.gstack/last-update-check` if no). If `JUST_UPGRADED <from> <to>`: tell user "Running gstack v{to} (just updated!)" and continue.
@@ -33,8 +33,11 @@ Auto-shuts down after 30 min idle. State persists between calls (cookies, tabs, 
 ## SETUP (run this check BEFORE any browse command)
 
 ```bash
-B=$(browse/bin/find-browse 2>/dev/null || ~/.claude/skills/gstack/browse/bin/find-browse 2>/dev/null)
-if [ -n "$B" ]; then
+_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+B=""
+[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
+if [ -x "$B" ]; then
   echo "READY: $B"
 else
   echo "NEEDS_SETUP"
@@ -58,8 +61,6 @@ If `NEEDS_SETUP`:
 ### Test a user flow (login, signup, checkout, etc.)
 
 ```bash
-B=~/.claude/skills/gstack/browse/dist/browse
-
 # 1. Go to the page
 $B goto https://app.example.com/login
 
