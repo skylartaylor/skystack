@@ -105,8 +105,9 @@
   - [ ] CI/CD integration — `/qa` as GitHub Action step, fail PR if health score drops (P2, M)
   - [ ] Accessibility audit mode — `--a11y` flag for focused accessibility testing (P3, S)
   - [ ] Greptile training feedback loop — export suppression patterns to Greptile team for model improvement (P3, S)
-  - [ ] E2E test cost tracking — track cumulative API spend, warn if over threshold (P3, S)
+  - [x] E2E test cost tracking — track cumulative API spend, warn if over threshold (P3, S)
   - [ ] E2E model pinning — pin E2E tests to claude-sonnet-4-6 for cost efficiency, add retry:2 for flaky LLM (P2, XS)
+  - [ ] Smart default QA tier — after a few runs, check index.md for user's usual tier pick, skip the question (P2, S)
 
 ## Ideas & Notes
   - Browser is the nervous system — every skill should be able to see, interact with, and verify the web

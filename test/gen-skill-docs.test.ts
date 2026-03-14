@@ -56,9 +56,68 @@ describe('gen-skill-docs', () => {
     }
   });
 
-  test('template files exist for generated SKILL.md files', () => {
-    expect(fs.existsSync(path.join(ROOT, 'SKILL.md.tmpl'))).toBe(true);
-    expect(fs.existsSync(path.join(ROOT, 'browse', 'SKILL.md.tmpl'))).toBe(true);
+  // All skills that must have templates — single source of truth
+  const ALL_SKILLS = [
+    { dir: '.', name: 'root gstack' },
+    { dir: 'browse', name: 'browse' },
+    { dir: 'qa', name: 'qa' },
+    { dir: 'review', name: 'review' },
+    { dir: 'ship', name: 'ship' },
+    { dir: 'plan-ceo-review', name: 'plan-ceo-review' },
+    { dir: 'plan-eng-review', name: 'plan-eng-review' },
+    { dir: 'retro', name: 'retro' },
+    { dir: 'setup-browser-cookies', name: 'setup-browser-cookies' },
+    { dir: 'gstack-upgrade', name: 'gstack-upgrade' },
+  ];
+
+  test('every skill has a SKILL.md.tmpl template', () => {
+    for (const skill of ALL_SKILLS) {
+      const tmplPath = path.join(ROOT, skill.dir, 'SKILL.md.tmpl');
+      expect(fs.existsSync(tmplPath)).toBe(true);
+    }
+  });
+
+  test('every skill has a generated SKILL.md with auto-generated header', () => {
+    for (const skill of ALL_SKILLS) {
+      const mdPath = path.join(ROOT, skill.dir, 'SKILL.md');
+      expect(fs.existsSync(mdPath)).toBe(true);
+      const content = fs.readFileSync(mdPath, 'utf-8');
+      expect(content).toContain('AUTO-GENERATED from SKILL.md.tmpl');
+      expect(content).toContain('Regenerate: bun run gen:skill-docs');
+    }
+  });
+
+  test('every generated SKILL.md has valid YAML frontmatter', () => {
+    for (const skill of ALL_SKILLS) {
+      const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
+      expect(content.startsWith('---\n')).toBe(true);
+      expect(content).toContain('name:');
+      expect(content).toContain('description:');
+    }
+  });
+
+  test('generated files are fresh (match --dry-run)', () => {
+    const result = Bun.spawnSync(['bun', 'run', 'scripts/gen-skill-docs.ts', '--dry-run'], {
+      cwd: ROOT,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(result.exitCode).toBe(0);
+    const output = result.stdout.toString();
+    // Every skill should be FRESH
+    for (const skill of ALL_SKILLS) {
+      const file = skill.dir === '.' ? 'SKILL.md' : `${skill.dir}/SKILL.md`;
+      expect(output).toContain(`FRESH: ${file}`);
+    }
+    expect(output).not.toContain('STALE');
+  });
+
+  test('no generated SKILL.md contains unresolved placeholders', () => {
+    for (const skill of ALL_SKILLS) {
+      const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
+      const unresolved = content.match(/\{\{[A-Z_]+\}\}/g);
+      expect(unresolved).toBeNull();
+    }
   });
 
   test('templates contain placeholders', () => {

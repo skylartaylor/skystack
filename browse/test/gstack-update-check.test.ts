@@ -86,6 +86,19 @@ describe('gstack-update-check', () => {
     expect(stdout).toBe('');
   });
 
+  // ─── Path D1b: Fresh UP_TO_DATE cache, but local version changed ──
+  test('re-checks when UP_TO_DATE cache version does not match local', () => {
+    writeFileSync(join(gstackDir, 'VERSION'), '0.4.0\n');
+    // Cache says UP_TO_DATE for 0.3.3, but local is now 0.4.0
+    writeFileSync(join(stateDir, 'last-update-check'), 'UP_TO_DATE 0.3.3');
+    // Remote says 0.5.0 — should detect upgrade
+    writeFileSync(join(gstackDir, 'REMOTE_VERSION'), '0.5.0\n');
+
+    const { exitCode, stdout } = run();
+    expect(exitCode).toBe(0);
+    expect(stdout).toBe('UPGRADE_AVAILABLE 0.4.0 0.5.0');
+  });
+
   // ─── Path D2: Fresh cache, UPGRADE_AVAILABLE ────────────────
   test('echoes cached UPGRADE_AVAILABLE when cache is fresh', () => {
     writeFileSync(join(gstackDir, 'VERSION'), '0.3.3\n');
@@ -184,5 +197,53 @@ describe('gstack-update-check', () => {
     const { exitCode } = run({ GSTACK_STATE_DIR: newStateDir });
     expect(exitCode).toBe(0);
     expect(existsSync(join(newStateDir, 'last-update-check'))).toBe(true);
+  });
+
+  // ─── E2E regression: always exit 0 ───────────────────────────
+  // Agents call this on every skill invocation. Exit code 1 breaks
+  // the preamble and confuses the agent. This test guards against
+  // regressions like the "exits 1 when up to date" bug.
+  test('exits 0 with real project VERSION and unreachable remote', () => {
+    // Simulate agent context: real VERSION file, network unavailable
+    const projectRoot = join(import.meta.dir, '..', '..');
+    const versionFile = join(projectRoot, 'VERSION');
+    if (!existsSync(versionFile)) return; // skip if no VERSION
+    const version = readFileSync(versionFile, 'utf-8').trim();
+
+    // Copy VERSION into test dir
+    writeFileSync(join(gstackDir, 'VERSION'), version + '\n');
+
+    // Remote is unreachable (simulates offline / CI / sandboxed agent)
+    const { exitCode, stdout } = run({
+      GSTACK_REMOTE_URL: 'file:///nonexistent/path/VERSION',
+    });
+    expect(exitCode).toBe(0);
+    // Should write UP_TO_DATE cache (not crash)
+    const cache = readFileSync(join(stateDir, 'last-update-check'), 'utf-8');
+    expect(cache).toContain('UP_TO_DATE');
+  });
+
+  test('exits 0 when up to date (not exit 1)', () => {
+    // Regression test: script previously exited 1 when versions matched.
+    // This broke every skill preamble that called it without || true.
+    writeFileSync(join(gstackDir, 'VERSION'), '0.3.3\n');
+    writeFileSync(join(gstackDir, 'REMOTE_VERSION'), '0.3.3\n');
+
+    // First call: fetches remote, writes cache
+    const first = run();
+    expect(first.exitCode).toBe(0);
+    expect(first.stdout).toBe('');
+
+    // Second call: reads fresh cache
+    const second = run();
+    expect(second.exitCode).toBe(0);
+    expect(second.stdout).toBe('');
+
+    // Third call with upgrade available: still exit 0
+    writeFileSync(join(gstackDir, 'REMOTE_VERSION'), '0.4.0\n');
+    rmSync(join(stateDir, 'last-update-check')); // force re-fetch
+    const third = run();
+    expect(third.exitCode).toBe(0);
+    expect(third.stdout).toBe('UPGRADE_AVAILABLE 0.3.3 0.4.0');
   });
 });

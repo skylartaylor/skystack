@@ -619,7 +619,17 @@ Paste this into Claude Code:
 
 ## Development
 
-See [BROWSER.md](BROWSER.md) for the full development guide, architecture, and command reference.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, testing, and dev mode. See [ARCHITECTURE.md](ARCHITECTURE.md) for design decisions and system internals. See [BROWSER.md](BROWSER.md) for the browse command reference.
+
+### Testing
+
+```bash
+bun test                     # free static tests (<5s)
+EVALS=1 bun run test:evals   # full E2E + LLM evals (~$4, ~20min)
+bun run eval:watch            # live dashboard during E2E runs
+```
+
+E2E tests stream real-time progress, write machine-readable diagnostics, and persist partial results that survive kills. See CONTRIBUTING.md for the full eval infrastructure.
 
 ## License
 

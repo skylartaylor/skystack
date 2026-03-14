@@ -49,7 +49,12 @@ if [ -f "$CACHE_FILE" ]; then
     CACHED="$(cat "$CACHE_FILE" 2>/dev/null || true)"
     case "$CACHED" in
       UP_TO_DATE*)
-        exit 0
+        # Verify local version still matches cached version
+        CACHED_VER="$(echo "$CACHED" | awk '{print $2}')"
+        if [ "$CACHED_VER" = "$LOCAL" ]; then
+          exit 0
+        fi
+        # Local version changed — fall through to re-check
         ;;
       UPGRADE_AVAILABLE*)
         # Verify local version still matches cached old version

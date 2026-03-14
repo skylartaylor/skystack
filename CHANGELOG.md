@@ -1,55 +1,38 @@
 # Changelog
 
-## 0.3.4 — 2026-03-13
+## 0.3.6 — 2026-03-14
 
 ### Added
-- **Daily update check** — all 9 skills now check for new versions once per day via `bin/gstack-update-check` (pure bash, <5ms cached). Prompts user via AskUserQuestion with option to upgrade or defer 24h.
-- **`/gstack-upgrade` skill** — standalone upgrade command that detects install type (global-git, local-git, vendored), upgrades, and shows a "What's New" summary from CHANGELOG
-- **"Just upgraded" confirmation** — after upgrading, the next skill invocation shows "Running gstack v{new} (just updated!)" via `~/.gstack/just-upgraded-from` marker
-- **`AskUserQuestion` added to 5 skills** — gstack (root), browse, qa, retro, setup-browser-cookies now have AskUserQuestion in allowed-tools for upgrade prompts
-- **`Bash` added to plan-eng-review** — enables the update check preamble to run in plan review sessions
-- `browse/test/gstack-update-check.test.ts` — 10 test cases covering all script branch paths with `GSTACK_REMOTE_URL` env var for test isolation
-- `TODOS.md` for tracking deferred work
-
-### Changed
-- **Version check is now one system** — removed SHA-based `checkVersion()` from `browse/src/find-browse.ts` (~120 lines deleted) and `browse/test/find-browse.test.ts` (~100 lines deleted). Replaced by `bin/gstack-update-check` bash script using semver VERSION comparison with 24h cache.
-- Simplified `qa/SKILL.md` and `setup-browser-cookies/SKILL.md` setup blocks — removed old `BROWSE_OUTPUT`/`META` parsing, now use simple `find-browse` call
-- Updated `browse/bin/find-browse` shim comments to reflect simplified role (binary locator only)
-
-### Removed
-- `checkVersion()`, `readCache()`, `writeCache()`, `fetchRemoteSHA()`, `resolveSkillDir()`, `CacheEntry` interface from `browse/src/find-browse.ts`
-- `META:UPDATE_AVAILABLE` protocol from find-browse output
-- Old META-based upgrade instructions from qa and setup-browser-cookies SKILL.md files
-- Legacy `/tmp/gstack-latest-version` cache file (cleaned up by `setup` script)
-
-## 0.3.5 — 2026-03-14
+- **E2E observability** — heartbeat file (`~/.gstack-dev/e2e-live.json`), per-run log directory (`~/.gstack-dev/e2e-runs/{runId}/`), progress.log, per-test NDJSON transcripts, persistent failure transcripts. All I/O non-fatal.
+- **`bun run eval:watch`** — live terminal dashboard reads heartbeat + partial eval file every 1s. Shows completed tests, current test with turn/tool info, stale detection (>10min), `--tail` for progress.log.
+- **Incremental eval saves** — `savePartial()` writes `_partial-e2e.json` after each test completes. Crash-resilient: partial results survive killed runs. Never cleaned up.
+- **Machine-readable diagnostics** — `exit_reason`, `timeout_at_turn`, `last_tool_call` fields in eval JSON. Enables `jq` queries for automated fix loops.
+- **API connectivity pre-check** — E2E suite throws immediately on ConnectionRefused before burning test budget.
+- **`is_error` detection** — `claude -p` can return `subtype: "success"` with `is_error: true` on API failures. Now correctly classified as `error_api`.
+- **Stream-json NDJSON parser** — `parseNDJSON()` pure function for real-time E2E progress from `claude -p --output-format stream-json --verbose`.
+- **Eval persistence** — results saved to `~/.gstack-dev/evals/` with auto-comparison against previous run.
+- **Eval CLI tools** — `eval:list`, `eval:compare`, `eval:summary` for inspecting eval history.
+- **All 9 skills converted to `.tmpl` templates** — plan-ceo-review, plan-eng-review, retro, review, ship now use `{{UPDATE_CHECK}}` placeholder. Single source of truth for update check preamble.
+- **3-tier eval suite** — Tier 1: static validation (free), Tier 2: E2E via `claude -p` (~$3.85/run), Tier 3: LLM-as-judge (~$0.15/run). Gated by `EVALS=1`.
+- **Planted-bug outcome testing** — eval fixtures with known bugs, LLM judge scores detection.
+- 15 observability unit tests covering heartbeat schema, progress.log format, NDJSON naming, savePartial, finalize, watcher rendering, stale detection, non-fatal I/O.
+- E2E tests for plan-ceo-review, plan-eng-review, retro skills.
+- Update-check exit code regression tests.
+- `test/helpers/skill-parser.ts` — `getRemoteSlug()` for git remote detection.
 
 ### Fixed
-- **Browse binary discovery broken for agents** — replaced `find-browse` indirection with explicit `browse/dist/browse` path in SKILL.md setup blocks. Agents were guessing `bin/browse` (wrong) instead of running `find-browse` to discover `browse/dist/browse` (correct).
-- **Update check exit code 1 misleading agents** — `[ -n "$_UPD" ] && echo "$_UPD"` returned exit code 1 when no update available, causing agents to think gstack was broken. Added `|| true`.
-- **browse/SKILL.md missing setup block** — `/browse` used `$B` in every example but never defined it. Added `{{BROWSE_SETUP}}` placeholder.
+- **Browse binary discovery broken for agents** — replaced `find-browse` indirection with explicit `browse/dist/browse` path in SKILL.md setup blocks.
+- **Update check exit code 1 misleading agents** — added `|| true` to prevent non-zero exit when no update available.
+- **browse/SKILL.md missing setup block** — added `{{BROWSE_SETUP}}` placeholder.
+- **plan-ceo-review timeout** — init git repo in test dir, skip codebase exploration, bump timeout to 420s.
+- Planted-bug eval reliability — simplified prompts, lowered detection baselines, resilient to max_turns flakes.
 
 ### Changed
-- Enriched 14 command descriptions with specific arg formats, valid values, error behavior, and return types
-- Fixed `header` usage from `<name> <value>` to `<name>:<value>` (matching actual implementation)
-- Added `cookie` usage syntax: `cookie <name>=<value>`
-- **Template system expanded** — added `{{UPDATE_CHECK}}` and `{{BROWSE_SETUP}}` placeholders to `gen-skill-docs.ts`. Converted `qa/SKILL.md` and `setup-browser-cookies/SKILL.md` to `.tmpl` templates. All 4 browse-using skills now generate from a single source of truth.
-- Setup block now checks workspace-local path first (for development), then falls back to global `~/.claude/skills/gstack/browse/dist/browse`
-
-### Added
-- 3 new e2e test cases for SKILL.md setup flow: happy path, NEEDS_SETUP, non-git-repo
-- LLM eval for setup block clarity (actionability + clarity >= 4)
-- `no such file or directory.*browse` error pattern in session-runner
-- TODO: convert remaining 5 non-browse skills to .tmpl files
-- Enriched 4 snapshot flag descriptions with defaults, output paths, and behavior details
-- Snapshot flags section now shows long flag names (`-i / --interactive`) alongside short
-- Added ref numbering explanation and output format example to snapshot docs
-- Replaced hand-maintained server.ts help text with auto-generated `generateHelpText()` from COMMAND_DESCRIPTIONS
-- Upgraded LLM eval judge from Haiku to Sonnet 4.6 for more stable scoring
-
-### Added
-- Usage string consistency test: cross-checks `Usage:` patterns in implementation against COMMAND_DESCRIPTIONS
-- Pipe guard test: ensures no command description contains `|` (would break markdown tables)
+- **Template system expanded** — `{{UPDATE_CHECK}}` and `{{BROWSE_SETUP}}` placeholders in `gen-skill-docs.ts`. All browse-using skills generate from single source of truth.
+- Enriched 14 command descriptions with specific arg formats, valid values, error behavior, and return types.
+- Setup block checks workspace-local path first (for development), falls back to global install.
+- LLM eval judge upgraded from Haiku to Sonnet 4.6.
+- `generateHelpText()` auto-generated from COMMAND_DESCRIPTIONS (replaces hand-maintained help text).
 
 ## 0.3.3 — 2026-03-13
 

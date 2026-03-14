@@ -189,15 +189,15 @@ Three reasons:
 2. **CI can validate freshness.** `gen:skill-docs --dry-run` + `git diff --exit-code` catches stale docs before merge.
 3. **Git blame works.** You can see when a command was added and in which commit.
 
-### Test tiers
+### Template test tiers
 
 | Tier | What | Cost | Speed |
 |------|------|------|-------|
 | 1 — Static validation | Parse every `$B` command in SKILL.md, validate against registry | Free | <2s |
-| 2 — E2E via Agent SDK | Spawn real Claude session, run `/qa`, check for errors | ~$0.50 | ~60s |
-| 3 — LLM-as-judge | Haiku scores docs on clarity/completeness/actionability | ~$0.03 | ~10s |
+| 2 — E2E via `claude -p` | Spawn real Claude session, run each skill, check for errors | ~$3.85 | ~20min |
+| 3 — LLM-as-judge | Sonnet scores docs on clarity/completeness/actionability | ~$0.15 | ~30s |
 
-Tier 1 runs on every `bun test`. Tier 2 and 3 are gated behind env vars. The idea is: catch 95% of issues for free, use LLMs only for the judgment calls.
+Tier 1 runs on every `bun test`. Tiers 2+3 are gated behind `EVALS=1`. The idea is: catch 95% of issues for free, use LLMs only for judgment calls.
 
 ## Command dispatch
 
@@ -230,6 +230,88 @@ Playwright's native errors are rewritten through `wrapError()` to strip internal
 ### Crash recovery
 
 The server doesn't try to self-heal. If Chromium crashes (`browser.on('disconnected')`), the server exits immediately. The CLI detects the dead server on the next command and auto-restarts. This is simpler and more reliable than trying to reconnect to a half-dead browser process.
+
+## E2E test infrastructure
+
+### Session runner (`test/helpers/session-runner.ts`)
+
+E2E tests spawn `claude -p` as a completely independent subprocess — not via the Agent SDK, which can't nest inside Claude Code sessions. The runner:
+
+1. Writes the prompt to a temp file (avoids shell escaping issues)
+2. Spawns `sh -c 'cat prompt | claude -p --output-format stream-json --verbose'`
+3. Streams NDJSON from stdout for real-time progress
+4. Races against a configurable timeout
+5. Parses the full NDJSON transcript into structured results
+
+The `parseNDJSON()` function is pure — no I/O, no side effects — making it independently testable.
+
+### Observability data flow
+
+```
+  skill-e2e.test.ts
+        │
+        │ generates runId, passes testName + runId to each call
+        │
+  ┌─────┼──────────────────────────────┐
+  │     │                              │
+  │  runSkillTest()              evalCollector
+  │  (session-runner.ts)         (eval-store.ts)
+  │     │                              │
+  │  per tool call:              per addTest():
+  │  ┌──┼──────────┐              savePartial()
+  │  │  │          │                   │
+  │  ▼  ▼          ▼                   ▼
+  │ [HB] [PL]    [NJ]          _partial-e2e.json
+  │  │    │        │             (atomic overwrite)
+  │  │    │        │
+  │  ▼    ▼        ▼
+  │ e2e-  prog-  {name}
+  │ live  ress   .ndjson
+  │ .json .log
+  │
+  │  on failure:
+  │  {name}-failure.json
+  │
+  │  ALL files in ~/.gstack-dev/
+  │  Run dir: e2e-runs/{runId}/
+  │
+  │         eval-watch.ts
+  │              │
+  │        ┌─────┴─────┐
+  │     read HB     read partial
+  │        └─────┬─────┘
+  │              ▼
+  │        render dashboard
+  │        (stale >10min? warn)
+```
+
+**Split ownership:** session-runner owns the heartbeat (current test state), eval-store owns partial results (completed test state). The watcher reads both. Neither component knows about the other — they share data only through the filesystem.
+
+**Non-fatal everything:** All observability I/O is wrapped in try/catch. A write failure never causes a test to fail. The tests themselves are the source of truth; observability is best-effort.
+
+**Machine-readable diagnostics:** Each test result includes `exit_reason` (success, timeout, error_max_turns, error_api, exit_code_N), `timeout_at_turn`, and `last_tool_call`. This enables `jq` queries like:
+```bash
+jq '.tests[] | select(.exit_reason == "timeout") | .last_tool_call' ~/.gstack-dev/evals/_partial-e2e.json
+```
+
+### Eval persistence (`test/helpers/eval-store.ts`)
+
+The `EvalCollector` accumulates test results and writes them in two ways:
+
+1. **Incremental:** `savePartial()` writes `_partial-e2e.json` after each test (atomic: write `.tmp`, `fs.renameSync`). Survives kills.
+2. **Final:** `finalize()` writes a timestamped eval file (e.g. `e2e-20260314-143022.json`). The partial file is never cleaned up — it persists alongside the final file for observability.
+
+`eval:compare` diffs two eval runs. `eval:summary` aggregates stats across all runs in `~/.gstack-dev/evals/`.
+
+### Test tiers
+
+| Tier | What | Cost | Speed |
+|------|------|------|-------|
+| 1 — Static validation | Parse `$B` commands, validate against registry, observability unit tests | Free | <5s |
+| 2 — E2E via `claude -p` | Spawn real Claude session, run each skill, scan for errors | ~$3.85 | ~20min |
+| 3 — LLM-as-judge | Sonnet scores docs on clarity/completeness/actionability | ~$0.15 | ~30s |
+
+Tier 1 runs on every `bun test`. Tiers 2+3 are gated behind `EVALS=1`. The idea: catch 95% of issues for free, use LLMs only for judgment calls and integration testing.
 
 ## What's intentionally not here
 

@@ -79,15 +79,14 @@ Bun auto-loads `.env` — no extra config. Conductor workspaces inherit `.env` f
 
 | Tier | Command | Cost | What it tests |
 |------|---------|------|---------------|
-| 1 — Static | `bun test` | Free | Command validation, snapshot flags, SKILL.md correctness |
-| 2 — E2E | `bun run test:e2e` | ~$0.50 | Full skill execution via Agent SDK |
-| 3 — LLM eval | `bun run test:eval` | ~$0.03 | Doc quality scoring via LLM-as-judge |
+| 1 — Static | `bun test` | Free | Command validation, snapshot flags, SKILL.md correctness, observability unit tests |
+| 2 — E2E | `bun run test:e2e` | ~$3.85 | Full skill execution via `claude -p` subprocess |
+| 3 — LLM eval | `bun run test:evals` | ~$4 | E2E + LLM-as-judge combined |
 
 ```bash
 bun test                     # Tier 1 only (runs on every commit, <5s)
-bun run test:eval            # Tier 3: LLM-as-judge (needs ANTHROPIC_API_KEY in .env)
-bun run test:e2e             # Tier 2: E2E (needs SKILL_E2E=1, can't run inside Claude Code)
-bun run test:all             # Tier 1 + Tier 2
+bun run test:e2e             # Tier 2: E2E (needs EVALS=1, can't run inside Claude Code)
+bun run test:evals           # Tier 2 + 3 combined (~$4/run)
 ```
 
 ### Tier 1: Static validation (free)
@@ -98,23 +97,49 @@ Runs automatically with `bun test`. No API keys needed.
 - **Skill validation tests** (`test/skill-validation.test.ts`) — Validates that SKILL.md files reference only real commands and flags, and that command descriptions meet quality thresholds.
 - **Generator tests** (`test/gen-skill-docs.test.ts`) — Tests the template system: verifies placeholders resolve correctly, output includes value hints for flags (e.g. `-d <N>` not just `-d`), enriched descriptions for key commands (e.g. `is` lists valid states, `press` lists key examples).
 
-### Tier 2: E2E via Agent SDK (~$0.50/run)
+### Tier 2: E2E via `claude -p` (~$3.85/run)
 
-Spawns a real Claude Code session, invokes `/qa` or `/browse`, and scans tool results for errors. This is the closest thing to "does this skill actually work end-to-end?"
+Spawns `claude -p` as a subprocess with `--output-format stream-json --verbose`, streams NDJSON for real-time progress, and scans for browse errors. This is the closest thing to "does this skill actually work end-to-end?"
 
 ```bash
 # Must run from a plain terminal — can't nest inside Claude Code or Conductor
-SKILL_E2E=1 bun test test/skill-e2e.test.ts
+EVALS=1 bun test test/skill-e2e.test.ts
 ```
 
-- Gated by `SKILL_E2E=1` env var (prevents accidental expensive runs)
-- Auto-skips if it detects it's running inside Claude Code (Agent SDK can't nest)
-- Saves full conversation transcripts on failure for debugging
+- Gated by `EVALS=1` env var (prevents accidental expensive runs)
+- Auto-skips if running inside Claude Code (`claude -p` can't nest)
+- API connectivity pre-check — fails fast on ConnectionRefused before burning budget
+- Real-time progress to stderr: `[Ns] turn T tool #C: Name(...)`
+- Saves full NDJSON transcripts and failure JSON for debugging
 - Tests live in `test/skill-e2e.test.ts`, runner logic in `test/helpers/session-runner.ts`
 
-### Tier 3: LLM-as-judge (~$0.03/run)
+### E2E observability
 
-Uses Claude Haiku to score generated SKILL.md docs on three dimensions:
+When E2E tests run, they produce machine-readable artifacts in `~/.gstack-dev/`:
+
+| Artifact | Path | Purpose |
+|----------|------|---------|
+| Heartbeat | `e2e-live.json` | Current test status (updated per tool call) |
+| Partial results | `evals/_partial-e2e.json` | Completed tests (survives kills) |
+| Progress log | `e2e-runs/{runId}/progress.log` | Append-only text log |
+| NDJSON transcripts | `e2e-runs/{runId}/{test}.ndjson` | Raw `claude -p` output per test |
+| Failure JSON | `e2e-runs/{runId}/{test}-failure.json` | Diagnostic data on failure |
+
+**Live dashboard:** Run `bun run eval:watch` in a second terminal to see a live dashboard showing completed tests, the currently running test, and cost. Use `--tail` to also show the last 10 lines of progress.log.
+
+**Eval history tools:**
+
+```bash
+bun run eval:list            # list all eval runs
+bun run eval:compare         # compare two runs (auto-picks most recent)
+bun run eval:summary         # aggregate stats across all runs
+```
+
+Artifacts are never cleaned up — they accumulate in `~/.gstack-dev/` for post-mortem debugging and trend analysis.
+
+### Tier 3: LLM-as-judge (~$0.15/run)
+
+Uses Claude Sonnet to score generated SKILL.md docs on three dimensions:
 
 - **Clarity** — Can an AI agent understand the instructions without ambiguity?
 - **Completeness** — Are all commands, flags, and usage patterns documented?
@@ -123,13 +148,12 @@ Uses Claude Haiku to score generated SKILL.md docs on three dimensions:
 Each dimension is scored 1-5. Threshold: every dimension must score **≥ 4**. There's also a regression test that compares generated docs against the hand-maintained baseline from `origin/main` — generated must score equal or higher.
 
 ```bash
-# Needs ANTHROPIC_API_KEY in .env
-bun run test:eval
+# Needs ANTHROPIC_API_KEY in .env — included in bun run test:evals
 ```
 
-- Uses `claude-haiku-4-5` for cost efficiency
+- Uses `claude-sonnet-4-6` for scoring stability
 - Tests live in `test/skill-llm-eval.test.ts`
-- Calls the Anthropic API directly (not Agent SDK), so it works from anywhere including inside Claude Code
+- Calls the Anthropic API directly (not `claude -p`), so it works from anywhere including inside Claude Code
 
 ### CI
 

@@ -32,7 +32,13 @@ The `position != null` filter on line-level comments automatically skips outdate
 
 ## Suppressions Check
 
-Read `~/.gstack/greptile-history.md` if it exists. Each line records a previous triage outcome:
+Derive the project-specific history path:
+```bash
+REMOTE_SLUG=$(browse/bin/remote-slug 2>/dev/null || ~/.claude/skills/gstack/browse/bin/remote-slug 2>/dev/null || basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
+PROJECT_HISTORY="$HOME/.gstack/projects/$REMOTE_SLUG/greptile-history.md"
+```
+
+Read `$PROJECT_HISTORY` if it exists (per-project suppressions). Each line records a previous triage outcome:
 
 ```
 <date> | <repo> | <type:fp|fix|already-fixed> | <file-pattern> | <category>
@@ -89,12 +95,18 @@ gh api repos/$REPO/issues/$PR_NUMBER/comments \
 
 ## History File Writes
 
-Before writing, ensure the directory exists:
+Before writing, ensure both directories exist:
 ```bash
+REMOTE_SLUG=$(browse/bin/remote-slug 2>/dev/null || ~/.claude/skills/gstack/browse/bin/remote-slug 2>/dev/null || basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
+mkdir -p "$HOME/.gstack/projects/$REMOTE_SLUG"
 mkdir -p ~/.gstack
 ```
 
-Append one line per triage outcome to `~/.gstack/greptile-history.md`:
+Append one line per triage outcome to **both** files (per-project for suppressions, global for retro):
+- `~/.gstack/projects/$REMOTE_SLUG/greptile-history.md` (per-project)
+- `~/.gstack/greptile-history.md` (global aggregate)
+
+Format:
 ```
 <YYYY-MM-DD> | <owner/repo> | <type> | <file-pattern> | <category>
 ```
