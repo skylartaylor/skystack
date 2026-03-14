@@ -7,7 +7,7 @@
  * Requires: ANTHROPIC_API_KEY env var
  * Run: ANTHROPIC_API_KEY=sk-... bun test test/skill-llm-eval.test.ts
  *
- * Cost: ~$0.01-0.03 per run (haiku)
+ * Cost: ~$0.05-0.15 per run (sonnet)
  */
 
 import { describe, test, expect } from 'bun:test';
@@ -30,7 +30,7 @@ async function judge(section: string, prompt: string): Promise<JudgeScore> {
   const client = new Anthropic();
 
   const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-sonnet-4-6',
     max_tokens: 1024,
     messages: [{
       role: 'user',
@@ -158,7 +158,7 @@ describeEval('LLM-as-judge quality evals', () => {
 
     const client = new Anthropic();
     const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       messages: [{
         role: 'user',
