@@ -88,3 +88,10 @@ else
   echo "  browse: $BROWSE_BIN"
   echo "  (skipped skill symlinks — not inside .claude/skills/)"
 fi
+
+# 4. First-time welcome + legacy cleanup
+if [ ! -d "$HOME/.gstack" ]; then
+  mkdir -p "$HOME/.gstack"
+  echo "  Welcome! Run /gstack-upgrade anytime to stay current."
+fi
+rm -f /tmp/gstack-latest-version

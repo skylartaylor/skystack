@@ -132,6 +132,89 @@ Report what each command returned.`,
     expect(result.browseErrors).toHaveLength(0);
     expect(result.exitReason).toBe('success');
   }, 90_000);
+
+
+  test('agent discovers browse binary via SKILL.md setup block', async () => {
+    const skillMd = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    const setupStart = skillMd.indexOf('## SETUP');
+    const setupEnd = skillMd.indexOf('## IMPORTANT');
+    const setupBlock = skillMd.slice(setupStart, setupEnd);
+
+    // Guard: verify we extracted a valid setup block
+    expect(setupBlock).toContain('browse/dist/browse');
+
+    const result = await runSkillTest({
+      prompt: `Follow these instructions to find the browse binary and run a basic command.
+
+${setupBlock}
+
+After finding the binary, run: $B goto ${testServer.url}
+Then run: $B text
+Report whether it worked.`,
+      workingDirectory: tmpDir,
+      maxTurns: 10,
+      timeout: 60_000,
+    });
+
+    expect(result.browseErrors).toHaveLength(0);
+    expect(result.exitReason).toBe('success');
+  }, 90_000);
+
+  test('SKILL.md setup block shows NEEDS_SETUP when binary missing', async () => {
+    // Create a tmpdir with no browse binary
+    const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-empty-'));
+
+    const skillMd = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    const setupStart = skillMd.indexOf('## SETUP');
+    const setupEnd = skillMd.indexOf('## IMPORTANT');
+    const setupBlock = skillMd.slice(setupStart, setupEnd);
+
+    const result = await runSkillTest({
+      prompt: `Follow these instructions exactly. Run the bash code block below and report what it outputs.
+
+${setupBlock}
+
+Report the exact output. Do NOT try to fix or install anything — just report what you see.`,
+      workingDirectory: emptyDir,
+      maxTurns: 5,
+      timeout: 30_000,
+    });
+
+    // Agent should see NEEDS_SETUP (not crash or guess wrong paths)
+    const allText = result.output || '';
+    expect(allText).toContain('NEEDS_SETUP');
+
+    // Clean up
+    try { fs.rmSync(emptyDir, { recursive: true, force: true }); } catch {}
+  }, 60_000);
+
+  test('SKILL.md setup block works outside git repo', async () => {
+    // Create a tmpdir outside any git repo
+    const nonGitDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-nogit-'));
+
+    const skillMd = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    const setupStart = skillMd.indexOf('## SETUP');
+    const setupEnd = skillMd.indexOf('## IMPORTANT');
+    const setupBlock = skillMd.slice(setupStart, setupEnd);
+
+    const result = await runSkillTest({
+      prompt: `Follow these instructions exactly. Run the bash code block below and report what it outputs.
+
+${setupBlock}
+
+Report the exact output — either "READY: <path>" or "NEEDS_SETUP".`,
+      workingDirectory: nonGitDir,
+      maxTurns: 5,
+      timeout: 30_000,
+    });
+
+    // Should either find global binary (READY) or show NEEDS_SETUP — not crash
+    const allText = result.output || '';
+    expect(allText).toMatch(/READY|NEEDS_SETUP/);
+
+    // Clean up
+    try { fs.rmSync(nonGitDir, { recursive: true, force: true }); } catch {}
+  }, 60_000);
 });
 
 // --- B4: QA skill E2E ---
@@ -264,7 +347,7 @@ describeOutcome('Planted-bug outcome evals', () => {
     fs.mkdirSync(path.join(reportDir, 'screenshots'), { recursive: true });
     const reportPath = path.join(reportDir, 'qa-report.md');
 
-    // Phase 1: Agent SDK runs /qa Standard
+    // Phase 1: runs /qa Standard
     const result = await runSkillTest({
       prompt: `You have a browse binary at ${browseBin}. Assign it to B variable like: B="${browseBin}"
 

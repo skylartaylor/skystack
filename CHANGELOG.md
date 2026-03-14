@@ -1,11 +1,46 @@
 # Changelog
 
-## Unreleased — 2026-03-14
+## 0.3.4 — 2026-03-13
+
+### Added
+- **Daily update check** — all 9 skills now check for new versions once per day via `bin/gstack-update-check` (pure bash, <5ms cached). Prompts user via AskUserQuestion with option to upgrade or defer 24h.
+- **`/gstack-upgrade` skill** — standalone upgrade command that detects install type (global-git, local-git, vendored), upgrades, and shows a "What's New" summary from CHANGELOG
+- **"Just upgraded" confirmation** — after upgrading, the next skill invocation shows "Running gstack v{new} (just updated!)" via `~/.gstack/just-upgraded-from` marker
+- **`AskUserQuestion` added to 5 skills** — gstack (root), browse, qa, retro, setup-browser-cookies now have AskUserQuestion in allowed-tools for upgrade prompts
+- **`Bash` added to plan-eng-review** — enables the update check preamble to run in plan review sessions
+- `browse/test/gstack-update-check.test.ts` — 10 test cases covering all script branch paths with `GSTACK_REMOTE_URL` env var for test isolation
+- `TODOS.md` for tracking deferred work
+
+### Changed
+- **Version check is now one system** — removed SHA-based `checkVersion()` from `browse/src/find-browse.ts` (~120 lines deleted) and `browse/test/find-browse.test.ts` (~100 lines deleted). Replaced by `bin/gstack-update-check` bash script using semver VERSION comparison with 24h cache.
+- Simplified `qa/SKILL.md` and `setup-browser-cookies/SKILL.md` setup blocks — removed old `BROWSE_OUTPUT`/`META` parsing, now use simple `find-browse` call
+- Updated `browse/bin/find-browse` shim comments to reflect simplified role (binary locator only)
+
+### Removed
+- `checkVersion()`, `readCache()`, `writeCache()`, `fetchRemoteSHA()`, `resolveSkillDir()`, `CacheEntry` interface from `browse/src/find-browse.ts`
+- `META:UPDATE_AVAILABLE` protocol from find-browse output
+- Old META-based upgrade instructions from qa and setup-browser-cookies SKILL.md files
+- Legacy `/tmp/gstack-latest-version` cache file (cleaned up by `setup` script)
+
+## 0.3.5 — 2026-03-14
+
+### Fixed
+- **Browse binary discovery broken for agents** — replaced `find-browse` indirection with explicit `browse/dist/browse` path in SKILL.md setup blocks. Agents were guessing `bin/browse` (wrong) instead of running `find-browse` to discover `browse/dist/browse` (correct).
+- **Update check exit code 1 misleading agents** — `[ -n "$_UPD" ] && echo "$_UPD"` returned exit code 1 when no update available, causing agents to think gstack was broken. Added `|| true`.
+- **browse/SKILL.md missing setup block** — `/browse` used `$B` in every example but never defined it. Added `{{BROWSE_SETUP}}` placeholder.
 
 ### Changed
 - Enriched 14 command descriptions with specific arg formats, valid values, error behavior, and return types
 - Fixed `header` usage from `<name> <value>` to `<name>:<value>` (matching actual implementation)
 - Added `cookie` usage syntax: `cookie <name>=<value>`
+- **Template system expanded** — added `{{UPDATE_CHECK}}` and `{{BROWSE_SETUP}}` placeholders to `gen-skill-docs.ts`. Converted `qa/SKILL.md` and `setup-browser-cookies/SKILL.md` to `.tmpl` templates. All 4 browse-using skills now generate from a single source of truth.
+- Setup block now checks workspace-local path first (for development), then falls back to global `~/.claude/skills/gstack/browse/dist/browse`
+
+### Added
+- 3 new e2e test cases for SKILL.md setup flow: happy path, NEEDS_SETUP, non-git-repo
+- LLM eval for setup block clarity (actionability + clarity >= 4)
+- `no such file or directory.*browse` error pattern in session-runner
+- TODO: convert remaining 5 non-browse skills to .tmpl files
 - Enriched 4 snapshot flag descriptions with defaults, output paths, and behavior details
 - Snapshot flags section now shows long flag names (`-i / --interactive`) alongside short
 - Added ref numbering explanation and output format example to snapshot docs
