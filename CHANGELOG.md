@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.4 — 2026-03-13
+
+### Added
+- **Daily update check** — all 9 skills now check for new versions once per day via `bin/gstack-update-check` (pure bash, <5ms cached). Prompts user via AskUserQuestion with option to upgrade or defer 24h.
+- **`/gstack-upgrade` skill** — standalone upgrade command that detects install type (global-git, local-git, vendored), upgrades, and shows a "What's New" summary from CHANGELOG
+- **"Just upgraded" confirmation** — after upgrading, the next skill invocation shows "Running gstack v{new} (just updated!)" via `~/.gstack/just-upgraded-from` marker
+- **`AskUserQuestion` added to 5 skills** — gstack (root), browse, qa, retro, setup-browser-cookies now have AskUserQuestion in allowed-tools for upgrade prompts
+- **`Bash` added to plan-eng-review** — enables the update check preamble to run in plan review sessions
+- `browse/test/gstack-update-check.test.ts` — 10 test cases covering all script branch paths with `GSTACK_REMOTE_URL` env var for test isolation
+- `TODOS.md` for tracking deferred work
+
+### Changed
+- **Version check is now one system** — removed SHA-based `checkVersion()` from `browse/src/find-browse.ts` (~120 lines deleted) and `browse/test/find-browse.test.ts` (~100 lines deleted). Replaced by `bin/gstack-update-check` bash script using semver VERSION comparison with 24h cache.
+- Simplified `qa/SKILL.md` and `setup-browser-cookies/SKILL.md` setup blocks — removed old `BROWSE_OUTPUT`/`META` parsing, now use simple `find-browse` call
+- Updated `browse/bin/find-browse` shim comments to reflect simplified role (binary locator only)
+
+### Removed
+- `checkVersion()`, `readCache()`, `writeCache()`, `fetchRemoteSHA()`, `resolveSkillDir()`, `CacheEntry` interface from `browse/src/find-browse.ts`
+- `META:UPDATE_AVAILABLE` protocol from find-browse output
+- Old META-based upgrade instructions from qa and setup-browser-cookies SKILL.md files
+- Legacy `/tmp/gstack-latest-version` cache file (cleaned up by `setup` script)
+
 ## Unreleased — 2026-03-14
 
 ### Changed

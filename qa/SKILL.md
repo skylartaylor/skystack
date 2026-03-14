@@ -11,7 +11,17 @@ allowed-tools:
   - Bash
   - Read
   - Write
+  - AskUserQuestion
 ---
+
+## Update Check (run first)
+
+```bash
+_UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD"
+```
+
+If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/gstack/gstack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (AskUserQuestion → upgrade if yes, `touch ~/.gstack/last-update-check` if no). If `JUST_UPGRADED <from> <to>`: tell user "Running gstack v{to} (just updated!)" and continue.
 
 # /qa: Systematic QA Testing
 
@@ -34,18 +44,18 @@ You are a QA engineer. Test web applications like a real user — click everythi
 **Find the browse binary:**
 
 ```bash
-BROWSE_OUTPUT=$(browse/bin/find-browse 2>/dev/null || ~/.claude/skills/gstack/browse/bin/find-browse 2>/dev/null)
-B=$(echo "$BROWSE_OUTPUT" | head -1)
-META=$(echo "$BROWSE_OUTPUT" | grep "^META:" || true)
-if [ -z "$B" ]; then
-  echo "ERROR: browse binary not found"
-  exit 1
+B=$(browse/bin/find-browse 2>/dev/null || ~/.claude/skills/gstack/browse/bin/find-browse 2>/dev/null)
+if [ -n "$B" ]; then
+  echo "READY: $B"
+else
+  echo "NEEDS_SETUP"
 fi
-echo "READY: $B"
-[ -n "$META" ] && echo "$META"
 ```
 
-If you see `META:UPDATE_AVAILABLE`: tell the user an update is available, STOP and wait for approval, then run the command from the META payload and re-run the setup check.
+If `NEEDS_SETUP`:
+1. Tell the user: "gstack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
+2. Run: `cd <SKILL_DIR> && ./setup`
+3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
 
 **Create output directories:**
 
