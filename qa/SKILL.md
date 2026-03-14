@@ -346,24 +346,34 @@ $B snapshot -i -a -o "$REPORT_DIR/screenshots/issue-002.png"
 ## Health Score Rubric
 
 Compute each category score (0-100), then take the weighted average.
+If a category was not tested (e.g., no pages had forms to test), score it 100 (no evidence of issues).
 
 ### Console (weight: 15%)
 - 0 errors → 100
 - 1-3 errors → 70
 - 4-10 errors → 40
-- 10+ errors → 10
+- 11+ errors → 10
 
 ### Links (weight: 10%)
 - 0 broken → 100
 - Each broken link → -15 (minimum 0)
 
+### Severity Classification
+- **Critical** — blocks core functionality or loses data (e.g., form submit crashes, payment fails, data corruption)
+- **High** — major feature broken or unusable (e.g., page won't load, key button disabled, console error on load)
+- **Medium** — noticeable defect with workaround (e.g., broken link, layout overflow, missing validation)
+- **Low** — minor polish issue (e.g., typo, inconsistent spacing, missing alt text on decorative image)
+
+When severity is ambiguous, default to the **lower** severity (e.g., if unsure between High and Medium, pick Medium).
+
 ### Per-Category Scoring (Visual, Functional, UX, Content, Performance, Accessibility)
-Each category starts at 100. Deduct per finding:
+Each category starts at 100. Deduct per **distinct** finding (a finding = one specific defect on one specific page):
 - Critical issue → -25
 - High issue → -15
 - Medium issue → -8
 - Low issue → -3
-Minimum 0 per category.
+Minimum 0 per category. Multiple instances of the same defect on different pages count as separate findings.
+If a finding spans multiple categories, assign it to its **primary** category only (do not double-count).
 
 ### Weights
 | Category | Weight |
