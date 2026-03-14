@@ -188,12 +188,12 @@ For each classified comment:
 - The comment (file:line or [top-level] + body summary + permalink URL)
 - Your recommended fix
 - Options: A) Fix now (recommended), B) Acknowledge and ship anyway, C) It's a false positive
-- If user chooses A: apply the fix, commit the fixed files (`git add <fixed-files> && git commit -m "fix: address Greptile review — <brief description>"`), reply to the comment (`"Fixed in <commit-sha>."`), and save to `~/.gstack/greptile-history.md` (type: fix).
-- If user chooses C: reply explaining the false positive, save to history (type: fp).
+- If user chooses A: apply the fix, commit the fixed files (`git add <fixed-files> && git commit -m "fix: address Greptile review — <brief description>"`), reply to the comment (`"Fixed in <commit-sha>."`), and save to both per-project and global greptile-history (see greptile-triage.md for write details, type: fix).
+- If user chooses C: reply explaining the false positive, save to both per-project and global greptile-history (type: fp).
 
 **VALID BUT ALREADY FIXED:** Reply acknowledging the catch — no AskUserQuestion needed:
 - Post reply: `"Good catch — already fixed in <commit-sha>."`
-- Save to `~/.gstack/greptile-history.md` (type: already-fixed)
+- Save to both per-project and global greptile-history (see greptile-triage.md for write details, type: already-fixed)
 
 **FALSE POSITIVE:** Use AskUserQuestion:
 - Show the comment and why you think it's wrong (file:line or [top-level] + body summary + permalink URL)
@@ -201,7 +201,7 @@ For each classified comment:
   - A) Reply to Greptile explaining the false positive (recommended if clearly wrong)
   - B) Fix it anyway (if trivial)
   - C) Ignore silently
-- If user chooses A: post reply using the appropriate API from the triage doc, save to history (type: fp)
+- If user chooses A: post reply using the appropriate API from the triage doc, save to both per-project and global greptile-history (type: fp)
 
 **SUPPRESSED:** Skip silently — these are known false positives from previous triage.
 
