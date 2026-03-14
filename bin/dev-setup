@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Set up gstack for local development — test skills from within this repo.
+#
+# Creates .claude/skills/gstack → (symlink to repo root) so Claude Code
+# discovers skills from your working tree. Changes take effect immediately.
+#
+# Usage: bin/dev-setup       # set up
+#        bin/dev-teardown    # clean up
+set -e
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# 1. Create .claude/skills/ inside the repo
+mkdir -p "$REPO_ROOT/.claude/skills"
+
+# 2. Symlink .claude/skills/gstack → repo root
+# This makes setup think it's inside a real .claude/skills/ directory
+GSTACK_LINK="$REPO_ROOT/.claude/skills/gstack"
+if [ -L "$GSTACK_LINK" ]; then
+  echo "Updating existing symlink..."
+  rm "$GSTACK_LINK"
+elif [ -d "$GSTACK_LINK" ]; then
+  echo "Error: .claude/skills/gstack is a real directory, not a symlink." >&2
+  echo "Remove it manually if you want to use dev mode." >&2
+  exit 1
+fi
+ln -s "$REPO_ROOT" "$GSTACK_LINK"
+
+# 3. Run setup via the symlink so it detects .claude/skills/ as its parent
+"$GSTACK_LINK/setup"
+
+echo ""
+echo "Dev mode active. Skills resolve from this working tree."
+echo "Edit any SKILL.md and test immediately — no copy/deploy needed."
+echo ""
+echo "To tear down: bin/dev-teardown"

@@ -457,14 +457,11 @@ describe('CLI lifecycle', () => {
     }));
 
     const cliPath = path.resolve(__dirname, '../src/cli.ts');
-    // Build env without CONDUCTOR_PORT/BROWSE_PORT so BROWSE_PORT_START takes effect
     const cliEnv: Record<string, string> = {};
     for (const [k, v] of Object.entries(process.env)) {
-      if (k !== 'CONDUCTOR_PORT' && k !== 'BROWSE_PORT' && v !== undefined) cliEnv[k] = v;
+      if (v !== undefined) cliEnv[k] = v;
     }
     cliEnv.BROWSE_STATE_FILE = stateFile;
-    // Use a random high port to avoid conflicts with running servers
-    cliEnv.BROWSE_PORT_START = String(9600 + Math.floor(Math.random() * 100));
     const result = await new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
       const proc = spawn('bun', ['run', cliPath, 'status'], {
         timeout: 15000,

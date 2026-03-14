@@ -21,9 +21,12 @@ Auto-shuts down after 30 min idle. State persists between calls (cookies, tabs, 
 ## SETUP (run this check BEFORE any browse command)
 
 ```bash
-B=$(browse/bin/find-browse 2>/dev/null || ~/.claude/skills/gstack/browse/bin/find-browse 2>/dev/null)
+BROWSE_OUTPUT=$(browse/bin/find-browse 2>/dev/null || ~/.claude/skills/gstack/browse/bin/find-browse 2>/dev/null)
+B=$(echo "$BROWSE_OUTPUT" | head -1)
+META=$(echo "$BROWSE_OUTPUT" | grep "^META:" || true)
 if [ -n "$B" ]; then
   echo "READY: $B"
+  [ -n "$META" ] && echo "$META"
 else
   echo "NEEDS_SETUP"
 fi
@@ -33,6 +36,13 @@ If `NEEDS_SETUP`:
 1. Tell the user: "gstack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
 2. Run: `cd <SKILL_DIR> && ./setup`
 3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
+
+If you see `META:UPDATE_AVAILABLE`:
+1. Parse the JSON payload to get `current`, `latest`, and `command`.
+2. Tell the user: "A gstack update is available (current: X, latest: Y). OK to update?"
+3. **STOP and wait for approval.**
+4. Run the command from the META payload.
+5. Re-run the setup check above to get the updated binary path.
 
 ## IMPORTANT
 

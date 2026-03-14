@@ -32,6 +32,10 @@ if [ "$NEEDS_BUILD" -eq 1 ]; then
     bun install
     bun run build
   )
+  # Safety net: write .version if build script didn't (e.g., git not available during build)
+  if [ ! -f "$GSTACK_DIR/browse/dist/.version" ]; then
+    git -C "$GSTACK_DIR" rev-parse HEAD > "$GSTACK_DIR/browse/dist/.version" 2>/dev/null || true
+  fi
 fi
 
 if [ ! -x "$BROWSE_BIN" ]; then

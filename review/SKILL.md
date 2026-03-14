@@ -36,6 +36,16 @@ Read `.claude/skills/review/checklist.md`.
 
 ---
 
+## Step 2.5: Check for Greptile review comments
+
+Read `.claude/skills/review/greptile-triage.md` and follow the fetch, filter, and classify steps.
+
+**If no PR exists, `gh` fails, API returns an error, or there are zero Greptile comments:** Skip this step silently. Greptile integration is additive — the review works without it.
+
+**If Greptile comments are found:** Store the classifications (VALID & ACTIONABLE, VALID BUT ALREADY FIXED, FALSE POSITIVE, SUPPRESSED) — you will need them in Step 5.
+
+---
+
 ## Step 3: Get the diff
 
 Fetch the latest main to avoid false positives from a stale local main:
@@ -67,6 +77,30 @@ Follow the output format specified in the checklist. Respect the suppressions �
   After all critical questions are answered, output a summary of what the user chose for each issue. If the user chose A (fix) on any issue, apply the recommended fixes. If only B/C were chosen, no action needed.
 - If only non-critical issues found: output findings. No further action needed.
 - If no issues found: output `Pre-Landing Review: No issues found.`
+
+### Greptile comment resolution
+
+After outputting your own findings, if Greptile comments were classified in Step 2.5:
+
+**Include a Greptile summary in your output header:** `+ N Greptile comments (X valid, Y fixed, Z FP)`
+
+1. **VALID & ACTIONABLE comments:** These are already included in your CRITICAL findings — they follow the same AskUserQuestion flow (A: Fix it now, B: Acknowledge, C: False positive). If the user chooses C (false positive), post a reply using the appropriate API from the triage doc and save the pattern to `~/.gstack/greptile-history.md` (type: fp).
+
+2. **FALSE POSITIVE comments:** Present each one via AskUserQuestion:
+   - Show the Greptile comment: file:line (or [top-level]) + body summary + permalink URL
+   - Explain concisely why it's a false positive
+   - Options:
+     - A) Reply to Greptile explaining why this is incorrect (recommended if clearly wrong)
+     - B) Fix it anyway (if low-effort and harmless)
+     - C) Ignore — don't reply, don't fix
+
+   If the user chooses A, post a reply using the appropriate API from the triage doc and save the pattern to `~/.gstack/greptile-history.md` (type: fp).
+
+3. **VALID BUT ALREADY FIXED comments:** Reply acknowledging the catch — no AskUserQuestion needed:
+   - Post reply: `"Good catch — already fixed in <commit-sha>."`
+   - Save to `~/.gstack/greptile-history.md` (type: already-fixed)
+
+4. **SUPPRESSED comments:** Skip silently — these are known false positives from previous triage.
 
 ---
 

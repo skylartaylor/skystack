@@ -3,9 +3,10 @@ name: qa
 version: 1.0.0
 description: |
   Systematically QA test a web application. Use when asked to "qa", "QA", "test this site",
-  "find bugs", "dogfood", or review quality. Three modes: full (systematic exploration),
-  quick (30-second smoke test), regression (compare against baseline). Produces structured
-  report with health score, screenshots, and repro steps.
+  "find bugs", "dogfood", or review quality. Four modes: diff-aware (automatic on feature
+  branches — analyzes git diff, identifies affected pages, tests them), full (systematic
+  exploration), quick (30-second smoke test), regression (compare against baseline). Produces
+  structured report with health score, screenshots, and repro steps.
 allowed-tools:
   - Bash
   - Read
@@ -22,21 +23,29 @@ You are a QA engineer. Test web applications like a real user — click everythi
 
 | Parameter | Default | Override example |
 |-----------|---------|-----------------|
-| Target URL | (required) | `https://myapp.com`, `http://localhost:3000` |
+| Target URL | (auto-detect or required) | `https://myapp.com`, `http://localhost:3000` |
 | Mode | full | `--quick`, `--regression .gstack/qa-reports/baseline.json` |
 | Output dir | `.gstack/qa-reports/` | `Output to /tmp/qa` |
-| Scope | Full app | `Focus on the billing page` |
+| Scope | Full app (or diff-scoped) | `Focus on the billing page` |
 | Auth | None | `Sign in to user@example.com`, `Import cookies from cookies.json` |
+
+**If no URL is given and you're on a feature branch:** Automatically enter **diff-aware mode** (see Modes below). This is the most common case — the user just shipped code on a branch and wants to verify it works.
 
 **Find the browse binary:**
 
 ```bash
-B=$(browse/bin/find-browse 2>/dev/null || ~/.claude/skills/gstack/browse/bin/find-browse 2>/dev/null)
+BROWSE_OUTPUT=$(browse/bin/find-browse 2>/dev/null || ~/.claude/skills/gstack/browse/bin/find-browse 2>/dev/null)
+B=$(echo "$BROWSE_OUTPUT" | head -1)
+META=$(echo "$BROWSE_OUTPUT" | grep "^META:" || true)
 if [ -z "$B" ]; then
   echo "ERROR: browse binary not found"
   exit 1
 fi
+echo "READY: $B"
+[ -n "$META" ] && echo "$META"
 ```
+
+If you see `META:UPDATE_AVAILABLE`: tell the user an update is available, STOP and wait for approval, then run the command from the META payload and re-run the setup check.
 
 **Create output directories:**
 
@@ -49,7 +58,49 @@ mkdir -p "$REPORT_DIR/screenshots"
 
 ## Modes
 
-### Full (default)
+### Diff-aware (automatic when on a feature branch with no URL)
+
+This is the **primary mode** for developers verifying their work. When the user says `/qa` without a URL and the repo is on a feature branch, automatically:
+
+1. **Analyze the branch diff** to understand what changed:
+   ```bash
+   git diff main...HEAD --name-only
+   git log main..HEAD --oneline
+   ```
+
+2. **Identify affected pages/routes** from the changed files:
+   - Controller/route files → which URL paths they serve
+   - View/template/component files → which pages render them
+   - Model/service files → which pages use those models (check controllers that reference them)
+   - CSS/style files → which pages include those stylesheets
+   - API endpoints → test them directly with `$B js "await fetch('/api/...')"`
+   - Static pages (markdown, HTML) → navigate to them directly
+
+3. **Detect the running app** — check common local dev ports:
+   ```bash
+   $B goto http://localhost:3000 2>/dev/null && echo "Found app on :3000" || \
+   $B goto http://localhost:4000 2>/dev/null && echo "Found app on :4000" || \
+   $B goto http://localhost:8080 2>/dev/null && echo "Found app on :8080"
+   ```
+   If no local app is found, check for a staging/preview URL in the PR or environment. If nothing works, ask the user for the URL.
+
+4. **Test each affected page/route:**
+   - Navigate to the page
+   - Take a screenshot
+   - Check console for errors
+   - If the change was interactive (forms, buttons, flows), test the interaction end-to-end
+   - Use `snapshot -D` before and after actions to verify the change had the expected effect
+
+5. **Cross-reference with commit messages and PR description** to understand *intent* — what should the change do? Verify it actually does that.
+
+6. **Report findings** scoped to the branch changes:
+   - "Changes tested: N pages/routes affected by this branch"
+   - For each: does it work? Screenshot evidence.
+   - Any regressions on adjacent pages?
+
+**If the user provides a URL with diff-aware mode:** Use that URL as the base but still scope testing to the changed files.
+
+### Full (default when URL is provided)
 Systematic exploration. Visit every reachable page. Document 5-10 well-evidenced issues. Produce health score. Takes 5-15 minutes depending on app size.
 
 ### Quick (`--quick`)

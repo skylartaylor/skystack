@@ -80,6 +80,9 @@ git log origin/main --since="<window>" --format="AUTHOR:%aN" --name-only
 
 # 7. Per-author commit counts (quick summary)
 git shortlog origin/main --since="<window>" -sn --no-merges
+
+# 8. Greptile triage history (if available)
+cat ~/.gstack/greptile-history.md 2>/dev/null || true
 ```
 
 ### Step 2: Compute Metrics
@@ -100,6 +103,7 @@ Calculate and present these metrics in a summary table:
 | Active days | N |
 | Detected sessions | N |
 | Avg LOC/session-hour | N |
+| Greptile signal | N% (Y catches, Z FPs) |
 
 Then show a **per-author leaderboard** immediately below:
 
@@ -111,6 +115,8 @@ bob                       3   +120/-40     tests/
 ```
 
 Sort by commits descending. The current user (from `git config user.name`) always appears first, labeled "You (name)".
+
+**Greptile signal (if history exists):** Read `~/.gstack/greptile-history.md` (fetched in Step 1, command 8). Filter entries within the retro time window by date. Count entries by type: `fix`, `fp`, `already-fixed`. Compute signal ratio: `(fix + already-fixed) / (fix + already-fixed + fp)`. If no entries exist in the window or the file doesn't exist, skip the Greptile metric row. Skip unparseable lines silently.
 
 ### Step 3: Commit Time Distribution
 
@@ -297,9 +303,17 @@ Use the Write tool to save the JSON file with this schema:
   },
   "version_range": ["1.16.0.0", "1.16.1.0"],
   "streak_days": 47,
-  "tweetable": "Week of Mar 1: 47 commits (3 contributors), 3.2k LOC, 38% tests, 12 PRs, peak: 10pm"
+  "tweetable": "Week of Mar 1: 47 commits (3 contributors), 3.2k LOC, 38% tests, 12 PRs, peak: 10pm",
+  "greptile": {
+    "fixes": 3,
+    "fps": 1,
+    "already_fixed": 2,
+    "signal_pct": 83
+  }
 }
 ```
+
+**Note:** Only include the `greptile` field if `~/.gstack/greptile-history.md` exists and has entries within the time window. If no history data is available, omit the field entirely.
 
 ### Step 14: Write the Narrative
 
@@ -342,6 +356,7 @@ Narrative covering:
 - Test LOC ratio trend
 - Hotspot analysis (are the same files churning?)
 - Any XL PRs that should have been split
+- Greptile signal ratio and trend (if history exists): "Greptile: X% signal (Y valid catches, Z false positives)"
 
 ### Focus & Highlights
 (from Step 8)

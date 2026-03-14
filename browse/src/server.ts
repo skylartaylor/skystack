@@ -6,6 +6,11 @@
  *   Console/network/dialog buffers: CircularBuffer in-memory + async disk flush
  *   Chromium crash → server EXITS with clear error (CLI auto-restarts)
  *   Auto-shutdown after BROWSE_IDLE_TIMEOUT (default 30 min)
+ *
+ * State:
+ *   State file: <project-root>/.gstack/browse.json (set via BROWSE_STATE_FILE env)
+ *   Log files:  <project-root>/.gstack/browse-{console,network,dialog}.log
+ *   Port:       random 10000-60000 (or BROWSE_PORT env for debug override)
  */
 
 import { BrowserManager } from './browser-manager';
@@ -13,18 +18,18 @@ import { handleReadCommand } from './read-commands';
 import { handleWriteCommand } from './write-commands';
 import { handleMetaCommand } from './meta-commands';
 import { handleCookiePickerRoute } from './cookie-picker-routes';
+import { resolveConfig, ensureStateDir, readVersionHash } from './config';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
-// ─── Auth (inline) ─────────────────────────────────────────────
+// ─── Config ─────────────────────────────────────────────────────
+const config = resolveConfig();
+ensureStateDir(config);
+
+// ─── Auth ───────────────────────────────────────────────────────
 const AUTH_TOKEN = crypto.randomUUID();
-const PORT_OFFSET = 45600;
-const BROWSE_PORT = process.env.CONDUCTOR_PORT
-  ? parseInt(process.env.CONDUCTOR_PORT, 10) - PORT_OFFSET
-  : parseInt(process.env.BROWSE_PORT || '0', 10); // 0 = auto-scan
-const INSTANCE_SUFFIX = BROWSE_PORT ? `-${BROWSE_PORT}` : '';
-const STATE_FILE = process.env.BROWSE_STATE_FILE || `/tmp/browse-server${INSTANCE_SUFFIX}.json`;
+const BROWSE_PORT = parseInt(process.env.BROWSE_PORT || '0', 10);
 const IDLE_TIMEOUT_MS = parseInt(process.env.BROWSE_IDLE_TIMEOUT || '1800000', 10); // 30 min
 
 function validateAuth(req: Request): boolean {
@@ -36,9 +41,9 @@ function validateAuth(req: Request): boolean {
 import { consoleBuffer, networkBuffer, dialogBuffer, addConsoleEntry, addNetworkEntry, addDialogEntry, type LogEntry, type NetworkEntry, type DialogEntry } from './buffers';
 export { consoleBuffer, networkBuffer, dialogBuffer, addConsoleEntry, addNetworkEntry, addDialogEntry, type LogEntry, type NetworkEntry, type DialogEntry };
 
-const CONSOLE_LOG_PATH = `/tmp/browse-console${INSTANCE_SUFFIX}.log`;
-const NETWORK_LOG_PATH = `/tmp/browse-network${INSTANCE_SUFFIX}.log`;
-const DIALOG_LOG_PATH = `/tmp/browse-dialog${INSTANCE_SUFFIX}.log`;
+const CONSOLE_LOG_PATH = config.consoleLog;
+const NETWORK_LOG_PATH = config.networkLog;
+const DIALOG_LOG_PATH = config.dialogLog;
 let lastConsoleFlushed = 0;
 let lastNetworkFlushed = 0;
 let lastDialogFlushed = 0;
@@ -132,22 +137,25 @@ export const META_COMMANDS = new Set([
 const browserManager = new BrowserManager();
 let isShuttingDown = false;
 
-// Find port: deterministic from CONDUCTOR_PORT, or scan range
+// Find port: explicit BROWSE_PORT, or random in 10000-60000
 async function findPort(): Promise<number> {
-  // Deterministic port from CONDUCTOR_PORT (e.g., 55040 - 45600 = 9440)
+  // Explicit port override (for debugging)
   if (BROWSE_PORT) {
     try {
       const testServer = Bun.serve({ port: BROWSE_PORT, fetch: () => new Response('ok') });
       testServer.stop();
       return BROWSE_PORT;
     } catch {
-      throw new Error(`[browse] Port ${BROWSE_PORT} (from CONDUCTOR_PORT ${process.env.CONDUCTOR_PORT}) is in use`);
+      throw new Error(`[browse] Port ${BROWSE_PORT} (from BROWSE_PORT env) is in use`);
     }
   }
 
-  // Fallback: scan range
-  const start = parseInt(process.env.BROWSE_PORT_START || '9400', 10);
-  for (let port = start; port < start + 10; port++) {
+  // Random port with retry
+  const MIN_PORT = 10000;
+  const MAX_PORT = 60000;
+  const MAX_RETRIES = 5;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const port = MIN_PORT + Math.floor(Math.random() * (MAX_PORT - MIN_PORT));
     try {
       const testServer = Bun.serve({ port, fetch: () => new Response('ok') });
       testServer.stop();
@@ -156,7 +164,7 @@ async function findPort(): Promise<number> {
       continue;
     }
   }
-  throw new Error(`[browse] No available port in range ${start}-${start + 9}`);
+  throw new Error(`[browse] No available port after ${MAX_RETRIES} attempts in range ${MIN_PORT}-${MAX_PORT}`);
 }
 
 /**
@@ -201,6 +209,34 @@ async function handleCommand(body: any): Promise<Response> {
       result = await handleWriteCommand(command, args, browserManager);
     } else if (META_COMMANDS.has(command)) {
       result = await handleMetaCommand(command, args, browserManager, shutdown);
+    } else if (command === 'help') {
+      const helpText = [
+        'gstack browse — headless browser for AI agents',
+        '',
+        'Commands:',
+        '  Navigation:    goto <url>, back, forward, reload',
+        '  Interaction:   click <sel>, fill <sel> <text>, select <sel> <val>, hover, type, press, scroll, wait',
+        '  Read:          text [sel], html [sel], links, forms, accessibility, cookies, storage, console, network, perf',
+        '  Evaluate:      js <expr>, eval <expr>, css <sel> <prop>, attrs <sel>, is <sel> <state>',
+        '  Snapshot:      snapshot [-i] [-c] [-d N] [-s sel] [-D] [-a] [-o path] [-C]',
+        '  Screenshot:    screenshot [path], pdf [path], responsive <widths>',
+        '  Tabs:          tabs, tab <id>, newtab [url], closetab [id]',
+        '  State:         cookie <set|get|clear>, cookie-import <json>, cookie-import-browser [browser]',
+        '  Headers:       header <set|clear> [name] [value], useragent [string]',
+        '  Upload:        upload <sel> <file1> [file2...]',
+        '  Dialogs:       dialog, dialog-accept [text], dialog-dismiss',
+        '  Meta:          status, stop, restart, diff, chain, help',
+        '',
+        'Snapshot flags:',
+        '  -i  interactive only    -c  compact (remove empty nodes)',
+        '  -d N  limit depth       -s sel  scope to CSS selector',
+        '  -D  diff vs previous    -a  annotated screenshot with ref labels',
+        '  -o path  output file    -C  cursor-interactive elements',
+      ].join('\n');
+      return new Response(helpText, {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain' },
+      });
     } else {
       return new Response(JSON.stringify({
         error: `Unknown command: ${command}`,
@@ -235,7 +271,7 @@ async function shutdown() {
   await browserManager.close();
 
   // Clean up state file
-  try { fs.unlinkSync(STATE_FILE); } catch {}
+  try { fs.unlinkSync(config.stateFile); } catch {}
 
   process.exit(0);
 }
@@ -301,19 +337,22 @@ async function start() {
     },
   });
 
-  // Write state file
+  // Write state file (atomic: write .tmp then rename)
   const state = {
     pid: process.pid,
     port,
     token: AUTH_TOKEN,
     startedAt: new Date().toISOString(),
     serverPath: path.resolve(import.meta.dir, 'server.ts'),
+    binaryVersion: readVersionHash() || undefined,
   };
-  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), { mode: 0o600 });
+  const tmpFile = config.stateFile + '.tmp';
+  fs.writeFileSync(tmpFile, JSON.stringify(state, null, 2), { mode: 0o600 });
+  fs.renameSync(tmpFile, config.stateFile);
 
   browserManager.serverPort = port;
   console.log(`[browse] Server running on http://127.0.0.1:${port} (PID: ${process.pid})`);
-  console.log(`[browse] State file: ${STATE_FILE}`);
+  console.log(`[browse] State file: ${config.stateFile}`);
   console.log(`[browse] Idle timeout: ${IDLE_TIMEOUT_MS / 1000}s`);
 }
 
