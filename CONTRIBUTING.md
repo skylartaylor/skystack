@@ -79,13 +79,14 @@ Bun auto-loads `.env` — no extra config. Conductor workspaces inherit `.env` f
 
 | Tier | Command | Cost | What it tests |
 |------|---------|------|---------------|
-| 1 — Static | `bun test` | Free | Command validation, snapshot flags, SKILL.md correctness, observability unit tests |
+| 1 — Static | `bun test` | Free | Command validation, snapshot flags, SKILL.md correctness, TODOS-format.md refs, observability unit tests |
 | 2 — E2E | `bun run test:e2e` | ~$3.85 | Full skill execution via `claude -p` subprocess |
-| 3 — LLM eval | `bun run test:evals` | ~$4 | E2E + LLM-as-judge combined |
+| 3 — LLM eval | `bun run test:evals` | ~$0.15 standalone | LLM-as-judge scoring of generated SKILL.md docs |
+| 2+3 | `bun run test:evals` | ~$4 combined | E2E + LLM-as-judge (runs both) |
 
 ```bash
 bun test                     # Tier 1 only (runs on every commit, <5s)
-bun run test:e2e             # Tier 2: E2E (needs EVALS=1, can't run inside Claude Code)
+bun run test:e2e             # Tier 2: E2E only (needs EVALS=1, can't run inside Claude Code)
 bun run test:evals           # Tier 2 + 3 combined (~$4/run)
 ```
 
@@ -197,6 +198,7 @@ When Conductor creates a new workspace, `bin/dev-setup` runs automatically. It d
 ## Things to know
 
 - **SKILL.md files are generated.** Edit the `.tmpl` template, not the `.md`. Run `bun run gen:skill-docs` to regenerate.
+- **TODOS.md is the unified backlog.** Organized by skill/component with P0-P4 priorities. `/ship` auto-detects completed items. All planning/review/retro skills read it for context.
 - **Browse source changes need a rebuild.** If you touch `browse/src/*.ts`, run `bun run build`.
 - **Dev mode shadows your global install.** Project-local skills take priority over `~/.claude/skills/gstack`. `bin/dev-teardown` restores the global one.
 - **Conductor workspaces are independent.** Each workspace is its own git worktree. `bin/dev-setup` runs automatically via `conductor.json`.
@@ -275,4 +277,4 @@ When you're happy with your skill edits:
 /ship
 ```
 
-This runs tests, reviews the diff, bumps the version, and opens a PR. See `ship/SKILL.md` for the full workflow.
+This runs tests, reviews the diff, triages Greptile comments (with 2-tier escalation), manages TODOS.md, bumps the version, and opens a PR. See `ship/SKILL.md` for the full workflow.

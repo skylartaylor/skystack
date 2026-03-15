@@ -86,6 +86,9 @@ git shortlog origin/main --since="<window>" -sn --no-merges
 
 # 8. Greptile triage history (if available)
 cat ~/.gstack/greptile-history.md 2>/dev/null || true
+
+# 9. TODOS.md backlog (if available)
+cat TODOS.md 2>/dev/null || true
 ```
 
 ### Step 2: Compute Metrics
@@ -120,6 +123,20 @@ bob                       3   +120/-40     tests/
 Sort by commits descending. The current user (from `git config user.name`) always appears first, labeled "You (name)".
 
 **Greptile signal (if history exists):** Read `~/.gstack/greptile-history.md` (fetched in Step 1, command 8). Filter entries within the retro time window by date. Count entries by type: `fix`, `fp`, `already-fixed`. Compute signal ratio: `(fix + already-fixed) / (fix + already-fixed + fp)`. If no entries exist in the window or the file doesn't exist, skip the Greptile metric row. Skip unparseable lines silently.
+
+**Backlog Health (if TODOS.md exists):** Read `TODOS.md` (fetched in Step 1, command 9). Compute:
+- Total open TODOs (exclude items in `## Completed` section)
+- P0/P1 count (critical/urgent items)
+- P2 count (important items)
+- Items completed this period (items in Completed section with dates within the retro window)
+- Items added this period (cross-reference git log for commits that modified TODOS.md within the window)
+
+Include in the metrics table:
+```
+| Backlog Health | N open (X P0/P1, Y P2) · Z completed this period |
+```
+
+If TODOS.md doesn't exist, skip the Backlog Health row.
 
 ### Step 3: Commit Time Distribution
 
@@ -316,7 +333,18 @@ Use the Write tool to save the JSON file with this schema:
 }
 ```
 
-**Note:** Only include the `greptile` field if `~/.gstack/greptile-history.md` exists and has entries within the time window. If no history data is available, omit the field entirely.
+**Note:** Only include the `greptile` field if `~/.gstack/greptile-history.md` exists and has entries within the time window. Only include the `backlog` field if `TODOS.md` exists. If either has no data, omit the field entirely.
+
+Include backlog data in the JSON when TODOS.md exists:
+```json
+  "backlog": {
+    "total_open": 28,
+    "p0_p1": 2,
+    "p2": 8,
+    "completed_this_period": 3,
+    "added_this_period": 1
+  }
+```
 
 ### Step 14: Write the Narrative
 

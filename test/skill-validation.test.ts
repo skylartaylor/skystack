@@ -361,6 +361,29 @@ describe('Greptile history format consistency', () => {
   });
 });
 
+// --- Part 7b: TODOS-format.md reference consistency ---
+
+describe('TODOS-format.md reference consistency', () => {
+  test('review/TODOS-format.md exists and defines canonical format', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'review', 'TODOS-format.md'), 'utf-8');
+    expect(content).toContain('**What:**');
+    expect(content).toContain('**Why:**');
+    expect(content).toContain('**Priority:**');
+    expect(content).toContain('**Effort:**');
+    expect(content).toContain('## Completed');
+  });
+
+  test('skills that write TODOs reference TODOS-format.md', () => {
+    const shipContent = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    const ceoPlanContent = fs.readFileSync(path.join(ROOT, 'plan-ceo-review', 'SKILL.md'), 'utf-8');
+    const engPlanContent = fs.readFileSync(path.join(ROOT, 'plan-eng-review', 'SKILL.md'), 'utf-8');
+
+    expect(shipContent).toContain('TODOS-format.md');
+    expect(ceoPlanContent).toContain('TODOS-format.md');
+    expect(engPlanContent).toContain('TODOS-format.md');
+  });
+});
+
 // --- Part 7: Planted-bug fixture validation (A4) ---
 
 describe('Planted-bug fixture validation', () => {
