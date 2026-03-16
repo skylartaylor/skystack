@@ -206,6 +206,20 @@ If TODOS.md doesn't exist, skip this step silently.
 
 ---
 
+## Step 5.6: Documentation staleness check
+
+Cross-reference the diff against documentation files. For each `.md` file in the repo root (README.md, ARCHITECTURE.md, CONTRIBUTING.md, CLAUDE.md, etc.):
+
+1. Check if code changes in the diff affect features, components, or workflows described in that doc file.
+2. If the doc file was NOT updated in this branch but the code it describes WAS changed, flag it as an INFORMATIONAL finding:
+   "Documentation may be stale: [file] describes [feature/component] but code changed in this branch. Consider running `/document-release`."
+
+This is informational only — never critical. The fix action is `/document-release`.
+
+If no documentation files exist, skip this step silently.
+
+---
+
 ## Important Rules
 
 - **Read the FULL diff before commenting.** Do not flag issues already addressed in the diff.

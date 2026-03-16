@@ -374,6 +374,32 @@
 **Priority:** P3
 **Depends on:** Ref staleness Parts 1+2 (shipped)
 
+## Document-Release
+
+### Auto-invoke /document-release from /ship
+
+**What:** Add Step 8.5 to /ship that reads document-release/SKILL.md and executes the doc update workflow after creating the PR.
+
+**Why:** Zero-friction doc updates — user runs /ship and docs are automatically current. No extra command to remember.
+
+**Context:** /ship currently ends at Step 8 (PR URL output). Step 8.5 would continue into the document-release workflow. Same pattern as /ship calling /review's checklist in Step 3.5.
+
+**Effort:** S
+**Priority:** P1
+**Depends on:** /document-release shipped
+
+### `{{DOC_VOICE}}` shared resolver
+
+**What:** Create a placeholder resolver in gen-skill-docs.ts encoding the gstack voice guide (friendly, user-forward, lead with benefits). Inject into /ship Step 5, /document-release Step 5, and reference from CLAUDE.md.
+
+**Why:** DRY — voice rules currently live inline in 3 places (CLAUDE.md CHANGELOG style section, /ship Step 5, /document-release Step 5). When the voice evolves, all three drift.
+
+**Context:** Same pattern as `{{QA_METHODOLOGY}}` — shared block injected into multiple templates to prevent drift. ~20 lines in gen-skill-docs.ts.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** None
+
 ## Completed
 
 ### Phase 1: Foundations (v0.2.0)

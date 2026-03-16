@@ -1546,6 +1546,110 @@ Write your retrospective to ${dir}/retro-output.md`,
   }, 300_000);
 });
 
+// --- Document-Release skill E2E ---
+
+describeE2E('Document-Release skill E2E', () => {
+  let docReleaseDir: string;
+
+  beforeAll(() => {
+    docReleaseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-doc-release-'));
+
+    // Copy document-release skill files
+    copyDirSync(path.join(ROOT, 'document-release'), path.join(docReleaseDir, 'document-release'));
+
+    // Init git repo with initial docs
+    const run = (cmd: string, args: string[]) =>
+      spawnSync(cmd, args, { cwd: docReleaseDir, stdio: 'pipe', timeout: 5000 });
+
+    run('git', ['init']);
+    run('git', ['config', 'user.email', 'test@test.com']);
+    run('git', ['config', 'user.name', 'Test']);
+
+    // Create initial README with a features list
+    fs.writeFileSync(path.join(docReleaseDir, 'README.md'),
+      '# Test Project\n\n## Features\n\n- Feature A\n- Feature B\n\n## Install\n\n```bash\nnpm install\n```\n');
+
+    // Create initial CHANGELOG that must NOT be clobbered
+    fs.writeFileSync(path.join(docReleaseDir, 'CHANGELOG.md'),
+      '# Changelog\n\n## 1.0.0 — 2026-03-01\n\n- Initial release with Feature A and Feature B\n- Setup CI pipeline\n');
+
+    // Create VERSION file (already bumped)
+    fs.writeFileSync(path.join(docReleaseDir, 'VERSION'), '1.1.0\n');
+
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'initial']);
+
+    // Create feature branch with a code change
+    run('git', ['checkout', '-b', 'feat/add-feature-c']);
+    fs.writeFileSync(path.join(docReleaseDir, 'feature-c.ts'), 'export function featureC() { return "C"; }\n');
+    fs.writeFileSync(path.join(docReleaseDir, 'VERSION'), '1.1.1\n');
+    fs.writeFileSync(path.join(docReleaseDir, 'CHANGELOG.md'),
+      '# Changelog\n\n## 1.1.1 — 2026-03-16\n\n- Added Feature C\n\n## 1.0.0 — 2026-03-01\n\n- Initial release with Feature A and Feature B\n- Setup CI pipeline\n');
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'feat: add feature C']);
+  });
+
+  afterAll(() => {
+    try { fs.rmSync(docReleaseDir, { recursive: true, force: true }); } catch {}
+  });
+
+  test('/document-release updates docs without clobbering CHANGELOG', async () => {
+    const result = await runSkillTest({
+      prompt: `Read the file document-release/SKILL.md for the document-release workflow instructions.
+
+Run the /document-release workflow on this repo. The base branch is "main".
+
+IMPORTANT:
+- Do NOT use AskUserQuestion — auto-approve everything or skip if unsure.
+- Do NOT push or create PRs (there is no remote).
+- Do NOT run gh commands (no remote).
+- Focus on updating README.md to reflect the new Feature C.
+- Do NOT overwrite or regenerate CHANGELOG entries.
+- Skip VERSION bump (it's already bumped).
+- After editing, just commit the changes locally.`,
+      workingDirectory: docReleaseDir,
+      maxTurns: 30,
+      allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Grep', 'Glob'],
+      timeout: 180_000,
+      testName: 'document-release',
+      runId,
+    });
+
+    logCost('/document-release', result);
+
+    // Read CHANGELOG to verify it was NOT clobbered
+    const changelog = fs.readFileSync(path.join(docReleaseDir, 'CHANGELOG.md'), 'utf-8');
+    const hasOriginalEntries = changelog.includes('Initial release with Feature A and Feature B')
+      && changelog.includes('Setup CI pipeline')
+      && changelog.includes('1.0.0');
+    if (!hasOriginalEntries) {
+      console.warn('CHANGELOG CLOBBERED — original entries missing!');
+    }
+
+    // Check if README was updated
+    const readme = fs.readFileSync(path.join(docReleaseDir, 'README.md'), 'utf-8');
+    const readmeUpdated = readme.includes('Feature C') || readme.includes('feature-c') || readme.includes('feature C');
+
+    const exitOk = ['success', 'error_max_turns'].includes(result.exitReason);
+    recordE2E('/document-release', 'Document-Release skill E2E', result, {
+      passed: exitOk && hasOriginalEntries,
+    });
+
+    // Critical guardrail: CHANGELOG must not be clobbered
+    expect(hasOriginalEntries).toBe(true);
+
+    // Accept error_max_turns — thorough doc review is not a failure
+    expect(['success', 'error_max_turns']).toContain(result.exitReason);
+
+    // Informational: did it update README?
+    if (readmeUpdated) {
+      console.log('README updated to include Feature C');
+    } else {
+      console.warn('README was NOT updated — agent may not have found the feature');
+    }
+  }, 240_000);
+});
+
 // --- Deferred skill E2E tests (destructive or require interactive UI) ---
 
 describeE2E('Deferred skill E2E', () => {

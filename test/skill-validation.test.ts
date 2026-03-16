@@ -176,6 +176,7 @@ describe('Update check preamble', () => {
     'ship/SKILL.md', 'review/SKILL.md',
     'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
     'retro/SKILL.md',
+    'document-release/SKILL.md',
   ];
 
   for (const skill of skillsWithUpdateCheck) {
@@ -397,6 +398,7 @@ describe('No hardcoded branch names in SKILL templates', () => {
     'qa/SKILL.md.tmpl',
     'plan-ceo-review/SKILL.md.tmpl',
     'retro/SKILL.md.tmpl',
+    'document-release/SKILL.md.tmpl',
   ];
 
   // Patterns that indicate hardcoded 'main' in git commands
@@ -479,6 +481,7 @@ describe('v0.4.1 preamble features', () => {
     'ship/SKILL.md', 'review/SKILL.md',
     'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
     'retro/SKILL.md',
+    'document-release/SKILL.md',
   ];
 
   for (const skill of skillsWithPreamble) {

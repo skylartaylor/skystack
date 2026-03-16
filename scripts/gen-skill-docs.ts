@@ -539,6 +539,7 @@ function findTemplates(): string[] {
     path.join(ROOT, 'plan-eng-review', 'SKILL.md.tmpl'),
     path.join(ROOT, 'retro', 'SKILL.md.tmpl'),
     path.join(ROOT, 'gstack-upgrade', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'document-release', 'SKILL.md.tmpl'),
   ];
   for (const p of candidates) {
     if (fs.existsSync(p)) templates.push(p);
