@@ -189,4 +189,13 @@ After showing What's New, continue with whatever skill the user originally invok
 
 ## Standalone usage
 
-When invoked directly as `/gstack-upgrade` (not from a preamble), follow Steps 2-6 above. If already on the latest version, tell the user: "You're already on the latest version (v{version})."
+When invoked directly as `/gstack-upgrade` (not from a preamble):
+
+1. Force a fresh update check (bypass cache):
+```bash
+~/.claude/skills/gstack/bin/gstack-update-check --force
+```
+Use the output to determine if an upgrade is available.
+
+2. If `UPGRADE_AVAILABLE <old> <new>`: follow Steps 2-6 above.
+3. If no output (up to date): tell the user "You're already on the latest version (v{version})."
