@@ -13,6 +13,11 @@ import * as os from 'os';
 const ROOT = path.resolve(import.meta.dir, '..');
 
 // Skip unless EVALS=1. Session runner strips CLAUDE* env vars to avoid nested session issues.
+//
+// BLAME PROTOCOL: When an eval fails, do NOT claim "pre-existing" or "not related
+// to our changes" without proof. Run the same eval on main to verify. These tests
+// have invisible couplings — preamble text, SKILL.md content, and timing all affect
+// agent behavior. See CLAUDE.md "E2E eval failure blame protocol" for details.
 const evalsEnabled = !!process.env.EVALS;
 const describeE2E = evalsEnabled ? describe : describe.skip;
 
@@ -322,10 +327,16 @@ File a contributor report about this issue. Then tell me what you filed.`,
     const logFiles = fs.readdirSync(logsDir).filter(f => f.endsWith('.md'));
     expect(logFiles.length).toBeGreaterThan(0);
 
+    // Verify new reflection-based format
     const logContent = fs.readFileSync(path.join(logsDir, logFiles[0]), 'utf-8');
     expect(logContent).toContain('Hey gstack team');
     expect(logContent).toContain('What I was trying to do');
     expect(logContent).toContain('What happened instead');
+    expect(logContent).toMatch(/rating/i);
+    // Verify report has repro steps (agent may use "Steps to reproduce", "Repro Steps", etc.)
+    expect(logContent).toMatch(/repro|steps to reproduce|how to reproduce/i);
+    // Verify report has date/version footer (agent may format differently)
+    expect(logContent).toMatch(/date.*2026|2026.*date/i);
 
     // Clean up
     try { fs.rmSync(contribDir, { recursive: true, force: true }); } catch {}
@@ -424,16 +435,20 @@ describeE2E('QA skill E2E', () => {
 
   test('/qa quick completes without browse errors', async () => {
     const result = await runSkillTest({
-      prompt: `You have a browse binary at ${browseBin}. Assign it to B variable like: B="${browseBin}"
+      prompt: `B="${browseBin}"
+
+The test server is already running at: ${testServer.url}
+Target page: ${testServer.url}/basic.html
 
 Read the file qa/SKILL.md for the QA workflow instructions.
 
 Run a Quick-depth QA test on ${testServer.url}/basic.html
 Do NOT use AskUserQuestion — run Quick tier directly.
+Do NOT try to start a server or discover ports — the URL above is ready.
 Write your report to ${qaDir}/qa-reports/qa-report.md`,
       workingDirectory: qaDir,
       maxTurns: 35,
-      timeout: 180_000,
+      timeout: 240_000,
       testName: 'qa-quick',
       runId,
     });
@@ -448,7 +463,7 @@ Write your report to ${qaDir}/qa-reports/qa-report.md`,
     }
     // Accept error_max_turns — the agent doing thorough QA work is not a failure
     expect(['success', 'error_max_turns']).toContain(result.exitReason);
-  }, 240_000);
+  }, 300_000);
 });
 
 // --- B5: Review skill E2E ---

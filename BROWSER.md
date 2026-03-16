@@ -127,6 +127,18 @@ The `console`, `network`, and `dialog` commands read from the in-memory buffers,
 
 Dialogs (alert, confirm, prompt) are auto-accepted by default to prevent browser lockup. The `dialog-accept` and `dialog-dismiss` commands control this behavior. For prompts, `dialog-accept <text>` provides the response text. All dialogs are logged to the dialog buffer with type, message, and action taken.
 
+### JavaScript execution (`js` and `eval`)
+
+`js` runs a single expression, `eval` runs a JS file. Both support `await` — expressions containing `await` are automatically wrapped in an async context:
+
+```bash
+$B js "await fetch('/api/data').then(r => r.json())"  # works
+$B js "document.title"                                  # also works (no wrapping needed)
+$B eval my-script.js                                    # file with await works too
+```
+
+For `eval` files, single-line files return the expression value directly. Multi-line files need explicit `return` when using `await`. Comments containing "await" don't trigger wrapping.
+
 ### Multi-workspace support
 
 Each workspace gets its own isolated browser instance with its own Chromium process, tabs, cookies, and logs. State is stored in `.gstack/` inside the project root (detected via `git rev-parse --show-toplevel`).

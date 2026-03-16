@@ -22,9 +22,11 @@ bin/dev-teardown               # deactivate — back to your global install
 
 ## Contributor mode
 
-Contributor mode is for people who want to fix gstack when it annoys them. Enable it
-and Claude Code will automatically log issues to `~/.gstack/contributor-logs/` as you
-work — what you were doing, what went wrong, repro steps, raw output.
+Contributor mode turns gstack into a self-improving tool. Enable it and Claude Code
+will periodically reflect on its gstack experience — rating it 0-10 at the end of
+each major workflow step. When something isn't a 10, it thinks about why and files
+a report to `~/.gstack/contributor-logs/` with what happened, repro steps, and what
+would make it better.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-config set gstack_contributor true
@@ -36,7 +38,7 @@ the issue, fix it, and open a PR.
 
 ### The contributor workflow
 
-1. **Hit friction while using gstack** — contributor mode logs it automatically
+1. **Use gstack normally** — contributor mode reflects and logs issues automatically
 2. **Check your logs:** `ls ~/.gstack/contributor-logs/`
 3. **Fork and clone gstack** (if you haven't already)
 4. **Symlink your fork into the project where you hit the bug:**

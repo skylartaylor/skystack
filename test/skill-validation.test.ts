@@ -496,6 +496,44 @@ describe('v0.4.1 preamble features', () => {
   }
 });
 
+// --- Contributor mode preamble structure validation ---
+
+describe('Contributor mode preamble structure', () => {
+  const skillsWithPreamble = [
+    'SKILL.md', 'browse/SKILL.md', 'qa/SKILL.md',
+    'qa-only/SKILL.md',
+    'setup-browser-cookies/SKILL.md',
+    'ship/SKILL.md', 'review/SKILL.md',
+    'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
+    'retro/SKILL.md',
+  ];
+
+  for (const skill of skillsWithPreamble) {
+    test(`${skill} has 0-10 rating in contributor mode`, () => {
+      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
+      expect(content).toContain('0 to 10');
+      expect(content).toContain('My rating');
+    });
+
+    test(`${skill} has calibration example`, () => {
+      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
+      expect(content).toContain('Calibration');
+      expect(content).toContain('the bar');
+    });
+
+    test(`${skill} has "what would make this a 10" field`, () => {
+      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
+      expect(content).toContain('What would make this a 10');
+    });
+
+    test(`${skill} uses periodic reflection (not per-command)`, () => {
+      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
+      expect(content).toContain('workflow step');
+      expect(content).not.toContain('After you use gstack-provided CLIs');
+    });
+  }
+});
+
 describe('Enum & Value Completeness in review checklist', () => {
   const checklist = fs.readFileSync(path.join(ROOT, 'review', 'checklist.md'), 'utf-8');
 
