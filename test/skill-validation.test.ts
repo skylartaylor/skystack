@@ -411,6 +411,66 @@ describe('TODOS-format.md reference consistency', () => {
   });
 });
 
+// --- v0.4.1 feature coverage: RECOMMENDATION format, session awareness, enum completeness ---
+
+describe('v0.4.1 preamble features', () => {
+  const skillsWithPreamble = [
+    'SKILL.md', 'browse/SKILL.md', 'qa/SKILL.md',
+    'qa-only/SKILL.md',
+    'setup-browser-cookies/SKILL.md',
+    'ship/SKILL.md', 'review/SKILL.md',
+    'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
+    'retro/SKILL.md',
+  ];
+
+  for (const skill of skillsWithPreamble) {
+    test(`${skill} contains RECOMMENDATION format`, () => {
+      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
+      expect(content).toContain('RECOMMENDATION: Choose');
+      expect(content).toContain('AskUserQuestion');
+    });
+
+    test(`${skill} contains session awareness`, () => {
+      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
+      expect(content).toContain('_SESSIONS');
+      expect(content).toContain('ELI16');
+    });
+  }
+});
+
+describe('Enum & Value Completeness in review checklist', () => {
+  const checklist = fs.readFileSync(path.join(ROOT, 'review', 'checklist.md'), 'utf-8');
+
+  test('checklist has Enum & Value Completeness section', () => {
+    expect(checklist).toContain('Enum & Value Completeness');
+  });
+
+  test('Enum & Value Completeness is classified as CRITICAL', () => {
+    // It should appear under Pass 1 — CRITICAL, not Pass 2
+    const pass1Start = checklist.indexOf('### Pass 1');
+    const pass2Start = checklist.indexOf('### Pass 2');
+    const enumStart = checklist.indexOf('Enum & Value Completeness');
+    expect(enumStart).toBeGreaterThan(pass1Start);
+    expect(enumStart).toBeLessThan(pass2Start);
+  });
+
+  test('Enum & Value Completeness mentions tracing through consumers', () => {
+    expect(checklist).toContain('Trace it through every consumer');
+    expect(checklist).toContain('case');
+    expect(checklist).toContain('allowlist');
+  });
+
+  test('Enum & Value Completeness is in the gate classification as CRITICAL', () => {
+    const gateSection = checklist.slice(checklist.indexOf('## Gate Classification'));
+    // The ASCII art has CRITICAL on the left and INFORMATIONAL on the right
+    // Enum & Value Completeness should appear on a line with the CRITICAL tree (├─ or └─)
+    const enumLine = gateSection.split('\n').find(l => l.includes('Enum & Value Completeness'));
+    expect(enumLine).toBeDefined();
+    // It's on the left (CRITICAL) side — starts with ├─ or └─
+    expect(enumLine!.trimStart().startsWith('├─') || enumLine!.trimStart().startsWith('└─')).toBe(true);
+  });
+});
+
 // --- Part 7: Planted-bug fixture validation (A4) ---
 
 describe('Planted-bug fixture validation', () => {

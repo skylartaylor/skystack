@@ -280,6 +280,124 @@ Report the exact output — either "READY: <path>" or "NEEDS_SETUP".`,
     // Clean up
     try { fs.rmSync(nonGitDir, { recursive: true, force: true }); } catch {}
   }, 60_000);
+
+  test('contributor mode files a report on gstack error', async () => {
+    const contribDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-contrib-'));
+    const logsDir = path.join(contribDir, 'contributor-logs');
+    fs.mkdirSync(logsDir, { recursive: true });
+
+    // Extract contributor mode instructions from generated SKILL.md
+    const skillMd = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    const contribStart = skillMd.indexOf('## Contributor Mode');
+    const contribEnd = skillMd.indexOf('\n## ', contribStart + 1);
+    const contribBlock = skillMd.slice(contribStart, contribEnd > 0 ? contribEnd : undefined);
+
+    const result = await runSkillTest({
+      prompt: `You are in contributor mode (_CONTRIB=true).
+
+${contribBlock}
+
+OVERRIDE: Write contributor logs to ${logsDir}/ instead of ~/.gstack/contributor-logs/
+
+Now try this browse command (it will fail — there is no binary at this path):
+/nonexistent/path/browse goto https://example.com
+
+This is a gstack issue (the browse binary is missing/misconfigured).
+File a contributor report about this issue. Then tell me what you filed.`,
+      workingDirectory: contribDir,
+      maxTurns: 8,
+      timeout: 60_000,
+      testName: 'contributor-mode',
+      runId,
+    });
+
+    logCost('contributor mode', result);
+    // Override passed: this test intentionally triggers a browse error (nonexistent binary)
+    // so browseErrors will be non-empty — that's expected, not a failure
+    recordE2E('contributor mode report', 'Skill E2E tests', result, {
+      passed: result.exitReason === 'success',
+    });
+
+    // Verify a contributor log was created with expected format
+    const logFiles = fs.readdirSync(logsDir).filter(f => f.endsWith('.md'));
+    expect(logFiles.length).toBeGreaterThan(0);
+
+    const logContent = fs.readFileSync(path.join(logsDir, logFiles[0]), 'utf-8');
+    expect(logContent).toContain('Hey gstack team');
+    expect(logContent).toContain('What I was trying to do');
+    expect(logContent).toContain('What happened instead');
+
+    // Clean up
+    try { fs.rmSync(contribDir, { recursive: true, force: true }); } catch {}
+  }, 90_000);
+
+  test('session awareness adds ELI16 context when _SESSIONS >= 3', async () => {
+    const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-session-'));
+
+    // Set up a git repo so there's project/branch context to reference
+    const run = (cmd: string, args: string[]) =>
+      spawnSync(cmd, args, { cwd: sessionDir, stdio: 'pipe', timeout: 5000 });
+    run('git', ['init']);
+    run('git', ['config', 'user.email', 'test@test.com']);
+    run('git', ['config', 'user.name', 'Test']);
+    fs.writeFileSync(path.join(sessionDir, 'app.rb'), '# my app\n');
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'init']);
+    run('git', ['checkout', '-b', 'feature/add-payments']);
+    // Add a remote so the agent can derive a project name
+    run('git', ['remote', 'add', 'origin', 'https://github.com/acme/billing-app.git']);
+
+    // Extract AskUserQuestion format instructions from generated SKILL.md
+    const skillMd = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    const aqStart = skillMd.indexOf('## AskUserQuestion Format');
+    const aqEnd = skillMd.indexOf('\n## ', aqStart + 1);
+    const aqBlock = skillMd.slice(aqStart, aqEnd > 0 ? aqEnd : undefined);
+
+    const outputPath = path.join(sessionDir, 'question-output.md');
+
+    const result = await runSkillTest({
+      prompt: `You are running a gstack skill. The session preamble detected _SESSIONS=4 (the user has 4 gstack windows open).
+
+${aqBlock}
+
+You are on branch feature/add-payments in the billing-app project. You were reviewing a plan to add Stripe integration.
+
+You've hit a decision point: the plan doesn't specify whether to use Stripe Checkout (hosted) or Stripe Elements (embedded). You need to ask the user which approach to use.
+
+Since this is non-interactive, DO NOT actually call AskUserQuestion. Instead, write the EXACT text you would display to the user (the full AskUserQuestion content) to the file: ${outputPath}
+
+Remember: _SESSIONS=4, so ELI16 mode is active. The user is juggling multiple windows and may not remember what this conversation is about. Re-ground them.`,
+      workingDirectory: sessionDir,
+      maxTurns: 8,
+      timeout: 60_000,
+      testName: 'session-awareness',
+      runId,
+    });
+
+    logCost('session awareness', result);
+    recordE2E('session awareness ELI16', 'Skill E2E tests', result);
+
+    // Verify the output contains ELI16 re-grounding context
+    if (fs.existsSync(outputPath)) {
+      const output = fs.readFileSync(outputPath, 'utf-8');
+      const lower = output.toLowerCase();
+      // Must mention project name
+      expect(lower.includes('billing') || lower.includes('acme')).toBe(true);
+      // Must mention branch
+      expect(lower.includes('payment') || lower.includes('feature')).toBe(true);
+      // Must mention what we're working on
+      expect(lower.includes('stripe') || lower.includes('checkout') || lower.includes('payment')).toBe(true);
+      // Must have a RECOMMENDATION
+      expect(output).toContain('RECOMMENDATION');
+    } else {
+      // Check agent output as fallback
+      const output = result.output || '';
+      expect(output).toContain('RECOMMENDATION');
+    }
+
+    // Clean up
+    try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch {}
+  }, 90_000);
 });
 
 // --- B4: QA skill E2E ---
@@ -389,6 +507,78 @@ Write your review findings to ${reviewDir}/review-output.md`,
     logCost('/review', result);
     recordE2E('/review SQL injection', 'Review skill E2E', result);
     expect(result.exitReason).toBe('success');
+  }, 120_000);
+});
+
+// --- Review: Enum completeness E2E ---
+
+describeE2E('Review enum completeness E2E', () => {
+  let enumDir: string;
+
+  beforeAll(() => {
+    enumDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-enum-'));
+
+    const run = (cmd: string, args: string[]) =>
+      spawnSync(cmd, args, { cwd: enumDir, stdio: 'pipe', timeout: 5000 });
+
+    run('git', ['init']);
+    run('git', ['config', 'user.email', 'test@test.com']);
+    run('git', ['config', 'user.name', 'Test']);
+
+    // Commit baseline on main — order model with 4 statuses
+    const baseContent = fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'review-eval-enum.rb'), 'utf-8');
+    fs.writeFileSync(path.join(enumDir, 'order.rb'), baseContent);
+    run('git', ['add', 'order.rb']);
+    run('git', ['commit', '-m', 'initial order model']);
+
+    // Feature branch adds "returned" status but misses handlers
+    run('git', ['checkout', '-b', 'feature/add-returned-status']);
+    const diffContent = fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'review-eval-enum-diff.rb'), 'utf-8');
+    fs.writeFileSync(path.join(enumDir, 'order.rb'), diffContent);
+    run('git', ['add', 'order.rb']);
+    run('git', ['commit', '-m', 'add returned status']);
+
+    // Copy review skill files
+    fs.copyFileSync(path.join(ROOT, 'review', 'SKILL.md'), path.join(enumDir, 'review-SKILL.md'));
+    fs.copyFileSync(path.join(ROOT, 'review', 'checklist.md'), path.join(enumDir, 'review-checklist.md'));
+    fs.copyFileSync(path.join(ROOT, 'review', 'greptile-triage.md'), path.join(enumDir, 'review-greptile-triage.md'));
+  });
+
+  afterAll(() => {
+    try { fs.rmSync(enumDir, { recursive: true, force: true }); } catch {}
+  });
+
+  test('/review catches missing enum handlers for new status value', async () => {
+    const result = await runSkillTest({
+      prompt: `You are in a git repo on branch feature/add-returned-status with changes against main.
+Read review-SKILL.md for the review workflow instructions.
+Also read review-checklist.md and apply it — pay special attention to the Enum & Value Completeness section.
+Run /review on the current diff (git diff main...HEAD).
+Write your review findings to ${enumDir}/review-output.md
+
+The diff adds a new "returned" status to the Order model. Your job is to check if all consumers handle it.`,
+      workingDirectory: enumDir,
+      maxTurns: 15,
+      timeout: 90_000,
+      testName: 'review-enum-completeness',
+      runId,
+    });
+
+    logCost('/review enum', result);
+    recordE2E('/review enum completeness', 'Review enum completeness E2E', result);
+    expect(result.exitReason).toBe('success');
+
+    // Verify the review caught the missing enum handlers
+    const reviewPath = path.join(enumDir, 'review-output.md');
+    if (fs.existsSync(reviewPath)) {
+      const review = fs.readFileSync(reviewPath, 'utf-8');
+      // Should mention the missing "returned" handling in at least one of the methods
+      const mentionsReturned = review.toLowerCase().includes('returned');
+      const mentionsEnum = review.toLowerCase().includes('enum') || review.toLowerCase().includes('status');
+      const mentionsCritical = review.toLowerCase().includes('critical');
+      expect(mentionsReturned).toBe(true);
+      expect(mentionsEnum || mentionsCritical).toBe(true);
+    }
   }, 120_000);
 });
 
