@@ -374,6 +374,14 @@
 **Priority:** P3
 **Depends on:** Ref staleness Parts 1+2 (shipped)
 
+## Design Review
+
+### /design-consultation interactive skill — SHIPPED
+
+~~**What:** Interactive skill that walks user through creating a DESIGN.md from scratch.~~
+
+Shipped as `/design-consultation` on garrytan/design branch. Renamed from `/setup-design-md` to reflect the consultant approach (agent proposes a complete coherent system, user adjusts). Includes competitive research via WebSearch, combined font+color preview page, coherence validation, and LLM-judged E2E tests.
+
 ## Document-Release
 
 ### Auto-invoke /document-release from /ship

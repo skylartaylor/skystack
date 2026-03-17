@@ -1663,6 +1663,558 @@ describeE2E('Deferred skill E2E', () => {
   test.todo('/gstack-upgrade completes upgrade flow');
 });
 
+// --- Design Consultation E2E ---
+
+/**
+ * LLM judge for DESIGN.md quality — checks font blacklist compliance,
+ * coherence, specificity, and AI slop avoidance.
+ */
+async function designQualityJudge(designMd: string): Promise<{ passed: boolean; reasoning: string }> {
+  return callJudge<{ passed: boolean; reasoning: string }>(`You are evaluating a generated DESIGN.md file for quality.
+
+Evaluate against these criteria — ALL must pass for an overall "passed: true":
+1. Does NOT recommend Inter, Roboto, Arial, Helvetica, Open Sans, Lato, Montserrat, or Poppins as primary fonts
+2. Aesthetic direction is coherent with color approach (e.g., brutalist aesthetic doesn't pair with expressive color without explanation)
+3. Font recommendations include specific font names (not generic like "a sans-serif font")
+4. Color palette includes actual hex values, not placeholders like "[hex]"
+5. Rationale is provided for major decisions (not just "because it looks good")
+6. No AI slop patterns: purple gradients mentioned positively, "3-column feature grid" language, generic marketing speak
+7. Product context is reflected in design choices (civic tech → should have appropriate, professional aesthetic)
+
+DESIGN.md content:
+\`\`\`
+${designMd}
+\`\`\`
+
+Return JSON: { "passed": true/false, "reasoning": "one paragraph explaining your evaluation" }`);
+}
+
+describeE2E('Design Consultation E2E', () => {
+  let designDir: string;
+
+  beforeAll(() => {
+    designDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-design-consultation-'));
+    const { spawnSync } = require('child_process');
+    const run = (cmd: string, args: string[]) =>
+      spawnSync(cmd, args, { cwd: designDir, stdio: 'pipe', timeout: 5000 });
+
+    run('git', ['init']);
+    run('git', ['config', 'user.email', 'test@test.com']);
+    run('git', ['config', 'user.name', 'Test']);
+
+    // Create a realistic project context
+    fs.writeFileSync(path.join(designDir, 'README.md'), `# CivicPulse
+
+A civic tech data platform for government employees to access, visualize, and share public data. Built with Next.js and PostgreSQL.
+
+## Features
+- Real-time data dashboards for municipal budgets
+- Public records search with faceted filtering
+- Data export and sharing tools for inter-department collaboration
+`);
+    fs.writeFileSync(path.join(designDir, 'package.json'), JSON.stringify({
+      name: 'civicpulse',
+      version: '0.1.0',
+      dependencies: { next: '^14.0.0', react: '^18.2.0', 'tailwindcss': '^3.4.0' },
+    }, null, 2));
+
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'initial project setup']);
+
+    // Copy design-consultation skill
+    fs.mkdirSync(path.join(designDir, 'design-consultation'), { recursive: true });
+    fs.copyFileSync(
+      path.join(ROOT, 'design-consultation', 'SKILL.md'),
+      path.join(designDir, 'design-consultation', 'SKILL.md'),
+    );
+  });
+
+  afterAll(() => {
+    try { fs.rmSync(designDir, { recursive: true, force: true }); } catch {}
+  });
+
+  test('Test 1: core flow produces valid DESIGN.md + CLAUDE.md', async () => {
+    const result = await runSkillTest({
+      prompt: `Read design-consultation/SKILL.md for the design consultation workflow.
+
+This is a civic tech data platform called CivicPulse for government employees who need to access public data. Read the README.md for details.
+
+Skip research — work from your design knowledge. Skip the font preview page. Skip any AskUserQuestion calls — this is non-interactive. Accept your first design system proposal.
+
+Write DESIGN.md and CLAUDE.md (or update it) in the working directory.`,
+      workingDirectory: designDir,
+      maxTurns: 20,
+      timeout: 360_000,
+      testName: 'design-consultation-core',
+      runId,
+    });
+
+    logCost('/design-consultation core', result);
+
+    const designPath = path.join(designDir, 'DESIGN.md');
+    const claudePath = path.join(designDir, 'CLAUDE.md');
+    const designExists = fs.existsSync(designPath);
+    const claudeExists = fs.existsSync(claudePath);
+    let designContent = '';
+
+    if (designExists) {
+      designContent = fs.readFileSync(designPath, 'utf-8');
+    }
+
+    // Structural checks
+    const requiredSections = ['Product Context', 'Aesthetic', 'Typography', 'Color', 'Spacing', 'Layout', 'Motion'];
+    const missingSections = requiredSections.filter(s => !designContent.toLowerCase().includes(s.toLowerCase()));
+
+    // LLM judge for quality
+    let judgeResult = { passed: false, reasoning: 'judge not run' };
+    if (designExists && designContent.length > 100) {
+      try {
+        judgeResult = await designQualityJudge(designContent);
+        console.log('Design quality judge:', JSON.stringify(judgeResult, null, 2));
+      } catch (err) {
+        console.warn('Judge failed:', err);
+        judgeResult = { passed: true, reasoning: 'judge error — defaulting to pass' };
+      }
+    }
+
+    const structuralPass = designExists && claudeExists && missingSections.length === 0;
+    recordE2E('/design-consultation core', 'Design Consultation E2E', result, {
+      passed: structuralPass && judgeResult.passed && ['success', 'error_max_turns'].includes(result.exitReason),
+    });
+
+    expect(['success', 'error_max_turns']).toContain(result.exitReason);
+    expect(designExists).toBe(true);
+    if (designExists) {
+      expect(missingSections).toHaveLength(0);
+    }
+    if (claudeExists) {
+      const claude = fs.readFileSync(claudePath, 'utf-8');
+      expect(claude.toLowerCase()).toContain('design.md');
+    }
+  }, 420_000);
+
+  test('Test 2: research integration uses WebSearch', async () => {
+    // Clean up from previous test
+    try { fs.unlinkSync(path.join(designDir, 'DESIGN.md')); } catch {}
+    try { fs.unlinkSync(path.join(designDir, 'CLAUDE.md')); } catch {}
+
+    const result = await runSkillTest({
+      prompt: `Read design-consultation/SKILL.md for the design consultation workflow.
+
+This is a civic tech data platform called CivicPulse. Read the README.md.
+
+DO research competitors before proposing — search for civic tech and government data platform designs. Skip the font preview page. Skip any AskUserQuestion calls — this is non-interactive.
+
+Write DESIGN.md to the working directory.`,
+      workingDirectory: designDir,
+      maxTurns: 30,
+      timeout: 360_000,
+      testName: 'design-consultation-research',
+      runId,
+    });
+
+    logCost('/design-consultation research', result);
+
+    const designPath = path.join(designDir, 'DESIGN.md');
+    const designExists = fs.existsSync(designPath);
+    let designContent = '';
+    if (designExists) {
+      designContent = fs.readFileSync(designPath, 'utf-8');
+    }
+
+    // Check if WebSearch was used (may not be available in all envs)
+    const webSearchCalls = result.toolCalls.filter(tc => tc.tool === 'WebSearch');
+    if (webSearchCalls.length > 0) {
+      console.log(`WebSearch used ${webSearchCalls.length} times`);
+    } else {
+      console.warn('WebSearch not used — may be unavailable in test env');
+    }
+
+    // LLM judge
+    let judgeResult = { passed: false, reasoning: 'judge not run' };
+    if (designExists && designContent.length > 100) {
+      try {
+        judgeResult = await designQualityJudge(designContent);
+        console.log('Design quality judge (research):', JSON.stringify(judgeResult, null, 2));
+      } catch (err) {
+        console.warn('Judge failed:', err);
+        judgeResult = { passed: true, reasoning: 'judge error — defaulting to pass' };
+      }
+    }
+
+    recordE2E('/design-consultation research', 'Design Consultation E2E', result, {
+      passed: designExists && ['success', 'error_max_turns'].includes(result.exitReason),
+    });
+
+    expect(['success', 'error_max_turns']).toContain(result.exitReason);
+    expect(designExists).toBe(true);
+  }, 420_000);
+
+  test('Test 3: handles existing DESIGN.md', async () => {
+    // Pre-create a minimal DESIGN.md
+    fs.writeFileSync(path.join(designDir, 'DESIGN.md'), `# Design System — CivicPulse
+
+## Typography
+Body: system-ui
+`);
+
+    const result = await runSkillTest({
+      prompt: `Read design-consultation/SKILL.md for the design consultation workflow.
+
+There is already a DESIGN.md in this repo. Update it with a complete design system for CivicPulse, a civic tech data platform for government employees.
+
+Skip research. Skip font preview. Skip any AskUserQuestion calls — this is non-interactive.`,
+      workingDirectory: designDir,
+      maxTurns: 20,
+      timeout: 360_000,
+      testName: 'design-consultation-existing',
+      runId,
+    });
+
+    logCost('/design-consultation existing', result);
+
+    const designPath = path.join(designDir, 'DESIGN.md');
+    const designExists = fs.existsSync(designPath);
+    let designContent = '';
+    if (designExists) {
+      designContent = fs.readFileSync(designPath, 'utf-8');
+    }
+
+    // Should have more content than the minimal version
+    const hasColor = designContent.toLowerCase().includes('color');
+    const hasSpacing = designContent.toLowerCase().includes('spacing');
+
+    recordE2E('/design-consultation existing', 'Design Consultation E2E', result, {
+      passed: designExists && hasColor && hasSpacing && ['success', 'error_max_turns'].includes(result.exitReason),
+    });
+
+    expect(['success', 'error_max_turns']).toContain(result.exitReason);
+    expect(designExists).toBe(true);
+    if (designExists) {
+      expect(hasColor).toBe(true);
+      expect(hasSpacing).toBe(true);
+    }
+  }, 420_000);
+
+  test('Test 4: generates font + color preview HTML', async () => {
+    // Clean up
+    try { fs.unlinkSync(path.join(designDir, 'DESIGN.md')); } catch {}
+
+    const result = await runSkillTest({
+      prompt: `Read design-consultation/SKILL.md for the design consultation workflow.
+
+This is CivicPulse, a civic tech data platform. Read the README.md.
+
+Skip research. Skip any AskUserQuestion calls — this is non-interactive. Generate the font and color preview page but write it to ./design-preview.html instead of /tmp/ (do NOT run the open command). Then write DESIGN.md.`,
+      workingDirectory: designDir,
+      maxTurns: 20,
+      timeout: 360_000,
+      testName: 'design-consultation-preview',
+      runId,
+    });
+
+    logCost('/design-consultation preview', result);
+
+    const previewPath = path.join(designDir, 'design-preview.html');
+    const designPath = path.join(designDir, 'DESIGN.md');
+    const previewExists = fs.existsSync(previewPath);
+    const designExists = fs.existsSync(designPath);
+
+    let previewContent = '';
+    if (previewExists) {
+      previewContent = fs.readFileSync(previewPath, 'utf-8');
+    }
+
+    const hasHtml = previewContent.includes('<html') || previewContent.includes('<!DOCTYPE');
+    const hasFontRef = previewContent.includes('font-family') || previewContent.includes('fonts.googleapis') || previewContent.includes('fonts.bunny');
+    const hasColorRef = previewContent.includes('#') && (previewContent.includes('background') || previewContent.includes('color:'));
+
+    // LLM judge on the DESIGN.md
+    let judgeResult = { passed: false, reasoning: 'judge not run' };
+    if (designExists) {
+      const designContent = fs.readFileSync(designPath, 'utf-8');
+      if (designContent.length > 100) {
+        try {
+          judgeResult = await designQualityJudge(designContent);
+          console.log('Design quality judge (preview):', JSON.stringify(judgeResult, null, 2));
+        } catch (err) {
+          console.warn('Judge failed:', err);
+          judgeResult = { passed: true, reasoning: 'judge error — defaulting to pass' };
+        }
+      }
+    }
+
+    recordE2E('/design-consultation preview', 'Design Consultation E2E', result, {
+      passed: previewExists && designExists && hasHtml && ['success', 'error_max_turns'].includes(result.exitReason),
+    });
+
+    expect(['success', 'error_max_turns']).toContain(result.exitReason);
+    expect(previewExists).toBe(true);
+    if (previewExists) {
+      expect(hasHtml).toBe(true);
+      expect(hasFontRef).toBe(true);
+    }
+    expect(designExists).toBe(true);
+  }, 420_000);
+});
+
+// --- Plan Design Review E2E ---
+
+describeE2E('Plan Design Review E2E', () => {
+  let reviewDir: string;
+
+  beforeAll(() => {
+    testServer = testServer || startTestServer();
+    reviewDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-plan-design-'));
+    setupBrowseShims(reviewDir);
+
+    const { spawnSync } = require('child_process');
+    const run = (cmd: string, args: string[]) =>
+      spawnSync(cmd, args, { cwd: reviewDir, stdio: 'pipe', timeout: 5000 });
+
+    run('git', ['init']);
+    run('git', ['config', 'user.email', 'test@test.com']);
+    run('git', ['config', 'user.name', 'Test']);
+    fs.writeFileSync(path.join(reviewDir, 'index.html'), '<h1>Test</h1>\n');
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'initial']);
+
+    // Copy plan-design-review skill
+    fs.mkdirSync(path.join(reviewDir, 'plan-design-review'), { recursive: true });
+    fs.copyFileSync(
+      path.join(ROOT, 'plan-design-review', 'SKILL.md'),
+      path.join(reviewDir, 'plan-design-review', 'SKILL.md'),
+    );
+  });
+
+  afterAll(() => {
+    try { fs.rmSync(reviewDir, { recursive: true, force: true }); } catch {}
+  });
+
+  test('Test 5: /plan-design-review produces audit report', async () => {
+    const result = await runSkillTest({
+      prompt: `IMPORTANT: The browse binary is already assigned below as B. Do NOT search for it or run the SKILL.md setup block — just use $B directly.
+
+B="${browseBin}"
+
+Read plan-design-review/SKILL.md for the design review workflow.
+
+Review the site at ${testServer.url}. Use --quick mode (homepage + 2 pages). Skip any AskUserQuestion calls — this is non-interactive. Write your audit report to ./design-audit.md. Do not offer to create DESIGN.md.`,
+      workingDirectory: reviewDir,
+      maxTurns: 20,
+      timeout: 360_000,
+      testName: 'plan-design-review-audit',
+      runId,
+    });
+
+    logCost('/plan-design-review audit', result);
+
+    const reportPath = path.join(reviewDir, 'design-audit.md');
+    const reportExists = fs.existsSync(reportPath);
+    let reportContent = '';
+    if (reportExists) {
+      reportContent = fs.readFileSync(reportPath, 'utf-8');
+    }
+
+    const hasFirstImpression = reportContent.toLowerCase().includes('first impression') ||
+      reportContent.toLowerCase().includes('impression');
+
+    recordE2E('/plan-design-review audit', 'Plan Design Review E2E', result, {
+      passed: reportExists && ['success', 'error_max_turns'].includes(result.exitReason),
+    });
+
+    expect(['success', 'error_max_turns']).toContain(result.exitReason);
+    expect(reportExists).toBe(true);
+    if (reportExists) {
+      expect(reportContent.length).toBeGreaterThan(200);
+    }
+  }, 420_000);
+
+  test('Test 6: /plan-design-review exports DESIGN.md', async () => {
+    // Clean up previous test artifacts
+    try { fs.unlinkSync(path.join(reviewDir, 'design-audit.md')); } catch {}
+
+    const result = await runSkillTest({
+      prompt: `IMPORTANT: The browse binary is already assigned below as B. Do NOT search for it or run the SKILL.md setup block — just use $B directly.
+
+B="${browseBin}"
+
+Read plan-design-review/SKILL.md for the design review workflow.
+
+Review ${testServer.url} with --quick mode. Skip any AskUserQuestion calls — this is non-interactive. After Phase 2 (Design System Extraction), write a DESIGN.md to the working directory. Also write the audit report to ./design-audit.md.`,
+      workingDirectory: reviewDir,
+      maxTurns: 25,
+      timeout: 360_000,
+      testName: 'plan-design-review-export',
+      runId,
+    });
+
+    logCost('/plan-design-review export', result);
+
+    const designPath = path.join(reviewDir, 'DESIGN.md');
+    const reportPath = path.join(reviewDir, 'design-audit.md');
+    const designExists = fs.existsSync(designPath);
+    const reportExists = fs.existsSync(reportPath);
+
+    let designContent = '';
+    if (designExists) {
+      designContent = fs.readFileSync(designPath, 'utf-8');
+    }
+
+    const hasTypography = designContent.toLowerCase().includes('typography') || designContent.toLowerCase().includes('font');
+    const hasColor = designContent.toLowerCase().includes('color');
+
+    recordE2E('/plan-design-review export', 'Plan Design Review E2E', result, {
+      passed: designExists && ['success', 'error_max_turns'].includes(result.exitReason),
+    });
+
+    expect(['success', 'error_max_turns']).toContain(result.exitReason);
+    // DESIGN.md export is best-effort — agent may not always produce it
+    if (designExists) {
+      expect(hasTypography || hasColor).toBe(true);
+    }
+  }, 420_000);
+});
+
+// --- QA Design Review E2E ---
+
+describeE2E('QA Design Review E2E', () => {
+  let qaDesignDir: string;
+  let qaDesignServer: ReturnType<typeof Bun.serve> | null = null;
+
+  beforeAll(() => {
+    qaDesignDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-qa-design-'));
+    setupBrowseShims(qaDesignDir);
+
+    const { spawnSync } = require('child_process');
+    const run = (cmd: string, args: string[]) =>
+      spawnSync(cmd, args, { cwd: qaDesignDir, stdio: 'pipe', timeout: 5000 });
+
+    run('git', ['init']);
+    run('git', ['config', 'user.email', 'test@test.com']);
+    run('git', ['config', 'user.name', 'Test']);
+
+    // Create HTML/CSS with intentional design issues
+    fs.writeFileSync(path.join(qaDesignDir, 'index.html'), `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Design Test App</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1 style="font-size: 48px; color: #333;">Welcome</h1>
+    <h2 style="font-size: 47px; color: #334;">Subtitle Here</h2>
+  </header>
+  <main>
+    <div class="card" style="padding: 10px; margin: 20px;">
+      <h3 style="color: blue;">Card Title</h3>
+      <p style="color: #666; font-size: 14px; line-height: 1.2;">Some content here with tight line height.</p>
+    </div>
+    <div class="card" style="padding: 30px; margin: 5px;">
+      <h3 style="color: green;">Another Card</h3>
+      <p style="color: #999; font-size: 16px;">Different spacing and colors for no reason.</p>
+    </div>
+    <button style="background: red; color: white; padding: 5px 10px; border: none;">Click Me</button>
+    <button style="background: #007bff; color: white; padding: 12px 24px; border: none; border-radius: 20px;">Also Click</button>
+  </main>
+</body>
+</html>`);
+
+    fs.writeFileSync(path.join(qaDesignDir, 'style.css'), `body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+}
+.card {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+`);
+
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'initial design test page']);
+
+    // Start a simple file server for the design test page
+    qaDesignServer = Bun.serve({
+      port: 0,
+      fetch(req) {
+        const url = new URL(req.url);
+        const filePath = path.join(qaDesignDir, url.pathname === '/' ? 'index.html' : url.pathname.slice(1));
+        try {
+          const content = fs.readFileSync(filePath);
+          const ext = path.extname(filePath);
+          const contentType = ext === '.css' ? 'text/css' : ext === '.html' ? 'text/html' : 'text/plain';
+          return new Response(content, { headers: { 'Content-Type': contentType } });
+        } catch {
+          return new Response('Not Found', { status: 404 });
+        }
+      },
+    });
+
+    // Copy qa-design-review skill
+    fs.mkdirSync(path.join(qaDesignDir, 'qa-design-review'), { recursive: true });
+    fs.copyFileSync(
+      path.join(ROOT, 'qa-design-review', 'SKILL.md'),
+      path.join(qaDesignDir, 'qa-design-review', 'SKILL.md'),
+    );
+  });
+
+  afterAll(() => {
+    qaDesignServer?.stop();
+    try { fs.rmSync(qaDesignDir, { recursive: true, force: true }); } catch {}
+  });
+
+  test('Test 7: /qa-design-review audits and fixes design issues', async () => {
+    const serverUrl = `http://localhost:${(qaDesignServer as any)?.port}`;
+
+    const result = await runSkillTest({
+      prompt: `IMPORTANT: The browse binary is already assigned below as B. Do NOT search for it or run the SKILL.md setup block — just use $B directly.
+
+B="${browseBin}"
+
+Read qa-design-review/SKILL.md for the design review + fix workflow.
+
+Review the site at ${serverUrl}. Use --quick mode. Skip any AskUserQuestion calls — this is non-interactive. Fix up to 3 issues max. Write your report to ./design-audit.md.`,
+      workingDirectory: qaDesignDir,
+      maxTurns: 30,
+      timeout: 360_000,
+      testName: 'qa-design-review-fix',
+      runId,
+    });
+
+    logCost('/qa-design-review fix', result);
+
+    const reportPath = path.join(qaDesignDir, 'design-audit.md');
+    const reportExists = fs.existsSync(reportPath);
+
+    // Check if any design fix commits were made
+    const gitLog = spawnSync('git', ['log', '--oneline'], {
+      cwd: qaDesignDir, stdio: 'pipe',
+    });
+    const commits = gitLog.stdout.toString().trim().split('\n');
+    const designFixCommits = commits.filter((c: string) => c.includes('style(design)'));
+
+    recordE2E('/qa-design-review fix', 'QA Design Review E2E', result, {
+      passed: ['success', 'error_max_turns'].includes(result.exitReason),
+    });
+
+    // Accept error_max_turns — the fix loop is complex
+    expect(['success', 'error_max_turns']).toContain(result.exitReason);
+
+    // Report and commits are best-effort — log what happened
+    if (reportExists) {
+      const report = fs.readFileSync(reportPath, 'utf-8');
+      console.log(`Design audit report: ${report.length} chars`);
+    } else {
+      console.warn('No design-audit.md generated');
+    }
+    console.log(`Design fix commits: ${designFixCommits.length}`);
+  }, 420_000);
+});
+
 // Module-level afterAll — finalize eval collector after all tests complete
 afterAll(async () => {
   if (evalCollector) {

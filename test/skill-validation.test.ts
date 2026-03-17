@@ -57,6 +57,34 @@ describe('SKILL.md command validation', () => {
     const result = validateSkill(qaOnlySkill);
     expect(result.snapshotFlagErrors).toHaveLength(0);
   });
+
+  test('all $B commands in plan-design-review/SKILL.md are valid browse commands', () => {
+    const skill = path.join(ROOT, 'plan-design-review', 'SKILL.md');
+    if (!fs.existsSync(skill)) return;
+    const result = validateSkill(skill);
+    expect(result.invalid).toHaveLength(0);
+  });
+
+  test('all snapshot flags in plan-design-review/SKILL.md are valid', () => {
+    const skill = path.join(ROOT, 'plan-design-review', 'SKILL.md');
+    if (!fs.existsSync(skill)) return;
+    const result = validateSkill(skill);
+    expect(result.snapshotFlagErrors).toHaveLength(0);
+  });
+
+  test('all $B commands in qa-design-review/SKILL.md are valid browse commands', () => {
+    const skill = path.join(ROOT, 'qa-design-review', 'SKILL.md');
+    if (!fs.existsSync(skill)) return;
+    const result = validateSkill(skill);
+    expect(result.invalid).toHaveLength(0);
+  });
+
+  test('all snapshot flags in qa-design-review/SKILL.md are valid', () => {
+    const skill = path.join(ROOT, 'qa-design-review', 'SKILL.md');
+    if (!fs.existsSync(skill)) return;
+    const result = validateSkill(skill);
+    expect(result.snapshotFlagErrors).toHaveLength(0);
+  });
 });
 
 describe('Command registry consistency', () => {
@@ -176,6 +204,9 @@ describe('Update check preamble', () => {
     'ship/SKILL.md', 'review/SKILL.md',
     'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
     'retro/SKILL.md',
+    'plan-design-review/SKILL.md',
+    'qa-design-review/SKILL.md',
+    'design-consultation/SKILL.md',
     'document-release/SKILL.md',
   ];
 
@@ -481,6 +512,9 @@ describe('v0.4.1 preamble features', () => {
     'ship/SKILL.md', 'review/SKILL.md',
     'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
     'retro/SKILL.md',
+    'plan-design-review/SKILL.md',
+    'qa-design-review/SKILL.md',
+    'design-consultation/SKILL.md',
     'document-release/SKILL.md',
   ];
 
