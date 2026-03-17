@@ -184,6 +184,9 @@ $B snapshot -D                   # verify deletion happened
 $B diff https://staging.app.com https://prod.app.com
 ```
 
+### 11. Show screenshots to the user
+After `$B screenshot`, `$B snapshot -a -o`, or `$B responsive`, always use the Read tool on the output PNG(s) so the user can see them. Without this, screenshots are invisible.
+
 ## Snapshot Flags
 
 The snapshot is your primary tool for understanding and interacting with pages.
