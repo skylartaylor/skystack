@@ -75,14 +75,53 @@ Follow the output format specified in the checklist. Respect the suppressions �
 
 ---
 
-## Step 5: Output findings
+## Step 5: Fix-First Review
 
-**Always output ALL findings** — both critical and informational. The user must see every issue.
+**Every finding gets action — not just critical ones.**
 
-- If CRITICAL issues found: output all findings, then for EACH critical issue use a separate AskUserQuestion with the problem, then `RECOMMENDATION: Choose A because [one-line reason]`, then options (A: Fix it now, B: Acknowledge, C: False positive — skip).
-  After all critical questions are answered, output a summary of what the user chose for each issue. If the user chose A (fix) on any issue, apply the recommended fixes. If only B/C were chosen, no action needed.
-- If only non-critical issues found: output findings. No further action needed.
-- If no issues found: output `Pre-Landing Review: No issues found.`
+Output a summary header: `Pre-Landing Review: N issues (X critical, Y informational)`
+
+### Step 5a: Classify each finding
+
+For each finding, classify as AUTO-FIX or ASK per the Fix-First Heuristic in
+checklist.md. Critical findings lean toward ASK; informational findings lean
+toward AUTO-FIX.
+
+### Step 5b: Auto-fix all AUTO-FIX items
+
+Apply each fix directly. For each one, output a one-line summary:
+`[AUTO-FIXED] [file:line] Problem → what you did`
+
+### Step 5c: Batch-ask about ASK items
+
+If there are ASK items remaining, present them in ONE AskUserQuestion:
+
+- List each item with a number, the severity label, the problem, and a recommended fix
+- For each item, provide options: A) Fix as recommended, B) Skip
+- Include an overall RECOMMENDATION
+
+Example format:
+```
+I auto-fixed 5 issues. 2 need your input:
+
+1. [CRITICAL] app/models/post.rb:42 — Race condition in status transition
+   Fix: Add `WHERE status = 'draft'` to the UPDATE
+   → A) Fix  B) Skip
+
+2. [INFORMATIONAL] app/services/generator.rb:88 — LLM output not type-checked before DB write
+   Fix: Add JSON schema validation
+   → A) Fix  B) Skip
+
+RECOMMENDATION: Fix both — #1 is a real race condition, #2 prevents silent data corruption.
+```
+
+If 3 or fewer ASK items, you may use individual AskUserQuestion calls instead of batching.
+
+### Step 5d: Apply user-approved fixes
+
+Apply fixes for items where the user chose "Fix." Output what was fixed.
+
+If no ASK items exist (everything was AUTO-FIX), skip the question entirely.
 
 ### Greptile comment resolution
 
@@ -92,7 +131,7 @@ After outputting your own findings, if Greptile comments were classified in Step
 
 Before replying to any comment, run the **Escalation Detection** algorithm from greptile-triage.md to determine whether to use Tier 1 (friendly) or Tier 2 (firm) reply templates.
 
-1. **VALID & ACTIONABLE comments:** These are already included in your CRITICAL findings — they follow the same AskUserQuestion flow (A: Fix it now, B: Acknowledge, C: False positive). If the user chooses A (fix), reply using the **Fix reply template** from greptile-triage.md (include inline diff + explanation). If the user chooses C (false positive), reply using the **False Positive reply template** (include evidence + suggested re-rank), save to both per-project and global greptile-history.
+1. **VALID & ACTIONABLE comments:** These are included in your findings — they follow the Fix-First flow (auto-fixed if mechanical, batched into ASK if not) (A: Fix it now, B: Acknowledge, C: False positive). If the user chooses A (fix), reply using the **Fix reply template** from greptile-triage.md (include inline diff + explanation). If the user chooses C (false positive), reply using the **False Positive reply template** (include evidence + suggested re-rank), save to both per-project and global greptile-history.
 
 2. **FALSE POSITIVE comments:** Present each one via AskUserQuestion:
    - Show the Greptile comment: file:line (or [top-level]) + body summary + permalink URL
@@ -141,7 +180,7 @@ If no documentation files exist, skip this step silently.
 ## Important Rules
 
 - **Read the FULL diff before commenting.** Do not flag issues already addressed in the diff.
-- **Read-only by default.** Only modify files if the user explicitly chooses "Fix it now" on a critical issue. Never commit, push, or create PRs.
+- **Fix-first, not read-only.** AUTO-FIX items are applied directly. ASK items are only applied after user approval. Never commit, push, or create PRs — that's /ship's job.
 - **Be terse.** One line problem, one line fix. No preamble.
 - **Only flag real problems.** Skip anything that's fine.
 - **Use Greptile reply templates from greptile-triage.md.** Every reply includes evidence. Never post vague replies.

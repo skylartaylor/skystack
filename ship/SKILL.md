@@ -107,7 +107,7 @@ You are running the `/ship` workflow. This is a **non-interactive, fully automat
 - On the base branch (abort)
 - Merge conflicts that can't be auto-resolved (stop, show conflicts)
 - Test failures (stop, show failures)
-- Pre-landing review finds CRITICAL issues and user chooses to fix (not acknowledge or skip)
+- Pre-landing review finds ASK items that need user judgment
 - MINOR or MAJOR version bump needed (ask — see Step 4)
 - Greptile review comments that need user decision (complex fixes, false positives)
 - TODOS.md missing and user wants to create one (ask — see Step 5.5)
@@ -120,6 +120,7 @@ You are running the `/ship` workflow. This is a **non-interactive, fully automat
 - Commit message approval (auto-commit)
 - Multi-file changesets (auto-split into bisectable commits)
 - TODOS.md completed-item detection (auto-mark)
+- Auto-fixable review findings (dead code, N+1, stale comments — fixed automatically)
 
 ---
 
@@ -243,19 +244,25 @@ Review the diff for structural issues that tests don't catch.
    - **Pass 1 (CRITICAL):** SQL & Data Safety, LLM Output Trust Boundary
    - **Pass 2 (INFORMATIONAL):** All remaining categories
 
-4. **Always output ALL findings** — both critical and informational. The user must see every issue found.
+4. **Classify each finding as AUTO-FIX or ASK** per the Fix-First Heuristic in
+   checklist.md. Critical findings lean toward ASK; informational lean toward AUTO-FIX.
 
-5. Output a summary header: `Pre-Landing Review: N issues (X critical, Y informational)`
+5. **Auto-fix all AUTO-FIX items.** Apply each fix. Output one line per fix:
+   `[AUTO-FIXED] [file:line] Problem → what you did`
 
-6. **If CRITICAL issues found:** For EACH critical issue, use a separate AskUserQuestion with:
-   - The problem (`file:line` + description)
-   - `RECOMMENDATION: Choose A because [one-line reason]`
-   - Options: A) Fix it now, B) Acknowledge and ship anyway, C) It's a false positive — skip
-   After resolving all critical issues: if the user chose A (fix) on any issue, apply the recommended fixes, then commit only the fixed files by name (`git add <fixed-files> && git commit -m "fix: apply pre-landing review fixes"`), then **STOP** and tell the user to run `/ship` again to re-test with the fixes applied. If the user chose only B (acknowledge) or C (false positive) on all issues, continue with Step 4.
+6. **If ASK items remain,** present them in ONE AskUserQuestion:
+   - List each with number, severity, problem, recommended fix
+   - Per-item options: A) Fix  B) Skip
+   - Overall RECOMMENDATION
+   - If 3 or fewer ASK items, you may use individual AskUserQuestion calls instead
 
-7. **If only non-critical issues found:** Output them and continue. They will be included in the PR body at Step 8.
+7. **After all fixes (auto + user-approved):**
+   - If ANY fixes were applied: commit fixed files by name (`git add <fixed-files> && git commit -m "fix: pre-landing review fixes"`), then **STOP** and tell the user to run `/ship` again to re-test.
+   - If no fixes applied (all ASK items skipped, or no issues found): continue to Step 4.
 
-8. **If no issues found:** Output `Pre-Landing Review: No issues found.` and continue.
+8. Output summary: `Pre-Landing Review: N issues — M auto-fixed, K asked (J fixed, L skipped)`
+
+   If no issues found: `Pre-Landing Review: No issues found.`
 
 Save the review output — it goes into the PR body in Step 8.
 
@@ -488,7 +495,7 @@ EOF
 - **Never skip tests.** If tests fail, stop.
 - **Never skip the pre-landing review.** If checklist.md is unreadable, stop.
 - **Never force push.** Use regular `git push` only.
-- **Never ask for confirmation** except for MINOR/MAJOR version bumps and CRITICAL review findings (one AskUserQuestion per critical issue with fix recommendation).
+- **Never ask for confirmation** except for MINOR/MAJOR version bumps and pre-landing review ASK items (batched into at most one AskUserQuestion).
 - **Always use the 4-digit version format** from the VERSION file.
 - **Date format in CHANGELOG:** `YYYY-MM-DD`
 - **Split commits for bisectability** — each commit = one logical change.

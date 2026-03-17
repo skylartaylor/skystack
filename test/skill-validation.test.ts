@@ -559,14 +559,27 @@ describe('Enum & Value Completeness in review checklist', () => {
     expect(checklist).toContain('allowlist');
   });
 
-  test('Enum & Value Completeness is in the gate classification as CRITICAL', () => {
-    const gateSection = checklist.slice(checklist.indexOf('## Gate Classification'));
+  test('Enum & Value Completeness is in the severity classification as CRITICAL', () => {
+    const gateSection = checklist.slice(checklist.indexOf('## Severity Classification'));
     // The ASCII art has CRITICAL on the left and INFORMATIONAL on the right
     // Enum & Value Completeness should appear on a line with the CRITICAL tree (├─ or └─)
     const enumLine = gateSection.split('\n').find(l => l.includes('Enum & Value Completeness'));
     expect(enumLine).toBeDefined();
     // It's on the left (CRITICAL) side — starts with ├─ or └─
     expect(enumLine!.trimStart().startsWith('├─') || enumLine!.trimStart().startsWith('└─')).toBe(true);
+  });
+
+  test('Fix-First Heuristic exists in checklist and is referenced by review + ship', () => {
+    expect(checklist).toContain('## Fix-First Heuristic');
+    expect(checklist).toContain('AUTO-FIX');
+    expect(checklist).toContain('ASK');
+
+    const reviewSkill = fs.readFileSync(path.join(ROOT, 'review/SKILL.md'), 'utf-8');
+    const shipSkill = fs.readFileSync(path.join(ROOT, 'ship/SKILL.md'), 'utf-8');
+    expect(reviewSkill).toContain('AUTO-FIX');
+    expect(reviewSkill).toContain('[AUTO-FIXED]');
+    expect(shipSkill).toContain('AUTO-FIX');
+    expect(shipSkill).toContain('[AUTO-FIXED]');
   });
 });
 
