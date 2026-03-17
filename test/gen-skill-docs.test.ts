@@ -343,9 +343,10 @@ describe('REVIEW_DASHBOARD resolver', () => {
   test('resolver output contains key dashboard elements', () => {
     const content = fs.readFileSync(path.join(ROOT, 'plan-ceo-review', 'SKILL.md'), 'utf-8');
     expect(content).toContain('VERDICT');
-    expect(content).toContain('CLEARED TO SHIP');
-    expect(content).toContain('NOT YET RUN');
+    expect(content).toContain('CLEARED');
+    expect(content).toContain('Eng Review');
     expect(content).toContain('7 days');
     expect(content).toContain('Design Review');
+    expect(content).toContain('skip_eng_review');
   });
 });

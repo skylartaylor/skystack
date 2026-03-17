@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.3 — 2026-03-17
+
+- **You're always in control — even when dreaming big.** `/plan-ceo-review` now presents every scope expansion as an individual decision you opt into. EXPANSION mode recommends enthusiastically, but you say yes or no to each idea. No more "the agent went wild and added 5 features I didn't ask for."
+- **New mode: SELECTIVE EXPANSION.** Hold your current scope as the baseline, but see what else is possible. The agent surfaces expansion opportunities one by one with neutral recommendations — you cherry-pick the ones worth doing. Perfect for iterating on existing features where you want rigor but also want to be tempted by adjacent improvements.
+- **Your CEO review visions are saved, not lost.** Expansion ideas, cherry-pick decisions, and 10x visions are now persisted to `~/.gstack/projects/{repo}/ceo-plans/` as structured design documents. Stale plans get archived automatically. If a vision is exceptional, you can promote it to `docs/designs/` in your repo for the team.
+
+- **Smarter ship gates.** `/ship` no longer nags you about CEO and Design reviews when they're not relevant. Eng Review is the only required gate (and you can disable even that with `gstack-config set skip_eng_review true`). CEO Review is recommended for big product changes; Design Review for UI work. The dashboard still shows all three — it just won't block you for the optional ones.
+
+### For contributors
+
+- Added SELECTIVE EXPANSION mode to `plan-ceo-review/SKILL.md.tmpl` with cherry-pick ceremony, neutral recommendation posture, and HOLD SCOPE baseline.
+- Rewrote EXPANSION mode's Step 0D to include opt-in ceremony — distill vision into discrete proposals, present each as AskUserQuestion.
+- Added CEO plan persistence (0D-POST step): structured markdown with YAML frontmatter (`status: ACTIVE/ARCHIVED/PROMOTED`), scope decisions table, archival flow.
+- Added `docs/designs` promotion step after Review Log.
+- Mode Quick Reference table expanded to 4 columns.
+- Review Readiness Dashboard: Eng Review required (overridable via `skip_eng_review` config), CEO/Design optional with agent judgment.
+- New tests: CEO review mode validation (4 modes, persistence, promotion), SELECTIVE EXPANSION E2E test.
+
 ## 0.5.2 — 2026-03-17
 
 - **Your design consultant now takes creative risks.** `/design-consultation` doesn't just propose a safe, coherent system — it explicitly breaks down SAFE CHOICES (category baseline) vs. RISKS (where your product stands out). You pick which rules to break. Every risk comes with a rationale for why it works and what it costs.

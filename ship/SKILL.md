@@ -136,11 +136,13 @@ You are running the `/ship` workflow. This is a **non-interactive, fully automat
 
 ## Review Readiness Dashboard
 
-After completing the review, read the review log to display the dashboard.
+After completing the review, read the review log and config to display the dashboard.
 
 ```bash
 eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
 cat ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null || echo "NO_REVIEWS"
+echo "---CONFIG---"
+~/.claude/skills/gstack/bin/gstack-config get skip_eng_review 2>/dev/null || echo "false"
 ```
 
 Parse the output. Find the most recent entry for each skill (plan-ceo-review, plan-eng-review, plan-design-review). Ignore entries with timestamps older than 7 days. Display:
@@ -149,25 +151,32 @@ Parse the output. Find the most recent entry for each skill (plan-ceo-review, pl
 +====================================================================+
 |                    REVIEW READINESS DASHBOARD                       |
 +====================================================================+
-| Review          | Runs | Last Run            | Status               |
-|-----------------|------|---------------------|----------------------|
-| CEO Review      |  1   | 2026-03-16 14:30    | CLEAR                |
-| Eng Review      |  1   | 2026-03-16 15:00    | CLEAR                |
-| Design Review   |  0   | —                   | NOT YET RUN          |
+| Review          | Runs | Last Run            | Status    | Required |
+|-----------------|------|---------------------|-----------|----------|
+| Eng Review      |  1   | 2026-03-16 15:00    | CLEAR     | YES      |
+| CEO Review      |  0   | —                   | —         | no       |
+| Design Review   |  0   | —                   | —         | no       |
 +--------------------------------------------------------------------+
-| VERDICT: 2/3 CLEAR — Design Review not yet run                      |
+| VERDICT: CLEARED — Eng Review passed                                |
 +====================================================================+
 ```
 
-**Verdict logic:**
-- **CLEARED TO SHIP (3/3)**: All three have >= 1 entry within 7 days AND most recent status is "clean"
-- **N/3 CLEAR**: Show count and list which are missing, have open issues, or are stale (>7 days)
-- Informational only — does NOT block.
+**Review tiers:**
+- **Eng Review (required by default):** The only review that gates shipping. Covers architecture, code quality, tests, performance. Can be disabled globally with \`gstack-config set skip_eng_review true\` (the "don't bother me" setting).
+- **CEO Review (optional):** Use your judgment. Recommend it for big product/business changes, new user-facing features, or scope decisions. Skip for bug fixes, refactors, infra, and cleanup.
+- **Design Review (optional):** Use your judgment. Recommend it for UI/UX changes. Skip for backend-only, infra, or prompt-only changes.
 
-If the verdict is NOT "CLEARED TO SHIP (3/3)", use AskUserQuestion:
-- Show which reviews are missing or have open issues
-- RECOMMENDATION: Choose B (run missing reviews first) unless the change is trivial
-- Options: A) Ship anyway  B) Abort — run missing review(s) first  C) Reviews not relevant for this change
+**Verdict logic:**
+- **CLEARED**: Eng Review has >= 1 entry within 7 days with status "clean" (or \`skip_eng_review\` is \`true\`)
+- **NOT CLEARED**: Eng Review missing, stale (>7 days), or has open issues
+- CEO and Design reviews are shown for context but never block shipping
+- If \`skip_eng_review\` config is \`true\`, Eng Review shows "SKIPPED (global)" and verdict is CLEARED
+
+If the verdict is NOT "CLEARED", use AskUserQuestion:
+- Show that Eng Review is missing or has open issues
+- RECOMMENDATION: Choose B (run eng review first) unless the change is obviously trivial (<20 lines, typo fix, config-only)
+- Options: A) Ship anyway  B) Abort — run /plan-eng-review first  C) Change is too small to need eng review
+- If CEO/Design reviews are missing, mention them as informational ("CEO Review not run — recommended for product changes") but do NOT block or recommend aborting for them
 
 ---
 

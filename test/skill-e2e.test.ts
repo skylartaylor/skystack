@@ -852,6 +852,89 @@ Focus on reviewing the plan content: architecture, error handling, security, and
   }, 420_000);
 });
 
+// --- Plan CEO Review (SELECTIVE EXPANSION) E2E ---
+
+describeE2E('Plan CEO Review SELECTIVE EXPANSION E2E', () => {
+  let planDir: string;
+
+  beforeAll(() => {
+    planDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-plan-ceo-sel-'));
+    const { spawnSync } = require('child_process');
+    const run = (cmd: string, args: string[]) =>
+      spawnSync(cmd, args, { cwd: planDir, stdio: 'pipe', timeout: 5000 });
+
+    run('git', ['init']);
+    run('git', ['config', 'user.email', 'test@test.com']);
+    run('git', ['config', 'user.name', 'Test']);
+
+    fs.writeFileSync(path.join(planDir, 'plan.md'), `# Plan: Add User Dashboard
+
+## Context
+We're building a new user dashboard that shows recent activity, notifications, and quick actions.
+
+## Changes
+1. New React component \`UserDashboard\` in \`src/components/\`
+2. REST API endpoint \`GET /api/dashboard\` returning user stats
+3. PostgreSQL query for activity aggregation
+4. Redis cache layer for dashboard data (5min TTL)
+
+## Architecture
+- Frontend: React + TailwindCSS
+- Backend: Express.js REST API
+- Database: PostgreSQL with existing user/activity tables
+- Cache: Redis for dashboard aggregates
+
+## Open questions
+- Should we use WebSocket for real-time updates?
+- How do we handle users with 100k+ activity records?
+`);
+
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'add plan']);
+
+    fs.mkdirSync(path.join(planDir, 'plan-ceo-review'), { recursive: true });
+    fs.copyFileSync(
+      path.join(ROOT, 'plan-ceo-review', 'SKILL.md'),
+      path.join(planDir, 'plan-ceo-review', 'SKILL.md'),
+    );
+  });
+
+  afterAll(() => {
+    try { fs.rmSync(planDir, { recursive: true, force: true }); } catch {}
+  });
+
+  test('/plan-ceo-review SELECTIVE EXPANSION produces structured review output', async () => {
+    const result = await runSkillTest({
+      prompt: `Read plan-ceo-review/SKILL.md for the review workflow.
+
+Read plan.md — that's the plan to review. This is a standalone plan document, not a codebase — skip any codebase exploration or system audit steps.
+
+Choose SELECTIVE EXPANSION mode. Skip any AskUserQuestion calls — this is non-interactive.
+For the cherry-pick ceremony, accept all expansion proposals automatically.
+Write your complete review directly to ${planDir}/review-output-selective.md
+
+Focus on reviewing the plan content: architecture, error handling, security, and performance.`,
+      workingDirectory: planDir,
+      maxTurns: 15,
+      timeout: 360_000,
+      testName: 'plan-ceo-review-selective',
+      runId,
+    });
+
+    logCost('/plan-ceo-review (SELECTIVE)', result);
+    recordE2E('/plan-ceo-review-selective', 'Plan CEO Review SELECTIVE EXPANSION E2E', result, {
+      passed: ['success', 'error_max_turns'].includes(result.exitReason),
+    });
+    expect(['success', 'error_max_turns']).toContain(result.exitReason);
+
+    const reviewPath = path.join(planDir, 'review-output-selective.md');
+    if (fs.existsSync(reviewPath)) {
+      const review = fs.readFileSync(reviewPath, 'utf-8');
+      expect(review.length).toBeGreaterThan(200);
+    }
+  }, 420_000);
+});
+
 // --- Plan Eng Review E2E ---
 
 describeE2E('Plan Eng Review E2E', () => {

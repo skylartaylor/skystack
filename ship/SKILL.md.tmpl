@@ -54,10 +54,11 @@ You are running the `/ship` workflow. This is a **non-interactive, fully automat
 
 {{REVIEW_DASHBOARD}}
 
-If the verdict is NOT "CLEARED TO SHIP (3/3)", use AskUserQuestion:
-- Show which reviews are missing or have open issues
-- RECOMMENDATION: Choose B (run missing reviews first) unless the change is trivial
-- Options: A) Ship anyway  B) Abort — run missing review(s) first  C) Reviews not relevant for this change
+If the verdict is NOT "CLEARED", use AskUserQuestion:
+- Show that Eng Review is missing or has open issues
+- RECOMMENDATION: Choose B (run eng review first) unless the change is obviously trivial (<20 lines, typo fix, config-only)
+- Options: A) Ship anyway  B) Abort — run /plan-eng-review first  C) Change is too small to need eng review
+- If CEO/Design reviews are missing, mention them as informational ("CEO Review not run — recommended for product changes") but do NOT block or recommend aborting for them
 
 ---
 

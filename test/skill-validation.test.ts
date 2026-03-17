@@ -666,6 +666,36 @@ describe('Planted-bug fixture validation', () => {
   });
 });
 
+// --- CEO review mode validation ---
+
+describe('CEO review mode validation', () => {
+  const content = fs.readFileSync(path.join(ROOT, 'plan-ceo-review', 'SKILL.md'), 'utf-8');
+
+  test('has all four CEO review modes defined', () => {
+    const modes = ['SCOPE EXPANSION', 'SELECTIVE EXPANSION', 'HOLD SCOPE', 'SCOPE REDUCTION'];
+    for (const mode of modes) {
+      expect(content).toContain(mode);
+    }
+  });
+
+  test('has CEO plan persistence step', () => {
+    expect(content).toContain('ceo-plans');
+    expect(content).toContain('status: ACTIVE');
+  });
+
+  test('has docs/designs promotion section', () => {
+    expect(content).toContain('docs/designs');
+    expect(content).toContain('PROMOTED');
+  });
+
+  test('mode quick reference has four columns', () => {
+    expect(content).toContain('EXPANSION');
+    expect(content).toContain('SELECTIVE');
+    expect(content).toContain('HOLD SCOPE');
+    expect(content).toContain('REDUCTION');
+  });
+});
+
 // --- gstack-slug helper ---
 
 describe('gstack-slug', () => {

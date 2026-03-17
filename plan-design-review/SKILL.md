@@ -576,11 +576,13 @@ Substitute values from the report:
 
 ## Review Readiness Dashboard
 
-After completing the review, read the review log to display the dashboard.
+After completing the review, read the review log and config to display the dashboard.
 
 ```bash
 eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
 cat ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null || echo "NO_REVIEWS"
+echo "---CONFIG---"
+~/.claude/skills/gstack/bin/gstack-config get skip_eng_review 2>/dev/null || echo "false"
 ```
 
 Parse the output. Find the most recent entry for each skill (plan-ceo-review, plan-eng-review, plan-design-review). Ignore entries with timestamps older than 7 days. Display:
@@ -589,17 +591,23 @@ Parse the output. Find the most recent entry for each skill (plan-ceo-review, pl
 +====================================================================+
 |                    REVIEW READINESS DASHBOARD                       |
 +====================================================================+
-| Review          | Runs | Last Run            | Status               |
-|-----------------|------|---------------------|----------------------|
-| CEO Review      |  1   | 2026-03-16 14:30    | CLEAR                |
-| Eng Review      |  1   | 2026-03-16 15:00    | CLEAR                |
-| Design Review   |  0   | —                   | NOT YET RUN          |
+| Review          | Runs | Last Run            | Status    | Required |
+|-----------------|------|---------------------|-----------|----------|
+| Eng Review      |  1   | 2026-03-16 15:00    | CLEAR     | YES      |
+| CEO Review      |  0   | —                   | —         | no       |
+| Design Review   |  0   | —                   | —         | no       |
 +--------------------------------------------------------------------+
-| VERDICT: 2/3 CLEAR — Design Review not yet run                      |
+| VERDICT: CLEARED — Eng Review passed                                |
 +====================================================================+
 ```
 
+**Review tiers:**
+- **Eng Review (required by default):** The only review that gates shipping. Covers architecture, code quality, tests, performance. Can be disabled globally with \`gstack-config set skip_eng_review true\` (the "don't bother me" setting).
+- **CEO Review (optional):** Use your judgment. Recommend it for big product/business changes, new user-facing features, or scope decisions. Skip for bug fixes, refactors, infra, and cleanup.
+- **Design Review (optional):** Use your judgment. Recommend it for UI/UX changes. Skip for backend-only, infra, or prompt-only changes.
+
 **Verdict logic:**
-- **CLEARED TO SHIP (3/3)**: All three have >= 1 entry within 7 days AND most recent status is "clean"
-- **N/3 CLEAR**: Show count and list which are missing, have open issues, or are stale (>7 days)
-- Informational only — does NOT block.
+- **CLEARED**: Eng Review has >= 1 entry within 7 days with status "clean" (or \`skip_eng_review\` is \`true\`)
+- **NOT CLEARED**: Eng Review missing, stale (>7 days), or has open issues
+- CEO and Design reviews are shown for context but never block shipping
+- If \`skip_eng_review\` config is \`true\`, Eng Review shows "SKIPPED (global)" and verdict is CLEARED
