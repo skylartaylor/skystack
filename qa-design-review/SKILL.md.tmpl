@@ -14,6 +14,7 @@ allowed-tools:
   - Glob
   - Grep
   - AskUserQuestion
+  - WebSearch
 ---
 
 {{PREAMBLE}}
@@ -53,6 +54,10 @@ fi
 **Find the browse binary:**
 
 {{BROWSE_SETUP}}
+
+**Check test framework (bootstrap if needed):**
+
+{{TEST_BOOTSTRAP}}
 
 **Create output directories:**
 
@@ -153,6 +158,18 @@ Take **before/after screenshot pair** for every fix.
 - **best-effort**: fix applied but couldn't fully verify (e.g., needs specific browser state)
 - **reverted**: regression detected → `git revert HEAD` → mark finding as "deferred"
 
+### 8e.5. Regression Test (design-review variant)
+
+Design fixes are typically CSS-only. Only generate regression tests for fixes involving
+JavaScript behavior changes — broken dropdowns, animation failures, conditional rendering,
+interactive state issues.
+
+For CSS-only fixes: skip entirely. CSS regressions are caught by re-running /qa-design-review.
+
+If the fix involved JS behavior: follow the same procedure as /qa Phase 8e.5 (study existing
+test patterns, write a regression test encoding the exact bug condition, run it, commit if
+passes or defer if fails). Commit format: `test(design): regression test for FINDING-NNN`.
+
 ### 8f. Self-Regulation (STOP AND EVALUATE)
 
 Every 5 fixes (or after any revert), compute the design-fix risk level:
@@ -227,7 +244,7 @@ If the repo has a `TODOS.md`:
 
 11. **Clean working tree required.** Refuse to start if `git status --porcelain` is non-empty.
 12. **One commit per fix.** Never bundle multiple design fixes into one commit.
-13. **Never modify tests or CI configuration.** Only fix application source code and styles.
+13. **Only modify tests when generating regression tests in Phase 8e.5.** Never modify CI configuration. Never modify existing tests — only create new test files.
 14. **Revert on regression.** If a fix makes things worse, `git revert HEAD` immediately.
 15. **Self-regulate.** Follow the design-fix risk heuristic. When in doubt, stop and ask.
 16. **CSS-first.** Prefer CSS/styling changes over structural component changes. CSS-only changes are safer and more reversible.

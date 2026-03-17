@@ -263,6 +263,30 @@
 **Effort:** S
 **Priority:** P3
 
+### CI/CD generation for non-GitHub providers
+
+**What:** Extend CI/CD bootstrap to generate GitLab CI (`.gitlab-ci.yml`), CircleCI (`.circleci/config.yml`), and Bitrise pipelines.
+
+**Why:** Not all projects use GitHub Actions. Universal CI/CD bootstrap would make test bootstrap work for everyone.
+
+**Context:** v1 ships with GitHub Actions only. Detection logic already checks for `.gitlab-ci.yml`, `.circleci/`, `bitrise.yml` and skips with an informational note. Each provider needs ~20 lines of template text in `generateTestBootstrap()`.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** Test bootstrap (shipped)
+
+### Auto-upgrade weak tests (★) to strong tests (★★★)
+
+**What:** When Step 3.4 coverage audit identifies existing ★-rated tests (smoke/trivial assertions), generate improved versions testing edge cases and error paths.
+
+**Why:** Many codebases have tests that technically exist but don't catch real bugs — `expect(component).toBeDefined()` isn't testing behavior. Upgrading these closes the gap between "has tests" and "has good tests."
+
+**Context:** Requires the quality scoring rubric from the test coverage audit. Modifying existing test files is riskier than creating new ones — needs careful diffing to ensure the upgraded test still passes. Consider creating a companion test file rather than modifying the original.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** Test quality scoring (shipped)
+
 ## Retro
 
 ### Deployment health tracking (retro + browse)

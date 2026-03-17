@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.6.0 — 2026-03-17
+
+- **100% test coverage is the key to great vibe coding.** gstack now bootstraps test frameworks from scratch when your project doesn't have one. Detects your runtime, researches the best framework, asks you to pick, installs it, writes 3-5 real tests for your actual code, sets up CI/CD (GitHub Actions), creates TESTING.md, and adds test culture instructions to CLAUDE.md. Every Claude Code session after that writes tests naturally.
+- **Every bug fix now gets a regression test.** When `/qa` fixes a bug and verifies it, Phase 8e.5 automatically generates a regression test that catches the exact scenario that broke. Tests include full attribution tracing back to the QA report. Auto-incrementing filenames prevent collisions across sessions.
+- **Ship with confidence — coverage audit shows what's tested and what's not.** `/ship` Step 3.4 builds a code path map from your diff, searches for corresponding tests, and produces an ASCII coverage diagram with quality stars (★★★ = edge cases + errors, ★★ = happy path, ★ = smoke test). Gaps get tests auto-generated. PR body shows "Tests: 42 → 47 (+5 new)".
+- **Your retro tracks test health.** `/retro` now shows total test files, tests added this period, regression test commits, and trend deltas. If test ratio drops below 20%, it flags it as a growth area.
+- **Design reviews generate regression tests too.** `/qa-design-review` Phase 8e.5 skips CSS-only fixes (those are caught by re-running the design audit) but writes tests for JavaScript behavior changes like broken dropdowns or animation failures.
+
+### For contributors
+
+- Added `generateTestBootstrap()` resolver to `gen-skill-docs.ts` (~155 lines). Registered as `{{TEST_BOOTSTRAP}}` in the RESOLVERS map. Inserted into qa, ship (Step 2.5), and qa-design-review templates.
+- Phase 8e.5 regression test generation added to `qa/SKILL.md.tmpl` (46 lines) and CSS-aware variant to `qa-design-review/SKILL.md.tmpl` (12 lines). Rule 13 amended to allow creating new test files.
+- Step 3.4 test coverage audit added to `ship/SKILL.md.tmpl` (88 lines) with quality scoring rubric and ASCII diagram format.
+- Test health tracking added to `retro/SKILL.md.tmpl`: 3 new data gathering commands, metrics row, narrative section, JSON schema field.
+- `qa-only/SKILL.md.tmpl` gets recommendation note when no test framework detected.
+- `qa-report-template.md` gains Regression Tests section with deferred test specs.
+- ARCHITECTURE.md placeholder table updated with `{{TEST_BOOTSTRAP}}` and `{{REVIEW_DASHBOARD}}`.
+- WebSearch added to allowed-tools for qa, ship, qa-design-review.
+- 26 new validation tests, 2 new E2E evals (bootstrap + coverage audit).
+- 2 new P3 TODOs: CI/CD for non-GitHub providers, auto-upgrade weak tests.
+
 ## 0.5.4 — 2026-03-17
 
 - **Engineering review is always the full review now.** `/plan-eng-review` no longer asks you to choose between "big change" and "small change" modes. Every plan gets the full interactive walkthrough (architecture, code quality, tests, performance). Scope reduction is only suggested when the complexity check actually triggers — not as a standing menu option.

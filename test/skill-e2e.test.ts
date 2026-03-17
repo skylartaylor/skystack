@@ -2298,6 +2298,269 @@ Review the site at ${serverUrl}. Use --quick mode. Skip any AskUserQuestion call
   }, 420_000);
 });
 
+// --- Test Bootstrap E2E ---
+
+describeE2E('Test Bootstrap E2E', () => {
+  let bootstrapDir: string;
+  let bootstrapServer: ReturnType<typeof Bun.serve>;
+
+  beforeAll(() => {
+    bootstrapDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-bootstrap-'));
+    setupBrowseShims(bootstrapDir);
+
+    // Copy qa skill files
+    copyDirSync(path.join(ROOT, 'qa'), path.join(bootstrapDir, 'qa'));
+
+    // Create a minimal Node.js project with NO test framework
+    fs.writeFileSync(path.join(bootstrapDir, 'package.json'), JSON.stringify({
+      name: 'test-bootstrap-app',
+      version: '1.0.0',
+      type: 'module',
+    }, null, 2));
+
+    // Create a simple app file with a bug
+    fs.writeFileSync(path.join(bootstrapDir, 'app.js'), `
+export function add(a, b) { return a + b; }
+export function subtract(a, b) { return a - b; }
+export function divide(a, b) { return a / b; } // BUG: no zero check
+`);
+
+    // Create a simple HTML page with a bug
+    fs.writeFileSync(path.join(bootstrapDir, 'index.html'), `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Bootstrap Test</title></head>
+<body>
+  <h1>Test App</h1>
+  <a href="/nonexistent-page">Broken Link</a>
+  <script>console.error("ReferenceError: undefinedVar is not defined");</script>
+</body>
+</html>
+`);
+
+    // Init git repo
+    const run = (cmd: string, args: string[]) =>
+      spawnSync(cmd, args, { cwd: bootstrapDir, stdio: 'pipe', timeout: 5000 });
+    run('git', ['init']);
+    run('git', ['config', 'user.email', 'test@test.com']);
+    run('git', ['config', 'user.name', 'Test']);
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'initial commit']);
+
+    // Serve from working directory
+    bootstrapServer = Bun.serve({
+      port: 0,
+      hostname: '127.0.0.1',
+      fetch(req) {
+        const url = new URL(req.url);
+        let filePath = url.pathname === '/' ? '/index.html' : url.pathname;
+        filePath = filePath.replace(/^\//, '');
+        const fullPath = path.join(bootstrapDir, filePath);
+        if (!fs.existsSync(fullPath)) {
+          return new Response('Not Found', { status: 404 });
+        }
+        const content = fs.readFileSync(fullPath, 'utf-8');
+        return new Response(content, {
+          headers: { 'Content-Type': 'text/html' },
+        });
+      },
+    });
+  });
+
+  afterAll(() => {
+    bootstrapServer?.stop();
+    try { fs.rmSync(bootstrapDir, { recursive: true, force: true }); } catch {}
+  });
+
+  test('/qa bootstrap + regression test on zero-test project', async () => {
+    const serverUrl = `http://127.0.0.1:${bootstrapServer!.port}`;
+
+    const result = await runSkillTest({
+      prompt: `You have a browse binary at ${browseBin}. Assign it to B variable like: B="${browseBin}"
+
+Read the file qa/SKILL.md for the QA workflow instructions.
+
+Run a Quick-tier QA test on ${serverUrl}
+The source code for this page is at ${bootstrapDir}/index.html — you can fix bugs there.
+Do NOT use AskUserQuestion — for any AskUserQuestion prompts, choose the RECOMMENDED option automatically.
+Write your report to ${bootstrapDir}/qa-reports/qa-report.md
+
+This project has NO test framework. When the bootstrap asks, pick vitest (option A).
+This is a test+fix loop: find bugs, fix them, write regression tests, commit each fix.`,
+      workingDirectory: bootstrapDir,
+      maxTurns: 50,
+      allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep'],
+      timeout: 420_000,
+      testName: 'qa-bootstrap',
+      runId,
+    });
+
+    logCost('/qa bootstrap', result);
+    recordE2E('/qa bootstrap + regression test', 'Test Bootstrap E2E', result, {
+      passed: ['success', 'error_max_turns'].includes(result.exitReason),
+    });
+
+    expect(['success', 'error_max_turns']).toContain(result.exitReason);
+
+    // Verify bootstrap created test infrastructure
+    const hasTestConfig = fs.existsSync(path.join(bootstrapDir, 'vitest.config.ts'))
+      || fs.existsSync(path.join(bootstrapDir, 'vitest.config.js'))
+      || fs.existsSync(path.join(bootstrapDir, 'jest.config.js'))
+      || fs.existsSync(path.join(bootstrapDir, 'jest.config.ts'));
+    console.log(`Test config created: ${hasTestConfig}`);
+
+    const hasTestingMd = fs.existsSync(path.join(bootstrapDir, 'TESTING.md'));
+    console.log(`TESTING.md created: ${hasTestingMd}`);
+
+    // Check for bootstrap commit
+    const gitLog = spawnSync('git', ['log', '--oneline', '--grep=bootstrap'], {
+      cwd: bootstrapDir, stdio: 'pipe',
+    });
+    const bootstrapCommits = gitLog.stdout.toString().trim();
+    console.log(`Bootstrap commits: ${bootstrapCommits || 'none'}`);
+
+    // Check for regression test commits
+    const regressionLog = spawnSync('git', ['log', '--oneline', '--grep=test(qa)'], {
+      cwd: bootstrapDir, stdio: 'pipe',
+    });
+    const regressionCommits = regressionLog.stdout.toString().trim();
+    console.log(`Regression test commits: ${regressionCommits || 'none'}`);
+
+    // Verify at least the bootstrap happened (fix commits are bonus)
+    const allCommits = spawnSync('git', ['log', '--oneline'], {
+      cwd: bootstrapDir, stdio: 'pipe',
+    });
+    const totalCommits = allCommits.stdout.toString().trim().split('\n').length;
+    console.log(`Total commits: ${totalCommits}`);
+    expect(totalCommits).toBeGreaterThan(1); // At least initial + bootstrap
+  }, 420_000);
+});
+
+// --- Test Coverage Audit E2E ---
+
+describeE2E('Test Coverage Audit E2E', () => {
+  let coverageDir: string;
+
+  beforeAll(() => {
+    coverageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-coverage-'));
+
+    // Copy ship skill files
+    copyDirSync(path.join(ROOT, 'ship'), path.join(coverageDir, 'ship'));
+    copyDirSync(path.join(ROOT, 'review'), path.join(coverageDir, 'review'));
+
+    // Create a Node.js project WITH test framework but coverage gaps
+    fs.writeFileSync(path.join(coverageDir, 'package.json'), JSON.stringify({
+      name: 'test-coverage-app',
+      version: '1.0.0',
+      type: 'module',
+      scripts: { test: 'echo "no tests yet"' },
+      devDependencies: { vitest: '^1.0.0' },
+    }, null, 2));
+
+    // Create vitest config
+    fs.writeFileSync(path.join(coverageDir, 'vitest.config.ts'),
+      `import { defineConfig } from 'vitest/config';\nexport default defineConfig({ test: {} });\n`);
+
+    fs.writeFileSync(path.join(coverageDir, 'VERSION'), '0.1.0.0\n');
+    fs.writeFileSync(path.join(coverageDir, 'CHANGELOG.md'), '# Changelog\n');
+
+    // Create source file with multiple code paths
+    fs.mkdirSync(path.join(coverageDir, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(coverageDir, 'src', 'billing.ts'), `
+export function processPayment(amount: number, currency: string) {
+  if (amount <= 0) throw new Error('Invalid amount');
+  if (currency !== 'USD' && currency !== 'EUR') throw new Error('Unsupported currency');
+  return { status: 'success', amount, currency };
+}
+
+export function refundPayment(paymentId: string, reason: string) {
+  if (!paymentId) throw new Error('Payment ID required');
+  if (!reason) throw new Error('Reason required');
+  return { status: 'refunded', paymentId, reason };
+}
+`);
+
+    // Create a test directory with ONE test (partial coverage)
+    fs.mkdirSync(path.join(coverageDir, 'test'), { recursive: true });
+    fs.writeFileSync(path.join(coverageDir, 'test', 'billing.test.ts'), `
+import { describe, test, expect } from 'vitest';
+import { processPayment } from '../src/billing';
+
+describe('processPayment', () => {
+  test('processes valid payment', () => {
+    const result = processPayment(100, 'USD');
+    expect(result.status).toBe('success');
+  });
+  // GAP: no test for invalid amount
+  // GAP: no test for unsupported currency
+  // GAP: refundPayment not tested at all
+});
+`);
+
+    // Init git repo with main branch
+    const run = (cmd: string, args: string[]) =>
+      spawnSync(cmd, args, { cwd: coverageDir, stdio: 'pipe', timeout: 5000 });
+    run('git', ['init', '-b', 'main']);
+    run('git', ['config', 'user.email', 'test@test.com']);
+    run('git', ['config', 'user.name', 'Test']);
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'initial commit']);
+
+    // Create feature branch
+    run('git', ['checkout', '-b', 'feature/billing']);
+  });
+
+  afterAll(() => {
+    try { fs.rmSync(coverageDir, { recursive: true, force: true }); } catch {}
+  });
+
+  test('/ship Step 3.4 produces coverage diagram', async () => {
+    const result = await runSkillTest({
+      prompt: `Read the file ship/SKILL.md for the ship workflow instructions.
+
+You are on the feature/billing branch. The base branch is main.
+This is a test project — there is no remote, no PR to create.
+
+ONLY run Step 3.4 (Test Coverage Audit) from the ship workflow.
+Skip all other steps (tests, evals, review, version, changelog, commit, push, PR).
+
+The source code is in ${coverageDir}/src/billing.ts.
+Existing tests are in ${coverageDir}/test/billing.test.ts.
+The test command is: echo "tests pass" (mocked — just pretend tests pass).
+
+Produce the ASCII coverage diagram showing which code paths are tested and which have gaps.
+Do NOT generate new tests — just produce the diagram and coverage summary.
+Output the diagram directly.`,
+      workingDirectory: coverageDir,
+      maxTurns: 15,
+      allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep'],
+      timeout: 120_000,
+      testName: 'ship-coverage-audit',
+      runId,
+    });
+
+    logCost('/ship coverage audit', result);
+    recordE2E('/ship Step 3.4 coverage audit', 'Test Coverage Audit E2E', result, {
+      passed: result.exitReason === 'success',
+    });
+
+    expect(result.exitReason).toBe('success');
+
+    // Check output contains coverage diagram elements
+    const output = result.output || '';
+    const hasGap = output.includes('GAP') || output.includes('gap') || output.includes('NO TEST');
+    const hasTested = output.includes('TESTED') || output.includes('tested') || output.includes('✓');
+    const hasCoverage = output.includes('COVERAGE') || output.includes('coverage') || output.includes('paths tested');
+
+    console.log(`Output has GAP markers: ${hasGap}`);
+    console.log(`Output has TESTED markers: ${hasTested}`);
+    console.log(`Output has coverage summary: ${hasCoverage}`);
+
+    // At minimum, the agent should have read the source and test files
+    const readCalls = result.toolCalls.filter(tc => tc.tool === 'Read');
+    expect(readCalls.length).toBeGreaterThan(0);
+  }, 180_000);
+});
+
 // Module-level afterAll — finalize eval collector after all tests complete
 afterAll(async () => {
   if (evalCollector) {

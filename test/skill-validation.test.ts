@@ -737,3 +737,225 @@ describe('gstack-slug', () => {
     expect(lines[1]).toMatch(/^BRANCH=.+/);
   });
 });
+
+// --- Test Bootstrap validation ---
+
+describe('Test Bootstrap ({{TEST_BOOTSTRAP}}) integration', () => {
+  test('TEST_BOOTSTRAP resolver produces valid content', () => {
+    const qaContent = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(qaContent).toContain('Test Framework Bootstrap');
+    expect(qaContent).toContain('RUNTIME:ruby');
+    expect(qaContent).toContain('RUNTIME:node');
+    expect(qaContent).toContain('RUNTIME:python');
+    expect(qaContent).toContain('no-test-bootstrap');
+    expect(qaContent).toContain('BOOTSTRAP_DECLINED');
+  });
+
+  test('TEST_BOOTSTRAP appears in qa/SKILL.md', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Test Framework Bootstrap');
+    expect(content).toContain('TESTING.md');
+    expect(content).toContain('CLAUDE.md');
+  });
+
+  test('TEST_BOOTSTRAP appears in ship/SKILL.md', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Test Framework Bootstrap');
+    expect(content).toContain('Step 2.5');
+  });
+
+  test('TEST_BOOTSTRAP appears in qa-design-review/SKILL.md', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa-design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Test Framework Bootstrap');
+  });
+
+  test('TEST_BOOTSTRAP does NOT appear in qa-only/SKILL.md', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa-only', 'SKILL.md'), 'utf-8');
+    expect(content).not.toContain('Test Framework Bootstrap');
+    // But should have the recommendation note
+    expect(content).toContain('No test framework detected');
+    expect(content).toContain('Run `/qa` to bootstrap');
+  });
+
+  test('bootstrap includes framework knowledge table', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('vitest');
+    expect(content).toContain('minitest');
+    expect(content).toContain('pytest');
+    expect(content).toContain('cargo test');
+    expect(content).toContain('phpunit');
+    expect(content).toContain('ExUnit');
+  });
+
+  test('bootstrap includes CI/CD pipeline generation', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('.github/workflows/test.yml');
+    expect(content).toContain('GitHub Actions');
+  });
+
+  test('bootstrap includes first real tests step', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('First real tests');
+    expect(content).toContain('git log --since=30.days');
+    expect(content).toContain('Prioritize by risk');
+  });
+
+  test('bootstrap includes vibe coding philosophy', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('vibe coding');
+    expect(content).toContain('100% test coverage');
+  });
+
+  test('WebSearch is in allowed-tools for qa, ship, qa-design-review', () => {
+    const qa = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    const ship = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    const qaDesign = fs.readFileSync(path.join(ROOT, 'qa-design-review', 'SKILL.md'), 'utf-8');
+    expect(qa).toContain('WebSearch');
+    expect(ship).toContain('WebSearch');
+    expect(qaDesign).toContain('WebSearch');
+  });
+});
+
+// --- Phase 8e.5 regression test validation ---
+
+describe('Phase 8e.5 regression test generation', () => {
+  test('qa/SKILL.md contains Phase 8e.5', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('8e.5. Regression Test');
+    expect(content).toContain('test(qa): regression test');
+    expect(content).toContain('WTF-likelihood exclusion');
+  });
+
+  test('qa/SKILL.md Rule 13 is amended for regression tests', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Only modify tests when generating regression tests in Phase 8e.5');
+    expect(content).not.toContain('Never modify tests or CI configuration');
+  });
+
+  test('qa-design-review has CSS-aware Phase 8e.5 variant', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa-design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('8e.5. Regression Test (design-review variant)');
+    expect(content).toContain('CSS-only');
+    expect(content).toContain('test(design): regression test');
+  });
+
+  test('regression test includes full attribution comment format', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('// Regression: ISSUE-NNN');
+    expect(content).toContain('// Found by /qa on');
+    expect(content).toContain('// Report: .gstack/qa-reports/');
+  });
+
+  test('regression test uses auto-incrementing names', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('auto-incrementing');
+    expect(content).toContain('max number + 1');
+  });
+});
+
+// --- Step 3.4 coverage audit validation ---
+
+describe('Step 3.4 test coverage audit', () => {
+  test('ship/SKILL.md contains Step 3.4', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Step 3.4: Test Coverage Audit');
+    expect(content).toContain('CODE PATH COVERAGE');
+  });
+
+  test('Step 3.4 includes quality scoring rubric', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('★★★');
+    expect(content).toContain('★★');
+    expect(content).toContain('edge cases AND error paths');
+    expect(content).toContain('happy path only');
+  });
+
+  test('Step 3.4 includes before/after test count', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Count test files before');
+    expect(content).toContain('Count test files after');
+  });
+
+  test('ship PR body includes Test Coverage section', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('## Test Coverage');
+  });
+
+  test('ship rules include test generation rule', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Step 3.4 generates coverage tests');
+    expect(content).toContain('Never commit failing tests');
+  });
+
+  test('Step 3.4 includes vibe coding philosophy', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('vibe coding becomes yolo coding');
+  });
+
+  test('Step 3.4 traces actual codepaths, not just syntax', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Trace every codepath');
+    expect(content).toContain('Trace data flow');
+    expect(content).toContain('Diagram the execution');
+  });
+
+  test('Step 3.4 maps user flows and interaction edge cases', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Map user flows');
+    expect(content).toContain('Interaction edge cases');
+    expect(content).toContain('Double-click');
+    expect(content).toContain('Navigate away');
+    expect(content).toContain('Error states the user can see');
+    expect(content).toContain('Empty/zero/boundary states');
+  });
+
+  test('Step 3.4 diagram includes USER FLOW COVERAGE section', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('USER FLOW COVERAGE');
+    expect(content).toContain('Code paths:');
+    expect(content).toContain('User flows:');
+  });
+});
+
+// --- Retro test health validation ---
+
+describe('Retro test health tracking', () => {
+  test('retro/SKILL.md has test health data gathering commands', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'retro', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('# 10. Test file count');
+    expect(content).toContain('# 11. Regression test commits');
+    expect(content).toContain('# 12. Test files changed');
+  });
+
+  test('retro/SKILL.md has Test Health metrics row', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'retro', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Test Health');
+    expect(content).toContain('regression tests');
+  });
+
+  test('retro/SKILL.md has Test Health narrative section', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'retro', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('### Test Health');
+    expect(content).toContain('Total test files');
+    expect(content).toContain('vibe coding safe');
+  });
+
+  test('retro JSON schema includes test_health field', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'retro', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('test_health');
+    expect(content).toContain('total_test_files');
+    expect(content).toContain('regression_test_commits');
+  });
+});
+
+// --- QA report template regression tests section ---
+
+describe('QA report template', () => {
+  test('qa-report-template.md has Regression Tests section', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'templates', 'qa-report-template.md'), 'utf-8');
+    expect(content).toContain('## Regression Tests');
+    expect(content).toContain('committed / deferred / skipped');
+    expect(content).toContain('### Deferred Tests');
+    expect(content).toContain('**Precondition:**');
+  });
+});
