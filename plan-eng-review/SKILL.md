@@ -110,12 +110,11 @@ Before reviewing anything, answer these questions:
 3. **Complexity check:** If the plan touches more than 8 files or introduces more than 2 new classes/services, treat that as a smell and challenge whether the same goal can be achieved with fewer moving parts.
 4. **TODOS cross-reference:** Read `TODOS.md` if it exists. Are any deferred items blocking this plan? Can any deferred items be bundled into this PR without expanding scope? Does this plan create new work that should be captured as a TODO?
 
-Then ask if I want one of three options:
-1. **SCOPE REDUCTION:** The plan is overbuilt. Propose a minimal version that achieves the core goal, then review that.
-2. **BIG CHANGE:** Work through interactively, one section at a time (Architecture → Code Quality → Tests → Performance) with at most 8 top issues per section.
-3. **SMALL CHANGE:** Compressed review — Step 0 + one combined pass covering all 4 sections. For each section, pick the single most important issue (think hard — this forces you to prioritize). Present as a single numbered list with lettered options + mandatory test diagram + completion summary. One AskUserQuestion round at the end. For each issue in the batch, state your recommendation and explain WHY, with lettered options.
+If the complexity check triggers (8+ files or 2+ new classes/services), proactively recommend scope reduction via AskUserQuestion — explain what's overbuilt, propose a minimal version that achieves the core goal, and ask whether to reduce or proceed as-is. If the complexity check does not trigger, present your Step 0 findings and proceed directly to Section 1.
 
-**Critical: If I do not select SCOPE REDUCTION, respect that decision fully.** Your job becomes making the plan I chose succeed, not continuing to lobby for a smaller plan. Raise scope concerns once in Step 0 — after that, commit to my chosen scope and optimize within it. Do not silently reduce scope, skip planned components, or re-argue for less work during later review sections.
+Always work through the full interactive review: one section at a time (Architecture → Code Quality → Tests → Performance) with at most 8 top issues per section.
+
+**Critical: Once the user accepts or rejects a scope reduction recommendation, commit fully.** Do not re-argue for smaller scope during later review sections. Do not silently reduce scope or skip planned components.
 
 ## Review Sections (after scope is agreed)
 
@@ -201,7 +200,6 @@ Follow the AskUserQuestion format from the Preamble above. Additional rules for 
 * **Map the reasoning to my engineering preferences above.** One sentence connecting your recommendation to a specific preference (DRY, explicit > clever, minimal diff, etc.).
 * Label with issue NUMBER + option LETTER (e.g., "3A", "3B").
 * **Escape hatch:** If a section has no issues, say so and move on. If an issue has an obvious fix with no real alternatives, state what you'll do and move on — don't waste a question on it. Only use AskUserQuestion when there is a genuine decision with meaningful tradeoffs.
-* **Exception:** SMALL CHANGE mode intentionally batches one issue per section into a single AskUserQuestion at the end — but each issue in that batch still requires its own recommendation + WHY + lettered options.
 
 ## Required outputs
 
@@ -239,7 +237,7 @@ If any failure mode has no test AND no error handling AND would be silent, flag 
 
 ### Completion summary
 At the end of the review, fill in and display this summary so the user can see all findings at a glance:
-- Step 0: Scope Challenge (user chose: ___)
+- Step 0: Scope Challenge — ___ (scope accepted as-is / scope reduced per recommendation)
 - Architecture Review: ___ issues found
 - Code Quality Review: ___ issues found
 - Test Review: diagram produced, ___ gaps identified
@@ -273,7 +271,7 @@ Substitute values from the Completion Summary:
 - **STATUS**: "clean" if 0 unresolved decisions AND 0 critical gaps; otherwise "issues_open"
 - **unresolved**: number from "Unresolved decisions" count
 - **critical_gaps**: number from "Failure modes: ___ critical gaps flagged"
-- **MODE**: SCOPE_REDUCTION / BIG_CHANGE / SMALL_CHANGE
+- **MODE**: FULL_REVIEW / SCOPE_REDUCED
 
 ## Review Readiness Dashboard
 

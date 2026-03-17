@@ -1003,7 +1003,7 @@ Replace session-cookie auth with JWT tokens. Currently using express-session + R
 
 Read plan.md — that's the plan to review. This is a standalone plan document, not a codebase — skip any codebase exploration steps.
 
-Choose SMALL CHANGE mode. Skip any AskUserQuestion calls — this is non-interactive.
+Proceed directly to the full review. Skip any AskUserQuestion calls — this is non-interactive.
 Write your complete review directly to ${planDir}/review-output.md
 
 Focus on architecture, code quality, tests, and performance sections.`,
@@ -1404,7 +1404,7 @@ export function main() { return Dashboard(); }
 
 Read plan.md — that's the plan to review. This is a standalone plan with source code in app.ts and dashboard.ts.
 
-Choose SMALL CHANGE mode. Skip any AskUserQuestion calls — this is non-interactive.
+Proceed directly to the full review. Skip any AskUserQuestion calls — this is non-interactive.
 
 IMPORTANT: After your review, you MUST write the test-plan artifact as described in the "Test Plan Artifact" section of SKILL.md. The remote-slug shim is at ${planDir}/browse/bin/remote-slug.
 

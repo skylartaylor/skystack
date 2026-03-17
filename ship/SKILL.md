@@ -172,11 +172,27 @@ Parse the output. Find the most recent entry for each skill (plan-ceo-review, pl
 - CEO and Design reviews are shown for context but never block shipping
 - If \`skip_eng_review\` config is \`true\`, Eng Review shows "SKIPPED (global)" and verdict is CLEARED
 
-If the verdict is NOT "CLEARED", use AskUserQuestion:
-- Show that Eng Review is missing or has open issues
-- RECOMMENDATION: Choose B (run eng review first) unless the change is obviously trivial (<20 lines, typo fix, config-only)
-- Options: A) Ship anyway  B) Abort — run /plan-eng-review first  C) Change is too small to need eng review
-- If CEO/Design reviews are missing, mention them as informational ("CEO Review not run — recommended for product changes") but do NOT block or recommend aborting for them
+If the Eng Review is NOT "CLEAR":
+
+1. **Check for a prior override on this branch:**
+   ```bash
+   eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+   grep '"skill":"ship-review-override"' ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null || echo "NO_OVERRIDE"
+   ```
+   If an override exists, display the dashboard and note "Review gate previously accepted — continuing." Do NOT ask again.
+
+2. **If no override exists,** use AskUserQuestion:
+   - Show that Eng Review is missing or has open issues
+   - RECOMMENDATION: Choose C if the change is obviously trivial (< 20 lines, typo fix, config-only); Choose B for larger changes
+   - Options: A) Ship anyway  B) Abort — run /plan-eng-review first  C) Change is too small to need eng review
+   - If CEO/Design reviews are missing, mention them as informational ("CEO Review not run — recommended for product changes") but do NOT block or recommend aborting for them
+
+3. **If the user chooses A or C,** persist the decision so future `/ship` runs on this branch skip the gate:
+   ```bash
+   eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+   echo '{"skill":"ship-review-override","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","decision":"USER_CHOICE"}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
+   ```
+   Substitute USER_CHOICE with "ship_anyway" or "not_relevant".
 
 ---
 
