@@ -88,16 +88,19 @@ write DESIGN.md from what you find.
 
 ## Phase 2: Present the Plan
 
-**AskUserQuestion — present a short plan based on the mode you detected:**
+**Output the plan as chat text** based on the mode you detected, then follow with a minimal AskUserQuestion.
 
-- **Consultation:** Explain you'll research the landscape (optional), propose a
-  design system, generate a preview, and write DESIGN.md. Ask if they want
-  competitive research or prefer you work from your knowledge.
-- **Review:** Explain you'll do a first impression, extract the live design system,
-  audit 10 categories, catch AI slop, and fix what you find. Ask if they want
-  audit-only (report, no fixes) or audit + fix.
+- **Consultation:** Explain you'll research the landscape (optional), propose a complete design system, generate a preview, and write DESIGN.md.
+- **Review:** Explain you'll extract the live design system, audit 10 categories, catch AI slop, and either report findings or fix them.
 
-Options: A) Sounds good, go. B) Adjust the plan. C) I want the other mode.
+Then use AskUserQuestion:
+- **Consultation:** Question: "Want competitive research first, or should I work from my knowledge of the space?"
+  - A) Research first (Recommended)
+  - B) Skip research, go from knowledge
+- **Review:** Question: "How do you want me to handle issues I find?"
+  - A) Audit and fix (Recommended)
+  - B) Report only
+  - C) I want consultation mode instead
 
 **STOP.** Do not proceed until the user responds.
 

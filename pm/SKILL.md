@@ -40,7 +40,30 @@ If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack
 
 ## AskUserQuestion Format
 
-**ALWAYS follow this structure for every AskUserQuestion call:**
+**Two types of AskUserQuestion calls — use the right format for each:**
+
+### Plan approval (review plan, test plan, spec approval, implementation plan)
+
+Output the plan details as **regular chat text first** — never inside the AskUserQuestion call. Then use AskUserQuestion with only a short question and 2-3 clean options. No detail in option descriptions.
+
+Example:
+```
+[chat text output]
+I've read the diff (~180 lines, 4 files). Here's what I'll focus on:
+
+1. **Race condition** — status transition in OrderService isn't atomic
+2. **N+1** — PostsController#index missing includes(:author)
+3. **Test coverage** — BillingService has no tests
+
+[AskUserQuestion]
+Question: "Anything to add or skip?"
+A) Looks good, go
+B) Adjust the focus
+```
+
+### Judgment questions (bugs, design decisions, tradeoffs)
+
+**ALWAYS follow this structure:**
 1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
 2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
 3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts when the delta is small. Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
@@ -312,21 +335,16 @@ Weave their input into the spec naturally — don't just append it.
 6. **Edge cases** — What happens with 0 data? 1 data point? 10,000? No permission? Offline?
 7. **Non-goals** — What this feature explicitly does NOT do (prevents scope creep)
 
-**Present the spec via AskUserQuestion:**
+**Output the full spec as chat text** — all seven sections. Then follow with a minimal AskUserQuestion.
 
-"Here's the feature spec for [feature], with input from the Designer and Dev.
+After the spec text, use AskUserQuestion:
+- Question: "Ready to build this, or does anything need adjusting?"
+- A) Looks good — build it (Recommended)
+- B) Adjust scope — tell me what to change
+- C) More research needed
+- D) Scrap this approach — let's rethink
 
-**Designer says:** [1-2 sentence summary of key design feedback]
-**Dev says:** [1-2 sentence summary of key architecture feedback]
-
-Review the approach and let me know:
-A) Looks good — build it
-B) Adjust scope [tell me what to change]
-C) More research needed on [specific area]
-D) Scrap this approach — let's rethink"
-
-RECOMMENDATION: Always recommend A unless you or the crew have genuine concerns. Include
-a one-line rationale. If the Designer or Dev flagged something important, mention it.
+RECOMMENDATION: Always recommend A unless you or the crew have genuine concerns. If the Designer or Dev flagged something important, note it in a single line above the question.
 
 **STOP here and wait for user approval before proceeding.**
 
@@ -418,7 +436,12 @@ UI components and their tests are usually independent of data layer tasks.
 Keep the plan grounded in codebase patterns from Phase 1b. Don't introduce new
 architectural patterns unless existing ones genuinely can't support the feature.
 
-Present the plan via AskUserQuestion (still in plan mode). Once approved, exit plan mode.
+Output the full implementation plan as chat text (still in plan mode). Then use AskUserQuestion:
+- Question: "Ready to implement?"
+- A) Yes, build it
+- B) Adjust the plan
+
+Once approved, exit plan mode.
 
 ---
 
@@ -662,17 +685,14 @@ Present the completed work to the user.
 - Accessibility features included
 - Any deviations from the spec (and why)
 
-**AskUserQuestion:**
+**Output the summary as chat text** (what was built, files changed, tests added, accessibility included, any deviations). Then use AskUserQuestion:
+- Question: "What's next?"
+- A) Publish it — run /publish (Recommended if self-review passed cleanly)
+- B) Review the code first — I'll wait
+- C) Changes needed — tell me what to adjust
+- D) Run /qa first (recommend if there's a testable URL you haven't checked)
 
-"Feature complete: [feature name]. Here's what I built: [summary].
-
-A) Publish it — run /publish to version, changelog, push, and open PR
-B) I want to review the code first [I'll wait]
-C) Changes needed [tell me what to adjust]
-D) Run /qa on it first [if there's a testable URL]"
-
-RECOMMENDATION: Recommend A if self-review passed cleanly. Recommend D if the feature
-has a web-testable component and you haven't tested it in a browser yet.
+RECOMMENDATION: A if self-review passed cleanly. D if the feature has a web-testable component and hasn't been tested in a browser yet.
 
 **If the user picks A:** Run `/publish`. It handles versioning, CHANGELOG, test verification,
 PR creation, and everything else. Don't do it manually.

@@ -37,7 +37,30 @@ If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack
 
 ## AskUserQuestion Format
 
-**ALWAYS follow this structure for every AskUserQuestion call:**
+**Two types of AskUserQuestion calls — use the right format for each:**
+
+### Plan approval (review plan, test plan, spec approval, implementation plan)
+
+Output the plan details as **regular chat text first** — never inside the AskUserQuestion call. Then use AskUserQuestion with only a short question and 2-3 clean options. No detail in option descriptions.
+
+Example:
+```
+[chat text output]
+I've read the diff (~180 lines, 4 files). Here's what I'll focus on:
+
+1. **Race condition** — status transition in OrderService isn't atomic
+2. **N+1** — PostsController#index missing includes(:author)
+3. **Test coverage** — BillingService has no tests
+
+[AskUserQuestion]
+Question: "Anything to add or skip?"
+A) Looks good, go
+B) Adjust the focus
+```
+
+### Judgment questions (bugs, design decisions, tradeoffs)
+
+**ALWAYS follow this structure:**
 1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
 2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
 3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts when the delta is small. Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
@@ -194,16 +217,19 @@ write DESIGN.md from what you find.
 
 ## Phase 2: Present the Plan
 
-**AskUserQuestion — present a short plan based on the mode you detected:**
+**Output the plan as chat text** based on the mode you detected, then follow with a minimal AskUserQuestion.
 
-- **Consultation:** Explain you'll research the landscape (optional), propose a
-  design system, generate a preview, and write DESIGN.md. Ask if they want
-  competitive research or prefer you work from your knowledge.
-- **Review:** Explain you'll do a first impression, extract the live design system,
-  audit 10 categories, catch AI slop, and fix what you find. Ask if they want
-  audit-only (report, no fixes) or audit + fix.
+- **Consultation:** Explain you'll research the landscape (optional), propose a complete design system, generate a preview, and write DESIGN.md.
+- **Review:** Explain you'll extract the live design system, audit 10 categories, catch AI slop, and either report findings or fix them.
 
-Options: A) Sounds good, go. B) Adjust the plan. C) I want the other mode.
+Then use AskUserQuestion:
+- **Consultation:** Question: "Want competitive research first, or should I work from my knowledge of the space?"
+  - A) Research first (Recommended)
+  - B) Skip research, go from knowledge
+- **Review:** Question: "How do you want me to handle issues I find?"
+  - A) Audit and fix (Recommended)
+  - B) Report only
+  - C) I want consultation mode instead
 
 **STOP.** Do not proceed until the user responds.
 

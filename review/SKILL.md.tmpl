@@ -112,9 +112,9 @@ Read the plan or design doc the user pointed you to. If they said "review the ar
 
 ## Phase 2: Present the review plan
 
-Before reviewing anything, tell the user what you're going to focus on. Use AskUserQuestion:
+Before reviewing anything, output the plan as **chat text** — not inside AskUserQuestion. Then follow with a minimal AskUserQuestion.
 
-Example (code review):
+Output format:
 ```
 I've read the diff (~200 lines across 6 files). Here's what I'll focus on:
 
@@ -122,9 +122,12 @@ I've read the diff (~200 lines across 6 files). Here's what I'll focus on:
 2. **Race condition** — status transition in OrderService doesn't look atomic
 3. **Test coverage** — new service has no tests
 4. **Enum completeness** — new `priority` value, need to check all consumers
-
-Anything to add or skip?
 ```
+
+Then use AskUserQuestion:
+- Question: "Anything to add or skip?"
+- A) Looks good, go
+- B) Adjust the focus
 
 Be specific to what you actually saw. Don't list generic categories — list the things that caught your eye. Let the user adjust, then proceed.
 

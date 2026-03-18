@@ -37,7 +37,30 @@ If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack
 
 ## AskUserQuestion Format
 
-**ALWAYS follow this structure for every AskUserQuestion call:**
+**Two types of AskUserQuestion calls — use the right format for each:**
+
+### Plan approval (review plan, test plan, spec approval, implementation plan)
+
+Output the plan details as **regular chat text first** — never inside the AskUserQuestion call. Then use AskUserQuestion with only a short question and 2-3 clean options. No detail in option descriptions.
+
+Example:
+```
+[chat text output]
+I've read the diff (~180 lines, 4 files). Here's what I'll focus on:
+
+1. **Race condition** — status transition in OrderService isn't atomic
+2. **N+1** — PostsController#index missing includes(:author)
+3. **Test coverage** — BillingService has no tests
+
+[AskUserQuestion]
+Question: "Anything to add or skip?"
+A) Looks good, go
+B) Adjust the focus
+```
+
+### Judgment questions (bugs, design decisions, tradeoffs)
+
+**ALWAYS follow this structure:**
 1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
 2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
 3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts when the delta is small. Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
@@ -291,25 +314,27 @@ Check for richer test plan sources before falling back to diff heuristics:
 
 ## Phase 2: Present the Test Plan
 
-**Always present a test plan before testing anything.** Use AskUserQuestion:
+**Always present a test plan before testing anything.** Output the plan as **chat text first**, then use a minimal AskUserQuestion.
 
-"Here's my test plan:
+Output format:
+```
+Here's my test plan:
 
-**Pages/flows to test:**
+**Pages/flows:**
 1. [page/route] — [what I'll check]
 2. [page/route] — [what I'll check]
-3. ...
 
 **Scope:** [full app / diff-scoped to N files / focused on X]
-**Estimated time:** [quick: ~2 min / standard: ~10 min / exhaustive: ~20 min]
+**Tier:** [quick ~2 min / standard ~10 min / exhaustive ~20 min]
+```
 
-**How do you want me to handle bugs I find?**
-A) Test and fix — I'll fix each bug, commit atomically, and verify the fix
-B) Report only — I'll document everything but won't touch any code
-C) Adjust the plan — tell me what to change
+Then use AskUserQuestion:
+- Question: "How do you want me to handle bugs I find?"
+- A) Test and fix — fix each bug, commit atomically, verify the fix (Recommended)
+- B) Report only — document everything, no code changes
+- C) Adjust the plan
 
-RECOMMENDATION: Choose A because fixes with regression tests are the complete
-option and cost minutes with CC. Completeness: A=9/10, B=6/10."
+RECOMMENDATION in option descriptions: A is the complete option — fixes with regression tests cost minutes with CC.
 
 **STOP.** Do NOT proceed until the user responds. Their choice sets the mode for
 the rest of the session. If they chose B or passed `--report-only`, you are in
