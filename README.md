@@ -8,8 +8,7 @@ skystack strips out the founder-tech-bro framing and refocuses the whole system 
 
 ## Who this is for
 
-- **Solo developers and small teams** — especially if you're building mobile and web apps at the same time
-- **Anyone who ships** — bring design feedback, code review, QA, and release automation into every PR
+- **Solo developers** — especially if you're building mobile and web apps at the same time
 
 ## Quick start: your first 10 minutes
 
@@ -70,9 +69,7 @@ Claude: Tests: 42 → 51 (+9 new)
 
 One feature. Three commands. The planner researched the problem, got design and architecture feedback, wrote the spec, built it, self-reviewed, and shipped. The tester opened a real browser and caught a bug.
 
-That's not a copilot. That's a crew.
-
-## The crew
+## The team
 
 Four collaborators for your projects:
 
