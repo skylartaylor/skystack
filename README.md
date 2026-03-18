@@ -1,16 +1,12 @@
 # skystack
 
-**skystack** is a fork of [gstack](https://github.com/garrytan/gstack), adapted for my work: primarily Flutter mobile apps (iOS/Android) alongside web projects.
+**skystack** is a fork of [gstack](https://github.com/garrytan/gstack), adapted for my work: flutter mobile apps (iOS/Android) alongside web projects.
 
-It turns Claude Code into a small group of collaborators: a planner who figures out what to build, a designer who makes it look right, a dev who reviews the architecture, and a tester who breaks things before users do. They share context, give each other feedback, and work together. All slash commands, all Markdown.
+It turns Claude Code into a small group of collaborators: a planner, a designer, a dev who reviews your code, and a tester who breaks things before users do. All slash commands, all Markdown.
 
-skystack strips out the founder-tech-bro framing and refocuses the whole system on being a practical tool for shipping software.
+skystack strips out the founder-tech-bro framing from gstack and makes it work for solo devs.
 
-## Who this is for
-
-- **Solo developers** — especially if you're building mobile and web apps at the same time
-
-## Quick start: your first 10 minutes
+## get started
 
 1. Install skystack (30 seconds — see below)
 2. Run `/pm "your feature idea"` to plan a feature
@@ -18,74 +14,39 @@ skystack strips out the founder-tech-bro framing and refocuses the whole system 
 4. Run `/qa` on your staging URL
 5. Stop there. You'll know if this is for you.
 
-## Install
+## install
 
-**Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+
+**requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+
 
-### Step 1: Install on your machine
+### step 1: install on your machine
 
 Open Claude Code and paste this. Claude does the rest.
 
 > Install skystack: run **`git clone https://github.com/skylartaylor/skystack.git ~/.claude/skills/skystack && cd ~/.claude/skills/skystack && ./setup`** then add a "skystack" section to CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp__claude-in-chrome__* tools, and lists the available skills: /pm, /design, /review, /qa, /docs, /research, /publish, /browse, /setup-browser-cookies, /retro. Then ask the user if they also want to add skystack to the current project so teammates get it.
 
-### Step 2: Add to your repo for collaborators (optional)
+### step 2: add to your repo for collaborators (optional)
 
 > Add skystack to this project: run **`cp -Rf ~/.claude/skills/skystack .claude/skills/skystack && rm -rf .claude/skills/skystack/.git && cd .claude/skills/skystack && ./setup`** then add a "skystack" section to this project's CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp__claude-in-chrome__* tools, lists the available skills: /pm, /design, /review, /qa, /docs, /research, /publish, /browse, /setup-browser-cookies, /retro, and tells Claude that if skystack skills aren't working, run `cd .claude/skills/skystack && ./setup` to build the binary and register skills.
 
 Real files get committed to your repo, not a submodule, so `git clone` just works. Everything lives inside `.claude/`. Nothing touches your PATH or runs in the background.
 
-## See it work
+## the team
 
-```text
-You:    /pm "add photo upload for sellers"
-Claude: [researches competitor apps, checks your DESIGN.md, explores codebase]
-        [asks the Designer for feedback on the upload flow]
-        [asks the Dev to check the architecture]
+Four collaborators:
 
-        "Upload is table stakes — but auto-identifying the product and
-        drafting the listing from photos is what makes it great. Designer
-        says: use a bottom sheet upload flow, not a modal. Dev says: use
-        the existing ImageService, add a ClassificationRepository.
-        Here's the spec — approve it?"
+| Skill | | What they do |
+|-------|--|--------------|
+| `/pm` | **the planner** | Takes a feature from idea to shipped code. Does the research, writes the spec, coordinates the designer and dev for feedback, builds it, publishes it. |
+| `/design` | **the designer** | Builds design systems or audits what you've built. Catches AI slop, proposes fixes, generates previews. |
+| `/review` | **the dev** | Reads your diff, presents a review plan, catches bugs that pass CI. Auto-fixes the obvious ones, asks about the rest. |
+| `/qa` | **the tester** | Opens a real browser, clicks through your app, presents a test plan, finds bugs. Fixes them or reports only — your choice. |
 
-You:    Looks good, build it.
-        [Claude writes 2,400 lines across 11 files — models, services,
-         controllers, views, and tests. ~8 minutes.]
-
-        [self-reviews for correctness, accessibility, edge cases]
-
-You:    /qa https://staging.myapp.com
-Claude: [opens real browser, logs in, uploads photos, clicks through flows]
-        Upload → classify → enrich → draft: end to end ✓
-        Mobile: ✓  |  Slow connection: ✓  |  Bad image: ✓
-        [finds bug: preview doesn't clear on second upload — fixes it]
-        Regression test generated.
-
-You:    /publish
-Claude: Tests: 42 → 51 (+9 new)
-        Coverage: 14/14 code paths (100%)
-        PR: github.com/you/app/pull/42
-```
-
-One feature. Three commands. The planner researched the problem, got design and architecture feedback, wrote the spec, built it, self-reviewed, and shipped. The tester opened a real browser and caught a bug.
-
-## The team
-
-Four collaborators for your projects:
-
-| Skill | Your friend | What they do |
-|-------|-------------|--------------|
-| `/pm` | **The Planner** | Takes a feature from idea to shipped code. Does the research, writes the spec, coordinates the Designer and Dev for feedback, builds it, publishes it. |
-| `/design` | **The Designer** | Builds design systems or audits what you've built. Catches AI slop, proposes fixes, generates previews. |
-| `/review` | **The Dev** | Reads your diff, presents a review plan, catches bugs that pass CI. Auto-fixes the obvious ones, asks about the rest. |
-| `/qa` | **The Tester** | Opens a real browser, clicks through your app, presents a test plan, finds bugs. Fixes them or reports only — your choice. |
-
-Plus tools:
+tools:
 
 | Skill | What it does |
 |-------|-------------|
 | `/docs` | Writes new docs, updates existing ones after shipping, audits for staleness. |
-| `/research` | Searches developer docs and forums, updates the crew's reference files for your stack. |
+| `/research` | Searches developer docs and forums, updates reference files for your stack. |
 | `/publish` | Sync main, run tests, push, open PR. One command. |
 | `/browse` | Give the agent a real browser. Chromium, real clicks, real screenshots. ~100ms per command. |
 | `/setup-browser-cookies` | Import cookies from your browser into the headless session for authenticated testing. |
@@ -93,7 +54,7 @@ Plus tools:
 
 **[Deep dives with examples and philosophy for every skill →](docs/skills.md)**
 
-## What's different from gstack
+## differences from gstack
 
 **No corporate hierarchy.** gstack frames everything as CEO reviews, eng manager gates, and staff engineer audits. skystack uses a friend-group model: a planner, a designer, a dev, and a tester who collaborate and give each other feedback.
 
@@ -105,13 +66,13 @@ Plus tools:
 
 **`/qa` gives the agent eyes.** It opens a real browser, clicks through your app, finds bugs, fixes them with atomic commits, and writes regression tests.
 
-**`/research` keeps the crew sharp.** Each agent reads from reference files — design patterns, code review heuristics, QA checklists, and product thinking. `/research` updates those references with current best practices for your stack.
+**`/research` keeps everyone sharp.** Each agent works from a reference file for your stack. `/research` updates those with current best practices.
 
-**Test everything.** `/publish` bootstraps test frameworks from scratch if you don't have one. Every `/qa` bug fix generates a regression test. Tests make vibe coding safer.
+**test everything.** `/publish` bootstraps test frameworks from scratch if you don't have one. Every `/qa` bug fix generates a regression test. Tests make vibe coding safer.
 
-**Works the way you actually work.** No feature branch required. `/review` works on `main` with staged or unstaged changes. `/publish` pushes directly when you're already on the base branch. `/docs` uses recent commit history when there's no PR to diff against. Solo developers who commit straight to main aren't second-class citizens.
+**works the way you actually work.** No feature branch required. `/review` works on `main` with staged or unstaged changes. `/publish` pushes directly when you're already on the base branch. `/docs` uses recent commit history when there's no PR to diff against. Working on main is fine.
 
-## Docs
+## documentation
 
 | Doc | What it covers |
 |-----|---------------|
@@ -121,7 +82,7 @@ Plus tools:
 | [Contributing](CONTRIBUTING.md) | Dev setup, testing, contributor mode, and dev mode |
 | [Changelog](CHANGELOG.md) | What's new in every version |
 
-## Troubleshooting
+## troubleshooting
 
 **Skill not showing up?** `cd ~/.claude/skills/skystack && ./setup`
 
@@ -137,15 +98,13 @@ Available skills: /pm, /design, /review, /qa, /docs, /research, /publish, /brows
 If skystack skills aren't working, run `cd .claude/skills/skystack && ./setup`.
 ```
 
-## Why this exists
+## why i made this
 
-skystack started as a fork of [gstack](https://github.com/garrytan/gstack), which is a genuinely solid Claude Code skill suite. The skill architecture, structured review roles, and QA automation are good ideas. This project keeps the useful parts and adapts them for my workflow: mobile apps, web projects, and a less corporate, more collaborative model.
+skystack started as a fork of [gstack](https://github.com/garrytan/gstack), which is an impressive Claude Code skill suite. The skill architecture, structured review roles, and QA automation are good ideas. This project keeps the useful parts and adapts them for my workflow: mobile apps, web projects, and a less corporate, more collaborative model.
 
-## About the upstream project
+## about garry...
 
-gstack was created by [Garry Tan](https://x.com/garrytan) of [Y Combinator](https://www.ycombinator.com/). I forked it because I found the tooling useful, but I don't want this project to function as a billboard for Garry or for the politics attached to his brand.
-
-Some of that discomfort is personal taste. Some of it is political.
+gstack was created by [Garry Tan](https://x.com/garrytan) of [Y Combinator](https://www.ycombinator.com/). I forked it because I found the tooling useful, but I hated its use as a billboard for Garry or for the politics attached to his brand. What politics?
 
 **The "die slow" incident.** In January 2024, Tan [posted on Twitter](https://missionlocal.org/2024/01/garry-tan-death-wish-sf-supervisors/): *"Fuck Chan Peskin Preston Walton Melgar Ronen Safai ... Die slow motherfuckers"* — naming seven San Francisco Board of Supervisors members. Three supervisors then [received death threat mailers](https://techcrunch.com/2024/01/31/san-francisco-supervisors-threats-yc-garry-tans-tweet/). Two filed police reports. He claimed it was a Tupac reference.
 
@@ -157,8 +116,6 @@ Some of that discomfort is personal taste. Some of it is political.
 
 I met him once. I did not care for him.
 
-None of that changes the fact that the original software had good ideas in it. skystack exists because I wanted those ideas without the surrounding ideology or personality cult.
-
-## License & upstream
+## license & upstream
 
 MIT. Based on [gstack](https://github.com/garrytan/gstack), which is also MIT-licensed.
