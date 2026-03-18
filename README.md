@@ -112,6 +112,8 @@ Plus tools:
 
 **Test everything.** `/publish` bootstraps test frameworks from scratch if you don't have one. Every `/qa` bug fix generates a regression test. Tests make vibe coding safer.
 
+**Works the way you actually work.** No feature branch required. `/review` works on `main` with staged or unstaged changes. `/publish` pushes directly when you're already on the base branch. `/docs` uses recent commit history when there's no PR to diff against. Solo developers who commit straight to main aren't second-class citizens.
+
 ## Docs
 
 | Doc | What it covers |
@@ -134,7 +136,7 @@ Plus tools:
 ## skystack
 Use /browse from skystack for all web browsing. Never use mcp__claude-in-chrome__* tools.
 Available skills: /pm, /design, /review, /qa, /docs, /research, /publish, /browse,
-/setup-browser-cookies, /retro, /document-release.
+/setup-browser-cookies, /retro.
 If skystack skills aren't working, run `cd .claude/skills/skystack && ./setup`.
 ```
 

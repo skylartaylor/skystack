@@ -2,644 +2,409 @@
 
 Detailed guides for every skystack skill — philosophy, workflow, and examples.
 
-| Skill | Your specialist | What they do |
-|-------|----------------|--------------|
-| [`/plan-ceo-review`](#plan-ceo-review) | **CEO / Founder** | Rethink the problem. Find the 10-star product hiding inside the request. Four modes: Expansion, Selective Expansion, Hold Scope, Reduction. |
-| [`/plan-eng-review`](#plan-eng-review) | **Eng Manager** | Lock in architecture, data flow, diagrams, edge cases, and tests. Forces hidden assumptions into the open. |
-| [`/plan-design-review`](#plan-design-review) | **Senior Designer** | Interactive plan-mode design review. Rates each dimension 0-10, explains what a 10 looks like, fixes the plan. Works in plan mode. |
-| [`/design-consultation`](#design-consultation) | **Design Partner** | Build a complete design system from scratch. Knows the landscape, proposes creative risks, generates realistic product mockups. Design at the heart of all other phases. |
-| [`/review`](#review) | **Staff Engineer** | Find the bugs that pass CI but blow up in production. Auto-fixes the obvious ones. Flags completeness gaps. |
-| [`/ship`](#ship) | **Release Engineer** | Sync main, run tests, audit coverage, push, open PR. Bootstraps test frameworks if you don't have one. One command. |
-| [`/browse`](#browse) | **QA Engineer** | Give the agent eyes. Real Chromium browser, real clicks, real screenshots. ~100ms per command. |
-| [`/qa`](#qa) | **QA Lead** | Test your app, find bugs, fix them with atomic commits, re-verify. Auto-generates regression tests for every fix. |
-| [`/qa-only`](#qa) | **QA Reporter** | Same methodology as /qa but report only. Use when you want a pure bug report without code changes. |
-| [`/design-review`](#design-review) | **Designer Who Codes** | Live-site visual audit + fix loop. 80-item audit, then fixes what it finds. Atomic commits, before/after screenshots. |
-| [`/setup-browser-cookies`](#setup-browser-cookies) | **Session Manager** | Import cookies from your real browser (Chrome, Arc, Brave, Edge) into the headless session. Test authenticated pages. |
-| [`/retro`](#retro) | **Eng Manager** | Team-aware weekly retro. Per-person breakdowns, shipping streaks, test health trends, growth opportunities. |
-| [`/document-release`](#document-release) | **Technical Writer** | Update all project docs to match what you just shipped. Catches stale READMEs automatically. |
+| Skill | Your friend | What they do |
+|-------|------------|--------------|
+| [`/pm`](#pm) | **The Planner** | Takes a feature from idea to shipped code. Researches, specs, coordinates the Designer and Dev, builds, and publishes. |
+| [`/design`](#design) | **The Designer** | Builds design systems from scratch or audits what you've built. Catches AI slop, proposes fixes, generates previews. |
+| [`/review`](#review) | **The Dev** | Reads your diff, presents a review plan, catches bugs that pass CI. Auto-fixes the obvious ones, asks about the rest. |
+| [`/qa`](#qa) | **The Tester** | Opens a real browser, clicks through your app, presents a test plan, finds bugs. Fixes them or reports only — your choice. |
+| [`/docs`](#docs) | **The Writer** | Writes new docs, updates existing ones after shipping, audits for staleness. |
+| [`/research`](#research) | **The Researcher** | Keeps the crew's reference files current. Searches dev docs and forums, updates guidance for your stack. |
+| [`/publish`](#publish) | **Release** | Sync main, run tests, audit coverage, bump version, push, open PR. One command. |
+| [`/browse`](#browse) | **Browser** | Give the agent a real browser. Chromium, real clicks, screenshots. ~100ms per command. |
+| [`/retro`](#retro) | **Retrospective** | Weekly retro. Shipping streaks, test health trends, per-person breakdowns. |
 
 ---
 
-## `/plan-ceo-review`
+## `/pm`
 
-This is my **founder mode**.
+**The Planner.** Takes a feature from idea to shipped code.
 
-This is where I want the model to think with taste, ambition, user empathy, and a long time horizon. I do not want it taking the request literally. I want it asking a more important question first:
+### Philosophy
 
-**What is this product actually for?**
+`/pm` is the orchestrator. It's not a ticket writer or a scaffolding tool — it's an end-to-end collaborator that does the research a product manager would do, writes the spec an engineer actually wants, coordinates design and architecture feedback, builds the thing, and ships it.
 
-I think of this as **Brian Chesky mode**.
+Two checkpoints where you're involved. Between them, it runs autonomously.
 
-The point is not to implement the obvious ticket. The point is to rethink the problem from the user's point of view and find the version that feels inevitable, delightful, and maybe even a little magical.
+### What it does
 
-### Example
+1. **Discovery** — checks TODOS.md and prior specs, explores the codebase to understand patterns, researches competitor apps and UX patterns, defines accessibility requirements for your stack
+2. **Crew feedback** — dispatches the Designer and Dev as subagents in parallel. Designer reviews the UX approach, Dev reviews the architecture. Their feedback gets woven into the spec.
+3. **Spec → your approval** — presents the full spec (problem statement, proposed solution, design recommendations, architecture notes, edge cases, non-goals). You approve, adjust, or redirect.
+4. **Build** — implements task by task, TDD, atomic commits
+5. **Self-review** — checks its own work for correctness, consistency, accessibility, and test coverage before presenting
+6. **Publish decision → your approval** — presents what was built and asks whether to `/publish`
 
-Say I am building a Craigslist-style listing app and I say:
+### The crew
 
-> "Let sellers upload a photo for their item."
+`/pm` dispatches two subagents automatically:
 
-A weak assistant will add a file picker and save an image.
+- **Designer** — reviews the spec for display patterns, accessibility gaps, and AI slop risk. Are the proposed UI patterns right for this feature? What do users expect?
+- **Dev** — reviews the spec for architectural soundness, performance, and test strategy. Does it fit existing patterns? What breaks in production?
 
-That is not the real product.
+You don't invoke these yourself. `/pm` coordinates them.
 
-In `/plan-ceo-review`, I want the model to ask whether "photo upload" is even the feature. Maybe the real feature is helping someone create a listing that actually sells.
+### Stack awareness
 
-If that is the real job, the whole plan changes.
-
-Now the model should ask:
-
-* Can we identify the product from the photo?
-* Can we infer the SKU or model number?
-* Can we search the web and draft the title and description automatically?
-* Can we pull specs, category, and pricing comps?
-* Can we suggest which photo will convert best as the hero image?
-* Can we detect when the uploaded photo is ugly, dark, cluttered, or low-trust?
-* Can we make the experience feel premium instead of like a dead form from 2007?
-
-That is what `/plan-ceo-review` does for me.
-
-It does not just ask, "how do I add this feature?"
-It asks, **"what is the 10-star product hiding inside this request?"**
-
-### Four modes
-
-- **SCOPE EXPANSION** — dream big. The agent proposes the ambitious version. Every expansion is presented as an individual decision you opt into. Recommends enthusiastically.
-- **SELECTIVE EXPANSION** — hold your current scope as the baseline, but see what else is possible. The agent surfaces opportunities one by one with neutral recommendations — you cherry-pick the ones worth doing.
-- **HOLD SCOPE** — maximum rigor on the existing plan. No expansions surfaced.
-- **SCOPE REDUCTION** — find the minimum viable version. Cut everything else.
-
-Visions and decisions are persisted to `~/.skystack/projects/` so they survive beyond the conversation. Exceptional visions can be promoted to `docs/designs/` in your repo for the team.
-
----
-
-## `/plan-eng-review`
-
-This is my **eng manager mode**.
-
-Once the product direction is right, I want a different kind of intelligence entirely. I do not want more sprawling ideation. I do not want more "wouldn't it be cool if." I want the model to become my best technical lead.
-
-This mode should nail:
-
-* architecture
-* system boundaries
-* data flow
-* state transitions
-* failure modes
-* edge cases
-* trust boundaries
-* test coverage
-
-And one surprisingly big unlock for me: **diagrams**.
-
-LLMs get way more complete when you force them to draw the system. Sequence diagrams, state diagrams, component diagrams, data-flow diagrams, even test matrices. Diagrams force hidden assumptions into the open. They make hand-wavy planning much harder.
-
-So `/plan-eng-review` is where I want the model to build the technical spine that can carry the product vision.
+Stack detection runs first. Every recommendation is tailored to your project:
+- Flutter → `fl_chart`, Material widgets, Semantics wrappers
+- SwiftUI → Charts framework, `.accessibilityLabel()`
+- React/Next.js → recharts, semantic HTML, ARIA
 
 ### Example
 
-Take the same listing app example.
+```text
+You:    /pm "add a weekly summary email"
+Claude: [reads TODOS.md, finds related deferred work]
+        [explores codebase: finds existing EmailService, mailer patterns]
+        [researches: Mailchimp, Substack, GitHub Digest — what makes digests useful]
+        [asks Designer: layout, content hierarchy, mobile email patterns]
+        [asks Dev: scheduling approach, idempotency, unsubscribe handling]
 
-Let's say `/plan-ceo-review` already did its job. We decided the real feature is not just photo upload. It is a smart listing flow that:
+        "The stated feature is a weekly email. The real opportunity is a digest
+        that surfaces what actually changed — not a summary you wrote, but the
+        3 things users missed. Designer says: single-column, heavy on data viz.
+        Dev says: use the existing job queue, add an idempotency key.
+        Here's the spec — approve it?"
 
-* uploads photos
-* identifies the product
-* enriches the listing from the web
-* drafts a strong title and description
-* suggests the best hero image
-
-Now `/plan-eng-review` takes over.
-
-Now I want the model to answer questions like:
-
-* What is the architecture for upload, classification, enrichment, and draft generation?
-* Which steps happen synchronously, and which go to background jobs?
-* Where are the boundaries between app server, object storage, vision model, search/enrichment APIs, and the listing database?
-* What happens if upload succeeds but enrichment fails?
-* What happens if product identification is low-confidence?
-* How do retries work?
-* How do we prevent duplicate jobs?
-* What gets persisted when, and what can be safely recomputed?
-
-And this is where I want diagrams — architecture diagrams, state models, data-flow diagrams, test matrices. Diagrams force hidden assumptions into the open. They make hand-wavy planning much harder.
-
-That is `/plan-eng-review`.
-
-Not "make the idea smaller."
-**Make the idea buildable.**
-
-### Review Readiness Dashboard
-
-Every review (CEO, Eng, Design) logs its result. At the end of each review, you see a dashboard:
-
-```
-+====================================================================+
-|                    REVIEW READINESS DASHBOARD                       |
-+====================================================================+
-| Review          | Runs | Last Run            | Status    | Required |
-|-----------------|------|---------------------|-----------|----------|
-| Eng Review      |  1   | 2026-03-16 15:00    | CLEAR     | YES      |
-| CEO Review      |  1   | 2026-03-16 14:30    | CLEAR     | no       |
-| Design Review   |  0   | —                   | —         | no       |
-+--------------------------------------------------------------------+
-| VERDICT: CLEARED — Eng Review passed                                |
-+====================================================================+
-```
-
-Eng Review is the only required gate (disable with `skystack-config set skip_eng_review true`). CEO and Design are informational — recommended for product and UI changes respectively.
-
-### Plan-to-QA flow
-
-When `/plan-eng-review` finishes the test review section, it writes a test plan artifact to `~/.skystack/projects/`. When you later run `/qa`, it picks up that test plan automatically — your engineering review feeds directly into QA testing with no manual copy-paste.
-
----
-
-## `/plan-design-review`
-
-This is my **senior designer reviewing your plan** — before you write a single line of code.
-
-Most plans describe what the backend does but never specify what the user actually sees. Empty states? Error states? Loading states? Mobile layout? AI slop risk? These decisions get deferred to "figure it out during implementation" — and then an engineer ships "No items found." as the empty state because nobody specified anything better.
-
-`/plan-design-review` catches all of this during planning, when it's cheap to fix.
-
-It works like `/plan-ceo-review` and `/plan-eng-review` — interactive, one issue at a time, with the **STOP + AskUserQuestion** pattern. It rates each design dimension 0-10, explains what a 10 looks like, then edits the plan to get there. The rating drives the work: rate low = lots of fixes, rate high = quick pass.
-
-Seven passes over the plan: information architecture, interaction state coverage, user journey, AI slop risk, design system alignment, responsive/accessibility, and unresolved design decisions. For each pass, it finds gaps and either fixes them directly (obvious ones) or asks you to make a design choice (genuine tradeoffs).
-
-### Example
-
-```
-You:   /plan-design-review
-
-Claude: Initial Design Rating: 4/10
-
-        "This plan describes a user dashboard but never specifies
-         what the user sees first. It says 'cards with icons' —
-         which looks like every SaaS template. It mentions zero
-         loading states, zero empty states, and no mobile behavior."
-
-        Pass 1 (Info Architecture): 3/10
-        "A 10 would define primary/secondary/tertiary content
-         hierarchy for every screen."
-        → Added information hierarchy section to plan
-
-        Pass 2 (Interaction States): 2/10
-        "The plan has 4 UI features but specifies 0 out of 20
-         interaction states (4 features × 5 states each)."
-        → Added interaction state table to plan
-
-        Pass 4 (AI Slop): 4/10
-        "The plan says 'clean, modern UI with cards and icons'
-         and 'hero section with gradient'. These are the top 2
-         AI-generated-looking patterns."
-        → Rewrote UI descriptions with specific, intentional alternatives
-
-        Overall: 4/10 → 8/10 after fixes
-        "Plan is design-complete. Run /design-review after
-         implementation for visual QA."
-```
-
-When you re-run it, sections already at 8+ get a quick pass. Sections below 8 get full treatment. For live-site visual audits post-implementation, use `/design-review`.
-
----
-
-## `/design-consultation`
-
-This is my **design partner mode**.
-
-`/plan-design-review` audits a site that already exists. `/design-consultation` is for when you have nothing yet — no design system, no font choices, no color palette. You are starting from zero and you want a senior designer to sit down with you and build the whole visual identity together.
-
-It is a conversation, not a form. The agent asks about your product, your users, and your audience. It thinks about what your product needs to communicate — trust, speed, craft, warmth, whatever fits — and works backward from that to concrete choices. Then it proposes a complete, coherent design system: aesthetic direction, typography (3+ fonts with specific roles), color palette with hex values, spacing scale, layout approach, and motion strategy. Every recommendation comes with a rationale. Every choice reinforces every other choice.
-
-But coherence is table stakes. Every dev tool dashboard looks the same — clean sans-serif, muted grays, a blue accent. They are all coherent. They are all forgettable. The difference between a product that looks "nice" and one that people actually recognize is the **deliberate creative risks**: the unexpected serif for headings, the bold accent nobody else in your category uses, the tighter spacing that makes your data feel authoritative instead of airy.
-
-That is what `/design-consultation` is really about. It does not just propose a safe system. It proposes safe choices AND risks — and tells you which is which. "Here are the choices that keep you literate in your category. And here is where I think you should break from convention, and why." You pick which risks to take. The agent checks that the whole system still coheres either way.
-
-If you want, the agent will research what's already out there in your space — take screenshots of real sites, analyze their fonts and colors and spacing — so you can see the landscape before you make choices. This is not about copying. It is about getting in the ballpark so you know what the conventions are, and then deciding which ones are worth breaking.
-
-After you agree on the system, it generates an interactive HTML preview page — not just swatches and font samples, but realistic product pages. If you are building a dashboard, you see a dashboard with a sidebar, data tables, and stat cards. If you are building a marketing site, you see a hero section with real copy and a CTA. Everything rendered in your design system, with your product name, in light and dark mode. You see what your product could feel like before a single line of production code is written.
-
-Then it writes `DESIGN.md` to your repo root — your project's design source of truth — and updates `CLAUDE.md` so every future Claude Code session respects the system. From that point on, `/design-review` can audit against it, and any agent working on your frontend knows the rules.
-
-### Example
-
-```
-You:   /design-consultation
-
-Claude: From the README, this looks like a developer analytics dashboard
-        for engineering teams. Sound right? Tell me about the feeling
-        you want — and would you like me to look at what's out there
-        first so we can see the landscape?
-
-You:    Yes, it's for eng managers. Show me what's out there.
-
-Claude: [browses Linear, Vercel, Datadog, Posthog — takes screenshots]
-
-        Here's the landscape. They all converge on clean sans-serifs
-        and muted blue-gray palettes. Linear stands out with dark-first
-        and tight spacing. The rest feel interchangeable.
-
-        Here's my proposal — and where I'd play it safe vs. take risks:
-
-        AESTHETIC: Industrial/Utilitarian — data-first, every pixel earns its place
-        TYPOGRAPHY: Geist (body + UI), Instrument Serif (display), JetBrains Mono (data)
-        COLOR: Restrained — slate neutrals, single teal accent (#0D9488)
-        SPACING: 4px base, compact density
-        LAYOUT: Grid-disciplined, 12-column
-        MOTION: Minimal-functional — only transitions that aid comprehension
-
-        SAFE CHOICES (match category expectations):
-          Geist for body — your users already know this font from Vercel
-          Slate neutrals — warm grays feel right for data-heavy UIs
-          Grid-disciplined layout — dashboards need predictable alignment
-
-        RISKS (where you'd stand out):
-          Instrument Serif for display headings — nobody in dev tools
-            uses a serif. It creates instant hierarchy contrast and
-            signals "we care about craft" in a space full of sans-serifs.
-          Single teal accent instead of blue — everyone else in this space uses blue.
-            Teal is close enough to feel trustworthy, different enough
-            to be recognizable.
-          4px compact density — tighter than Linear, says "we respect
-            your screen real estate."
-
-        The safe choices keep you literate. The risks are where your
-        product gets its own face. Which risks appeal to you?
-
-You:    Love the serif risk. Let's see it.
-
-Claude: Preview opened in your browser.
-        [/tmp/design-consultation-preview-1710000000.html]
-
-        The page shows a realistic dashboard: sidebar nav, header with
-        avatar, stat cards, data table — all in your design system.
-        Instrument Serif at hero scale, Geist in body text, JetBrains
-        Mono in the data table. Teal accent on buttons and active states.
-        Light and dark mode toggle in the corner.
-
-        How does it feel? Want to adjust anything before I write DESIGN.md?
-
-You:    Ship it.
-
-Claude: Wrote DESIGN.md (typography, color, spacing, layout, motion).
-        Updated CLAUDE.md with design system guidelines.
-        All future sessions will respect these choices.
+You:    Build it.
+        [implements 8 tasks, TDD, atomic commits]
+        [self-reviews for correctness, tests edge cases]
+        "Built it. 6 files, 47 tests added. Ready to publish?"
 ```
 
 ---
 
-## `/design-review`
+## `/design`
 
-This is my **designer who codes mode**.
+**The Designer.** Builds design systems or audits what you've built.
 
-`/plan-design-review` reviews your plan before implementation. `/design-review` audits and fixes the live site after.
+### Philosophy
 
-It runs an 80-item visual audit on your live site, then enters a fix loop: for each design finding, it locates the source file, makes the minimal CSS/styling change, commits with `style(design): FINDING-NNN`, re-navigates to verify, and takes before/after screenshots. One commit per fix, fully bisectable.
+`/design` is a collaborator, not a report generator. It proposes concrete systems, explains its reasoning, and welcomes pushback. It never hedges or presents menus of options unprompted.
 
-The self-regulation heuristic is tuned for design work — CSS-only changes get a free pass (they are inherently safe and reversible), but changes to component JSX/TSX files count against the risk budget. Hard cap at 30 fixes. If the risk score exceeds 20%, it stops and asks.
+Two things it actively guards against:
+- **AI slop** — generic card grids, purple gradients, hollow hero sections, "Unlock the power of..." copy. It flags these by name and replaces them with intentional choices.
+- **Vagueness** — "clean, modern UI" is not a design decision. Every recommendation is specific and justified.
+
+### Two modes
+
+**Build a design system** — If you don't have a `DESIGN.md`, it researches your space, proposes a complete coherent visual system (typography, color, spacing, component patterns), generates a color preview page, and writes `DESIGN.md`. One session.
+
+**Audit what you've built** — If `DESIGN.md` exists, it checks your implementation against it. Finds gaps between what the design system says and what the code actually does.
+
+### What it checks
+
+- Typography consistency (font scale, weight pairings, line height)
+- Color usage (contrast ratios, semantic meaning, palette discipline)
+- Spacing system (do you have one? is it followed?)
+- Component patterns (is the button always a button? are cards consistent?)
+- AI slop patterns (gradient abuse, empty hero sections, corporate filler copy)
+- Accessibility (touch targets, contrast, never color-alone)
 
 ### Example
 
+```text
+You:    /design
+Claude: [reads DESIGN.md — finds your color system and type scale]
+        [scans component files — finds 3 inline colors that bypass the system]
+        [finds button with outline: none and no focus-visible replacement]
+
+        "Here's what I'll check: palette discipline, type consistency, spacing,
+        AI slop patterns, and accessibility. Ready?"
+
+You:    Go.
+        [AUTO-FIXED] src/Button.tsx:14 — outline: none → added focus-visible ring
+        [AUTO-FIXED] src/Card.tsx:8 — hardcoded #1a1a2e → var(--color-surface)
+        [ASK] src/HeroSection.tsx — generic gradient + "Unlock your workflow"
+              → Replace with content-first hero? A) Yes  B) Skip
 ```
-You:   /design-review https://myapp.com
-
-Claude: [Runs full 80-item visual audit on the live site]
-        Design Score: C  |  AI Slop Score: D
-        12 findings (4 high, 5 medium, 3 polish)
-
-        Fixing 9 design issues...
-
-        style(design): FINDING-001 — replace 3-column icon grid with asymmetric layout
-        style(design): FINDING-002 — add heading scale 48/32/24/18/16
-        style(design): FINDING-003 — remove gradient hero, use bold typography
-        style(design): FINDING-004 — add second font for headings
-        style(design): FINDING-005 — vary border-radius by element role
-        style(design): FINDING-006 — left-align body text, reserve center for headings
-        style(design): FINDING-007 — add hover/focus states to all interactive elements
-        style(design): FINDING-008 — add prefers-reduced-motion media query
-        style(design): FINDING-009 — set max content width to 680px for body text
-
-        Final audit:
-        Design Score: C → B+  |  AI Slop Score: D → A
-        9 fixes applied (8 verified, 1 best-effort). 3 deferred.
-
-        [Report with before/after screenshots saved to .skystack/design-reports/]
-```
-
-Nine commits, each touching one concern. The AI Slop score went from D to A because the three most recognizable patterns (gradient hero, 3-column grid, uniform radius) are gone.
 
 ---
 
 ## `/review`
 
-This is my **paranoid staff engineer mode**.
+**The Dev.** Catches the bug before it hits production.
 
-Passing tests do not mean the branch is safe.
+### Philosophy
 
-`/review` exists because there is a whole class of bugs that can survive CI and still punch you in the face in production. This mode is not about dreaming bigger. It is not about making the plan prettier. It is about asking:
+`/review` is your friend who reads the diff, spots what's off, fixes the obvious stuff, and flags the rest. It presents a review plan before doing anything and lets you adjust what to focus on.
 
-**What can still break?**
+It's opinionated about what to flag. If it's fine, it skips it. No five-paragraph explanations for style preferences.
 
-This is a structural audit, not a style nitpick pass. I want the model to look for things like:
+### Two modes
 
-* N+1 queries
-* stale reads
-* race conditions
-* bad trust boundaries
-* missing indexes
-* escaping bugs
-* broken invariants
-* bad retry logic
-* tests that pass while missing the real failure mode
-* forgotten enum handlers — add a new status or type constant, and `/review` traces it through every switch statement and allowlist in your codebase, not just the files you changed
+**Code review** — there's a diff to read. Auto-detected from your current branch.
+**Architecture review** — you're asked to review a plan or design doc.
 
-### Fix-First
+### Code review workflow
 
-Findings get action, not just listed. Obvious mechanical fixes (dead code, stale comments, N+1 queries) are applied automatically — you see `[AUTO-FIXED] file:line Problem → what was done` for each one. Genuinely ambiguous issues (security, race conditions, design decisions) get surfaced for your call.
+1. Detects mode: feature branch diff, local changes on main, or architecture
+2. Reads the checklist and skims the diff
+3. **Presents a review plan** — specific to what it actually saw ("Race condition in status transition" not "Concurrency concerns")
+4. You approve, adjust, or redirect
+5. Two-pass review: Critical first (SQL, race conditions, LLM trust), Informational second
+6. Auto-fixes the obvious ones (dead code, N+1, stale comments, magic numbers)
+7. Batches ASK items into one question
 
-### Completeness gaps
+### Auto-fix vs ask
 
-`/review` now flags shortcut implementations where the complete version costs less than 30 minutes of CC time. If you chose the 80% solution and the complete version is clearly achievable, the review will call it out.
+```
+AUTO-FIX:                            ASK:
+├─ Dead code / unused variables      ├─ Security (auth, XSS, injection)
+├─ N+1 queries (missing includes)   ├─ Race conditions
+├─ Stale comments                    ├─ Design decisions
+├─ Magic numbers → named constants   ├─ Large fixes (>20 lines)
+└─ Missing LLM output validation     └─ Anything user-visible
+```
+
+### Works on main too
+
+No feature branch needed. If you're on `main` with staged or unstaged changes, `/review` detects local changes mode and reviews against your last commit.
 
 ### Example
 
-Suppose the smart listing flow is implemented and the tests are green.
+```text
+You:    /review
+Claude: [reads diff — 180 lines, 4 files]
 
-`/review` should still ask:
+        "I've read the diff. Here's what I'll focus on:
+        1. Race condition — status transition in OrderService isn't atomic
+        2. N+1 — PostsController#index missing includes(:author)
+        3. Test coverage — new BillingService has no tests
+        Anything to add or skip?"
 
-* Did I introduce an N+1 query when rendering listing photos or draft suggestions?
-* Am I trusting client-provided file metadata instead of validating the actual file?
-* Can two tabs race and overwrite cover-photo selection or item details?
-* Do failed uploads leave orphaned files in storage forever?
-* Can the "exactly one hero image" rule break under concurrency?
-* If enrichment APIs partially fail, do I degrade gracefully or save garbage?
-* Did I accidentally create a prompt injection or trust-boundary problem by pulling web data into draft generation?
+You:    Go.
+        [AUTO-FIXED] app/controllers/posts_controller.rb:12 — N+1 → added includes(:author)
+        [AUTO-FIXED] app/models/order.rb:88 — magic number 3 → MAX_RETRIES = 3
 
-That is the point of `/review`.
-
-I do not want flattery here.
-I want the model imagining the production incident before it happens.
-
----
-
-## `/ship`
-
-This is my **release machine mode**.
-
-Once I have decided what to build, nailed the technical plan, and run a serious review, I do not want more talking. I want execution.
-
-`/ship` is for the final mile. It is for a ready branch, not for deciding what to build.
-
-This is where the model should stop behaving like a brainstorm partner and start behaving like a disciplined release engineer: sync with main, run the right tests, make sure the branch state is sane, update changelog or versioning if the repo expects it, push, and create or update the PR.
-
-### Test bootstrap
-
-If your project doesn't have a test framework, `/ship` sets one up — detects your runtime, researches the best framework, installs it, writes 3-5 real tests for your actual code, sets up CI/CD (GitHub Actions), and creates TESTING.md. 100% test coverage is the goal — tests make vibe coding safe instead of yolo coding.
-
-### Coverage audit
-
-Every `/ship` run builds a code path map from your diff, searches for corresponding tests, and produces an ASCII coverage diagram with quality stars. Gaps get tests auto-generated. Your PR body shows the coverage: `Tests: 42 → 47 (+5 new)`.
-
-### Review gate
-
-`/ship` checks the [Review Readiness Dashboard](#review-readiness-dashboard) before creating the PR. If the Eng Review is missing, it asks — but won't block you. Decisions are saved per-branch so you're never re-asked.
-
-A lot of branches die when the interesting work is done and only the boring release work is left. Humans procrastinate that part. AI should not.
-
----
-
-## `/browse`
-
-This is my **QA engineer mode**.
-
-`/browse` is the skill that closes the loop. Before it, the agent could think and code but was still half blind. It had to guess about UI state, auth flows, redirects, console errors, empty states, and broken layouts. Now it can just go look.
-
-It is a compiled binary that talks to a persistent Chromium daemon — built on [Playwright](https://playwright.dev/) by Microsoft. First call starts the browser (~3s). Every call after that: ~100-200ms. The browser stays running between commands, so cookies, tabs, and localStorage carry over.
-
-### Example
-
+        "1 item needs your input:
+        [CRITICAL] app/services/order_service.rb:44 — race condition in status transition
+        Fix: Add WHERE status = 'pending' to the UPDATE
+        → A) Fix  B) Skip"
 ```
-You:   /browse staging.myapp.com — log in, test the signup flow, and check
-       every page I changed in this branch
-
-Claude: [18 tool calls, ~60 seconds]
-
-        > browse goto https://staging.myapp.com/signup
-        > browse snapshot -i
-        > browse fill @e2 "test@example.com"
-        > browse fill @e3 "password123"
-        > browse click @e5                    (Submit)
-        > browse screenshot /tmp/signup.png
-        > Read /tmp/signup.png
-
-        Signup works. Redirected to onboarding. Now checking changed pages.
-
-        > browse goto https://staging.myapp.com/dashboard
-        > browse screenshot /tmp/dashboard.png
-        > Read /tmp/dashboard.png
-        > browse console
-
-        Dashboard loads. No console errors. Charts render with sample data.
-
-        All 4 pages load correctly. No console errors. No broken layouts.
-        Signup → onboarding → dashboard flow works end to end.
-```
-
-18 tool calls, about a minute. Full QA pass. No browser opened.
-
-**Security note:** `/browse` runs a persistent Chromium session. Cookies, localStorage, and session state carry over between commands. Do not use it against sensitive production environments unless you intend to — it is a real browser with real state. The session auto-shuts down after 30 minutes of idle time.
-
-For the full command reference, see [BROWSER.md](../BROWSER.md).
 
 ---
 
 ## `/qa`
 
-This is my **QA lead mode**.
+**The Tester.** Breaks things before users do.
 
-`/browse` gives the agent eyes. `/qa` gives it a testing methodology.
+### Philosophy
 
-The most common use case: you're on a feature branch, you just finished coding, and you want to verify everything works. Just say `/qa` — it reads your git diff, identifies which pages and routes your changes affect, spins up the browser, and tests each one. No URL required. No manual test plan.
+`/qa` uses the app like a real person who's slightly adversarial and very observant. It clicks the weird buttons, submits the empty forms, resizes to 320px. It finds the bugs nobody else catches because nobody else tested that path.
 
-Four modes:
+When it finds something broken, it either fixes it and proves it's fixed, or writes it up clearly enough that anyone can reproduce it.
 
-- **Diff-aware** (automatic on feature branches) — reads `git diff main`, identifies affected pages, tests them specifically
-- **Full** — systematic exploration of the entire app. 5-15 minutes. Documents 5-10 well-evidenced issues.
-- **Quick** (`--quick`) — 30-second smoke test. Homepage + top 5 nav targets.
-- **Regression** (`--regression baseline.json`) — run full mode, then diff against a previous baseline.
+### Parameters
 
-### Automatic regression tests
+| Parameter | Default | Example |
+|-----------|---------|---------|
+| URL | auto-detect or ask | `https://staging.myapp.com`, `localhost:3000` |
+| Mode | test-and-fix | `--report-only` |
+| Tier | Standard | `--quick`, `--exhaustive` |
+| Scope | Full app | `Focus on the checkout flow` |
 
-When `/qa` fixes a bug and verifies it, it automatically generates a regression test that catches the exact scenario that broke. Tests include full attribution tracing back to the QA report.
+### Tiers
+
+- **Quick** — Critical and High issues only. Fast pass, deploy-blocker focus.
+- **Standard** — + Medium issues. Default. Catches most real bugs.
+- **Exhaustive** — + Low/cosmetic. Full audit, use before major releases.
+
+### What it does
+
+1. Reads the tester reference file (issue taxonomy, patterns for your app)
+2. **Presents a test plan** — pages to cover, edge cases to probe, what to skip and why
+3. You approve the plan
+4. Opens a real Chromium browser via `/browse`, clicks through the app
+5. Documents every bug with screenshots, reproduction steps, severity
+6. In test-and-fix mode: creates an atomic commit per fix, writes a regression test, re-verifies
+7. Presents a final report
+
+### Report-only mode
+
+`/qa --report-only` — finds and documents bugs but makes no code changes. Use when you want a clean bug report without automated fixes.
 
 ### Example
 
+```text
+You:    /qa https://staging.myapp.com
+Claude: [reads tester reference: your app's issue taxonomy]
+
+        "Test plan for staging.myapp.com:
+        Pages: Home, Login, Dashboard, Settings, Checkout
+        Edge cases: Empty cart, expired session, slow network, mobile (390px)
+        Skipping: Admin panel (out of scope)
+        Ready?"
+
+You:    Go.
+        [opens browser, clicks through all flows]
+        [finds: checkout total doesn't update when promo code applied]
+        [takes screenshot, documents steps to reproduce]
+        [fixes: app/javascript/checkout.js:88 — event listener missing on promo input]
+        [commits: fix: checkout total updates on promo code entry]
+        [re-verifies: ✓]
+
+        "Found 1 bug. Fixed it. Regression test added. 43 → 44 tests."
 ```
-You:   /qa https://staging.myapp.com
 
-Claude: [Explores 12 pages, fills 3 forms, tests 2 flows]
+---
 
-        QA Report: staging.myapp.com — Health Score: 72/100
+## `/docs`
 
-        Top 3 Issues:
-        1. CRITICAL: Checkout form submits with empty required fields
-        2. HIGH: Mobile nav menu doesn't close after selecting an item
-        3. MEDIUM: Dashboard chart overlaps sidebar below 1024px
+**The Writer.** Keeps docs accurate and writes new ones when needed.
 
-        [Full report with screenshots saved to .skystack/qa-reports/]
+### Philosophy
+
+`/docs` reads source code before writing anything, and reads existing docs before touching them. It never writes docs without understanding what the code actually does, and it always presents a plan before starting.
+
+### Four modes
+
+1. **Post-ship update** — You just ran `/publish`. Cross-reference the diff against existing docs and update what drifted. Auto-updates paths, counts, commands, table entries. Asks before rewriting introductions or removing sections.
+2. **Write new docs** — Point it at a module, API, or feature. It reads the code, understands the public interface and data flow, and writes docs a new developer can follow.
+3. **Audit** — "Check if docs are stale." Reads everything, maps content to code, flags what's wrong or missing.
+4. **Codebase explainer** — "Explain the codebase." Maps the project, identifies entry points, writes navigational docs for new contributors.
+
+### Works on main too
+
+When run after pushing directly to main (no PR), falls back to recent commit history to understand what changed — `git log -20` instead of `git diff origin/main..HEAD`.
+
+### What it updates automatically
+
+- Paths, commands, table entries, counts — anything clearly factual from the diff
+- Stale cross-references between doc files
+- New items that belong in existing lists
+
+### What it asks about first
+
+- Rewriting introductions or philosophy sections
+- Removing sections
+- Large rewrites (>10 lines in one section)
+
+---
+
+## `/research`
+
+**The Researcher.** Keeps the crew sharp.
+
+### Philosophy
+
+The crew (Designer, Dev, Tester) each read reference files before working: design patterns, code review heuristics, QA checklists, product thinking. These references shape their feedback. If the references are stale, the feedback suffers.
+
+`/research` updates those references with current best practices for your stack.
+
+### What it does
+
+1. Detects your stack (Flutter, SwiftUI, React, Rails, etc.)
+2. Searches developer docs, GitHub discussions, and technical forums for current guidance
+3. Updates `.skystack/references/` with findings:
+   - `designer.md` — design patterns, component conventions, accessibility requirements for your stack
+   - `dev.md` — architecture patterns, performance gotchas, security considerations
+   - `tester.md` — testing patterns, common bug taxonomy, automation approaches
+
+### When to run it
+
+- When starting a new project (populate references for your stack)
+- When upgrading a major dependency (patterns may have changed)
+- When the crew's suggestions feel generic or off (references may be stale)
+- Periodically on long-running projects
+
+---
+
+## `/publish`
+
+**Release.** Full ship workflow in one command.
+
+### Philosophy
+
+You say `/publish`. The next thing you see is a PR URL. Everything in between is automated: merge, test, coverage audit, version bump, changelog, commit, push.
+
+It only stops for things that actually need a human: test failures, merge conflicts, MINOR/MAJOR version bumps, or a pre-landing review finding that needs judgment.
+
+### What it does (feature branch)
+
+1. **Pre-flight** — checks review readiness, detects base branch
+2. **Merge base branch** — fetches and merges before tests run
+3. **Test bootstrap** — if no test framework exists, sets one up
+4. **Run tests** — stops on failure
+5. **Coverage audit** — traces every code path changed, maps to existing tests, generates tests for gaps
+6. **Pre-landing review** — applies the review checklist one more time, auto-fixes anything obvious
+7. **Version bump** — auto-decides MICRO/PATCH based on diff size; asks for MINOR/MAJOR
+8. **CHANGELOG** — auto-generates from diff and commit history
+9. **TODOS.md** — marks completed items, moves them to Completed section
+10. **Commit** — bisectable chunks (model + tests together, controller + views together, VERSION + CHANGELOG last)
+11. **Push + PR**
+
+### Direct push mode (main branch)
+
+If you're on `main` with unpushed commits or local changes, `/publish` enters direct push mode: skip the merge and PR steps, push directly, output the commit SHAs.
+
+### Test bootstrap
+
+If your project has no test framework, `/publish` sets one up:
+- Detects your runtime (Node, Ruby, Python, Go, etc.)
+- Recommends the right framework (vitest for Node, pytest for Python, etc.)
+- Installs, configures, writes 3-5 real tests for existing code
+- Creates `.github/workflows/test.yml`
+- Writes `TESTING.md`
+
+---
+
+## `/browse`
+
+**Browser.** Give the agent a real browser.
+
+The raw browser tool that `/qa` is built on. ~100ms per command. Real Chromium, real clicks, real screenshots.
+
+Use directly when you need browser automation that `/qa` doesn't cover — checking a URL, scraping content, testing a specific interaction, verifying a deployment.
+
+### Commands
+
+```bash
+$B goto https://example.com          # navigate
+$B click "Submit"                    # click by text/selector
+$B fill "#email" "user@example.com"  # fill inputs
+$B snapshot                          # text snapshot of page state
+$B screenshot                        # take a screenshot
+$B js "document.title"               # run JavaScript
+$B wait-for "#loaded"                # wait for element
 ```
 
-**Testing authenticated pages:** Use `/setup-browser-cookies` first to import your real browser sessions, then `/qa` can test pages behind login.
+See [BROWSER.md](../BROWSER.md) for the full command reference.
 
 ---
 
 ## `/setup-browser-cookies`
 
-This is my **session manager mode**.
+**Session Manager.** Import cookies from your real browser into the headless session.
 
-Before `/qa` or `/browse` can test authenticated pages, they need cookies. Instead of manually logging in through the headless browser every time, `/setup-browser-cookies` imports your real sessions directly from your daily browser.
+Opens an interactive picker UI where you select which cookie domains to import. Use before `/qa` testing pages that require authentication.
 
-It auto-detects installed Chromium browsers (Comet, Chrome, Arc, Brave, Edge), decrypts cookies via the macOS Keychain, and loads them into the Playwright session. An interactive picker UI lets you choose exactly which domains to import — no cookie values are ever displayed.
-
-```
-You:   /setup-browser-cookies
-
-Claude: Cookie picker opened — select the domains you want to import
-        in your browser, then tell me when you're done.
-
-        [You pick github.com, myapp.com in the browser UI]
-
-You:    done
-
-Claude: Imported 2 domains (47 cookies). Session is ready.
-```
-
-Or skip the UI entirely:
-
-```
-You:   /setup-browser-cookies github.com
-
-Claude: Imported 12 cookies for github.com from Comet.
-```
+Supports: Chrome, Arc, Brave, Edge.
 
 ---
 
 ## `/retro`
 
-This is my **engineering manager mode**.
+**Retrospective.** Weekly engineering retro, team-aware.
 
-At the end of the week I want to know what actually happened. Not vibes — data. `/retro` analyzes commit history, work patterns, and shipping velocity and writes a candid retrospective.
+### What it does
 
-It is team-aware. It identifies who is running the command, gives you the deepest treatment on your own work, then breaks down every contributor with specific praise and growth opportunities. It computes metrics like commits, LOC, test ratio, PR sizes, and fix ratio. It detects coding sessions from commit timestamps, finds hotspot files, tracks shipping streaks, and identifies the biggest ship of the week.
+Analyzes commit history, work patterns, and code quality metrics with persistent history so trends show up over time. Identifies every contributor and generates per-person praise and growth opportunities.
 
-It also tracks test health: total test files, tests added this period, regression test commits, and trend deltas. If test ratio drops below 20%, it flags it as a growth area.
+### Output
 
-### Example
+- **Shipping velocity** — commits, features, PRs merged
+- **Code health** — test coverage trends, types of changes (feat vs fix vs chore)
+- **Per-person breakdown** — what each contributor shipped, specific praise, one growth observation
+- **Trends** — compares against prior weeks if history exists
 
+### Arguments
+
+```bash
+/retro          # last 7 days (default)
+/retro 24h      # last 24 hours
+/retro 14d      # last 2 weeks
+/retro 30d      # last month
+/retro compare  # compare current period against previous
 ```
-You:   /retro
-
-Claude: Week of Mar 1: 47 commits (3 contributors), 3.2k LOC, 38% tests, 12 PRs, peak: 10pm | Streak: 47d
-
-        ## Your Week
-        32 commits, +2.4k LOC, 41% tests. Peak hours: 9-11pm.
-        Biggest ship: cookie import system (browser decryption + picker UI).
-        What you did well: shipped a complete feature with encryption, UI, and
-        18 unit tests in one focused push...
-
-        ## Team Breakdown
-
-        ### Alice
-        12 commits focused on app/services/. Every PR under 200 LOC — disciplined.
-        Opportunity: test ratio at 12% — worth investing before payment gets more complex.
-
-        ### Bob
-        3 commits — fixed the N+1 query on dashboard. Small but high-impact.
-        Opportunity: only 1 active day this week — check if blocked on anything.
-
-        [Top 3 team wins, 3 things to improve, 3 habits for next week]
-```
-
-It saves a JSON snapshot to `.context/retros/` so the next run can show trends.
-
----
-
-## `/document-release`
-
-This is my **technical writer mode**.
-
-After `/ship` creates the PR but before it merges, `/document-release` reads every documentation file in the project and cross-references it against the diff. It updates file paths, command lists, project structure trees, and anything else that drifted. Risky or subjective changes get surfaced as questions — everything else is handled automatically.
-
-```
-You:   /document-release
-
-Claude: Analyzing 21 files changed across 3 commits. Found 8 documentation files.
-
-        README.md: updated skill count from 9 to 10, added new skill to table
-        CLAUDE.md: added new directory to project structure
-        CONTRIBUTING.md: current — no changes needed
-        TODOS.md: marked 2 items complete, added 1 new item
-
-        All docs updated and committed. PR body updated with doc diff.
-```
-
-It also polishes CHANGELOG voice (without ever overwriting entries), cleans up completed TODOS, checks cross-doc consistency, and asks about VERSION bumps only when appropriate.
-
----
-
-## Greptile integration
-
-[Greptile](https://greptile.com) reviews your PRs automatically. It catches real bugs — race conditions, security issues, things that pass CI and blow up in production.
-
-### Setup
-
-Install Greptile on your GitHub repo at [greptile.com](https://greptile.com) — it takes about 30 seconds. Once it's reviewing your PRs, skystack picks up its comments automatically. No additional configuration.
-
-### How it works
-
-The problem with any automated reviewer is triage. Greptile is good, but not every comment is a real issue. Some are false positives. Some flag things you already fixed three commits ago. Without a triage layer, the comments pile up and you start ignoring them — which defeats the purpose.
-
-skystack solves this. `/review` and `/ship` are now Greptile-aware. They read Greptile's comments, classify each one, and take action:
-
-- **Valid issues** get added to the critical findings and fixed before shipping
-- **Already-fixed issues** get an auto-reply acknowledging the catch
-- **False positives** get pushed back — you confirm, and a reply goes out explaining why it's wrong
-
-The result is a two-layer review: Greptile catches things asynchronously on the PR, then `/review` and `/ship` triage those findings as part of the normal workflow. Nothing falls through the cracks.
-
-### Learning from history
-
-Every false positive you confirm gets saved to `~/.skystack/greptile-history.md`. Future runs auto-skip known FP patterns for your codebase. And `/retro` tracks Greptile's batting average over time — so you can see whether the signal-to-noise ratio is improving.
-
-### Example
-
-```
-You:   /ship
-
-Claude: [syncs main, runs tests, pre-landing review...]
-
-        Greptile found 3 comments on this PR:
-
-        [VALID] app/services/payment_service.rb:47 — Race condition:
-        concurrent charges can double-debit. Recommend DB-level advisory
-        lock around the charge block.
-
-        [ALREADY FIXED] app/models/user.rb:12 — Missing null check
-        on email before downcase.
-        → Already fixed in commit abc1234. Auto-replying.
-
-        [FALSE POSITIVE] lib/auth.rb:88 — "Token comparison should
-        use constant-time comparison." We already use
-        ActiveSupport::SecurityUtils.secure_compare here.
-
-        Fixing the race condition in payment_service.rb...
-
-        The auth token comment is a false positive.
-        Options: A) Reply to Greptile explaining  B) Fix anyway  C) Ignore
-
-You:    A
-
-Claude: Replied to Greptile. All tests pass.
-        PR: github.com/you/app/pull/42
-```
-
-Three Greptile comments. One real fix. One auto-acknowledged. One false positive pushed back with a reply. Total extra time: about 30 seconds.
