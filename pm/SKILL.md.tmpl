@@ -148,34 +148,108 @@ Based on the detected stack, define the accessibility requirements:
 
 Document these as a checklist that gets verified during implementation.
 
+### 1f. Get feedback from the crew
+
+Before presenting the spec to the user, write a draft and get feedback from the Designer
+and the Dev. They catch things you miss — design patterns, architecture concerns,
+accessibility gaps.
+
+**Write the draft spec** to the session directory:
+
+```bash
+mkdir -p .skystack/sessions
+```
+
+Write your draft spec to `.skystack/sessions/{feature-slug}-spec.md` with these sections:
+1. Problem statement
+2. Proposed solution (what the user sees and does)
+3. Design recommendations (display patterns, components, interactions)
+4. Accessibility requirements (from Phase 1e)
+5. Edge cases
+6. Non-goals
+
+**Read reference files** for the Designer and Dev:
+
+```bash
+# Check for project-specific references first, fall back to shipped defaults
+_REFS=".skystack/references"
+[ -d "$_REFS" ] || _REFS="$(dirname "$(readlink -f ~/.claude/skills/skystack 2>/dev/null)")/references"
+[ -d "$_REFS" ] || _REFS=".claude/skills/skystack/references"
+echo "REFS: $_REFS"
+```
+
+Read `designer.md` and `dev.md` from the references directory found above.
+
+**Dispatch the Designer** as a subagent using the Agent tool:
+
+Prompt the Designer subagent with:
+- The draft spec (include full text — don't make the subagent read files)
+- The contents of `designer.md` reference file
+- The detected stack from Step 0
+- The contents of DESIGN.md if it exists
+- Ask them to write their feedback covering:
+  - Are the display patterns right for this feature and platform?
+  - Any accessibility concerns with the proposed design?
+  - AI slop risk — does this design feel generic or intentional?
+  - Specific component/layout recommendations
+- Tell them to keep feedback concise — bullet points, not essays
+
+**Dispatch the Dev** as a subagent (in parallel with the Designer):
+
+Prompt the Dev subagent with:
+- The draft spec (include full text)
+- The contents of `dev.md` reference file
+- The detected stack from Step 0
+- Key codebase context from Phase 1b (existing patterns, relevant files)
+- Ask them to write their feedback covering:
+  - Is the proposed architecture sound? Does it fit existing patterns?
+  - Any performance concerns? (N+1, main thread blocking, etc.)
+  - Security considerations?
+  - Test strategy — what should be tested and how?
+- Tell them to keep feedback concise — bullet points, not essays
+
+**Read the feedback** from both subagents. Note their key points — you'll weave them
+into the spec before presenting to the user.
+
 ---
 
 ## Phase 2: Feature Spec — get alignment (interactive checkpoint)
 
-Write a concise feature spec and present it to the user for approval.
+Take the draft spec from Phase 1f and refine it based on Designer and Dev feedback.
+Weave their input into the spec naturally — don't just append it.
 
 **The spec should include:**
 
 1. **Problem statement** — What user pain does this solve? Be specific.
 2. **Proposed solution** — What will the user see and do? Walk through the flow.
-3. **Design recommendations** — Based on competitive and UX research:
-   - Recommended display pattern (with rationale from research)
+3. **Design recommendations** — Based on competitive research, UX patterns, AND Designer feedback:
+   - Recommended display pattern (with rationale)
    - Component/library choices (tailored to detected stack)
    - Key interaction details (animations, transitions, feedback)
-4. **Accessibility plan** — The stack-specific checklist from Phase 1e
-5. **Edge cases** — What happens with 0 data? 1 data point? 10,000? No permission? Offline?
-6. **Non-goals** — What this feature explicitly does NOT do (prevents scope creep)
+   - Note any Designer concerns or suggestions
+4. **Architecture notes** — From the Dev's feedback:
+   - How this fits into existing codebase patterns
+   - Any technical concerns flagged
+   - Recommended approach for data/state management
+5. **Accessibility plan** — The stack-specific checklist from Phase 1e, informed by Designer input
+6. **Edge cases** — What happens with 0 data? 1 data point? 10,000? No permission? Offline?
+7. **Non-goals** — What this feature explicitly does NOT do (prevents scope creep)
 
 **Present the spec via AskUserQuestion:**
 
-"Here's the feature spec for [feature]. Review the approach and let me know:
+"Here's the feature spec for [feature], with input from the Designer and Dev.
+
+**Designer says:** [1-2 sentence summary of key design feedback]
+**Dev says:** [1-2 sentence summary of key architecture feedback]
+
+Review the approach and let me know:
 A) Looks good — build it
 B) Adjust scope [tell me what to change]
 C) More research needed on [specific area]
 D) Scrap this approach — let's rethink"
 
-RECOMMENDATION: Always recommend A unless you have genuine concerns. Include a one-line
-rationale. If you think the scope should be expanded or reduced, say so with reasoning.
+RECOMMENDATION: Always recommend A unless you or the crew have genuine concerns. Include
+a one-line rationale. If the Designer or Dev flagged something important, mention it.
 
 **STOP here and wait for user approval before proceeding.**
 
@@ -319,8 +393,8 @@ Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "shipped" if user chose A, "
 4. **Accessibility is not a phase — it's built in.** Include accessibility attributes during
    implementation, not as a post-hoc audit.
 5. **Two checkpoints, no more.** Spec approval (Phase 2) and ship decision (Phase 6).
-   Everything else runs autonomously. The user hired a PM, not an assistant that asks
-   permission for every line of code.
+   The crew (Designer, Dev) gives feedback autonomously in Phase 1f — only the user
+   gets asked to approve. You're coordinating friends, not running a committee.
 6. **Edge cases matter.** Empty states, error states, loading states, and offline behavior
    are not optional. They're part of the feature.
 7. **Keep it simple.** Don't overengineer. The best feature is the one that solves the
@@ -328,3 +402,6 @@ Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "shipped" if user chose A, "
 8. **Show your research.** When presenting the spec, include specific examples from competitive
    research and UX pattern research. "Spotify does X, Strava does Y, I recommend Z because..."
    gives the user confidence in the direction.
+9. **Trust the crew.** The Designer and Dev give good feedback — incorporate it thoughtfully,
+   don't just acknowledge it. If they flag a concern, address it in the spec. If you disagree,
+   explain why. They're collaborators, not rubber stamps.
