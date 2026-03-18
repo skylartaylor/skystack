@@ -61,17 +61,15 @@ describe('gen-skill-docs', () => {
     { dir: '.', name: 'root skystack' },
     { dir: 'browse', name: 'browse' },
     { dir: 'qa', name: 'qa' },
-    { dir: 'qa-only', name: 'qa-only' },
     { dir: 'review', name: 'review' },
     { dir: 'ship', name: 'ship' },
-    { dir: 'plan-ceo-review', name: 'plan-ceo-review' },
-    { dir: 'plan-eng-review', name: 'plan-eng-review' },
     { dir: 'retro', name: 'retro' },
     { dir: 'setup-browser-cookies', name: 'setup-browser-cookies' },
     { dir: 'skystack-upgrade', name: 'skystack-upgrade' },
-    { dir: 'plan-design-review', name: 'plan-design-review' },
-    { dir: 'design-review', name: 'design-review' },
-    { dir: 'design-consultation', name: 'design-consultation' },
+    { dir: 'design', name: 'design' },
+    { dir: 'document-release', name: 'document-release' },
+    { dir: 'pm', name: 'pm' },
+    { dir: 'research', name: 'research' },
   ];
 
   test('every skill has a SKILL.md.tmpl template', () => {
@@ -161,45 +159,33 @@ describe('gen-skill-docs', () => {
     expect(content).toContain('plain English');
   });
 
-  test('qa and qa-only templates use QA_METHODOLOGY placeholder', () => {
+  test('qa template uses STACK_DETECT and BROWSE_SETUP placeholders', () => {
     const qaTmpl = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md.tmpl'), 'utf-8');
-    expect(qaTmpl).toContain('{{QA_METHODOLOGY}}');
-
-    const qaOnlyTmpl = fs.readFileSync(path.join(ROOT, 'qa-only', 'SKILL.md.tmpl'), 'utf-8');
-    expect(qaOnlyTmpl).toContain('{{QA_METHODOLOGY}}');
+    expect(qaTmpl).toContain('{{STACK_DETECT}}');
+    expect(qaTmpl).toContain('{{BROWSE_SETUP}}');
+    expect(qaTmpl).toContain('{{PREAMBLE}}');
   });
 
-  test('QA_METHODOLOGY appears expanded in both qa and qa-only generated files', () => {
+  test('qa generated file has plan-first flow and report-only mode', () => {
     const qaContent = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
-    const qaOnlyContent = fs.readFileSync(path.join(ROOT, 'qa-only', 'SKILL.md'), 'utf-8');
 
-    // Both should contain the health score rubric
-    expect(qaContent).toContain('Health Score Rubric');
-    expect(qaOnlyContent).toContain('Health Score Rubric');
+    // Plan-first: presents test plan before testing
+    expect(qaContent).toContain('Present the Test Plan');
+    expect(qaContent).toContain('Always present a test plan before testing');
 
-    // Both should contain framework guidance
-    expect(qaContent).toContain('Framework-Specific Guidance');
-    expect(qaOnlyContent).toContain('Framework-Specific Guidance');
+    // Report-only as a mode, not a separate skill
+    expect(qaContent).toContain('report-only');
+    expect(qaContent).toContain('Report only');
 
-    // Both should contain the important rules
+    // Has health score
+    expect(qaContent).toContain('health score');
+
+    // Has important rules
     expect(qaContent).toContain('Important Rules');
-    expect(qaOnlyContent).toContain('Important Rules');
 
-    // Both should contain the 6 phases
+    // Has phases
     expect(qaContent).toContain('Phase 1');
-    expect(qaOnlyContent).toContain('Phase 1');
-    expect(qaContent).toContain('Phase 6');
-    expect(qaOnlyContent).toContain('Phase 6');
-  });
-
-  test('qa-only has no-fix guardrails', () => {
-    const qaOnlyContent = fs.readFileSync(path.join(ROOT, 'qa-only', 'SKILL.md'), 'utf-8');
-    expect(qaOnlyContent).toContain('Never fix bugs');
-    expect(qaOnlyContent).toContain('NEVER fix anything');
-    // Should not have Edit, Glob, or Grep in allowed-tools
-    expect(qaOnlyContent).not.toMatch(/allowed-tools:[\s\S]*?Edit/);
-    expect(qaOnlyContent).not.toMatch(/allowed-tools:[\s\S]*?Glob/);
-    expect(qaOnlyContent).not.toMatch(/allowed-tools:[\s\S]*?Grep/);
+    expect(qaContent).toContain('Phase 5');
   });
 
   test('qa has fix-loop tools and phases', () => {
@@ -208,12 +194,12 @@ describe('gen-skill-docs', () => {
     expect(qaContent).toContain('Edit');
     expect(qaContent).toContain('Glob');
     expect(qaContent).toContain('Grep');
-    // Should have fix-loop phases
-    expect(qaContent).toContain('Phase 7');
-    expect(qaContent).toContain('Phase 8');
-    expect(qaContent).toContain('Fix Loop');
+    // Should have fix phase (Phase 4 in v3)
+    expect(qaContent).toContain('Phase 4: Fix');
     expect(qaContent).toContain('Triage');
     expect(qaContent).toContain('WTF');
+    // Should have tester reference file reading
+    expect(qaContent).toContain('tester.md');
   });
 });
 
@@ -324,29 +310,9 @@ describe('description quality evals', () => {
 });
 
 describe('REVIEW_DASHBOARD resolver', () => {
-  const REVIEW_SKILLS = ['plan-ceo-review', 'plan-eng-review', 'plan-design-review'];
-
-  for (const skill of REVIEW_SKILLS) {
-    test(`review dashboard appears in ${skill} generated file`, () => {
-      const content = fs.readFileSync(path.join(ROOT, skill, 'SKILL.md'), 'utf-8');
-      expect(content).toContain('reviews.jsonl');
-      expect(content).toContain('REVIEW READINESS DASHBOARD');
-    });
-  }
-
   test('review dashboard appears in ship generated file', () => {
     const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
     expect(content).toContain('reviews.jsonl');
     expect(content).toContain('REVIEW READINESS DASHBOARD');
-  });
-
-  test('resolver output contains key dashboard elements', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'plan-ceo-review', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('VERDICT');
-    expect(content).toContain('CLEARED');
-    expect(content).toContain('Eng Review');
-    expect(content).toContain('7 days');
-    expect(content).toContain('Design Review');
-    expect(content).toContain('skip_eng_review');
   });
 });

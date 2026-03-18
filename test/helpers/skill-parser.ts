@@ -175,8 +175,9 @@ export function extractRemoteSlugPatterns(rootDir: string, subdirs: string[]): M
 export function extractWeightsFromTable(content: string): Map<string, number> {
   const weights = new Map<string, number>();
 
-  // Find the ### Weights section
-  const weightsIdx = content.indexOf('### Weights');
+  // Find the weights section — either "### Weights" or "### Compute health score"
+  let weightsIdx = content.indexOf('### Weights');
+  if (weightsIdx === -1) weightsIdx = content.indexOf('### Compute health score');
   if (weightsIdx === -1) return weights;
 
   // Find the table within that section (stop at next heading or end)
@@ -190,8 +191,8 @@ export function extractWeightsFromTable(content: string): Map<string, number> {
     if (line.startsWith('#') && !line.startsWith('###')) break;
     if (line.startsWith('### ') && i > 0) break;
 
-    // Parse table rows: | Category | N% |
-    const match = line.match(/^\|\s*(\w[\w\s]*\w|\w+)\s*\|\s*(\d+)%\s*\|$/);
+    // Parse table rows: | Category | N% | or | Category | N% | ... |
+    const match = line.match(/^\|\s*(\w[\w\s]*\w|\w+)\s*\|\s*(\d+)%\s*\|/);
     if (match) {
       const category = match[1].trim();
       const pct = parseInt(match[2], 10);
