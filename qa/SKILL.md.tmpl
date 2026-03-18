@@ -302,6 +302,8 @@ git commit -m "fix(qa): ISSUE-NNN — short description"
 One commit per fix. Never bundle.
 
 **4d. Re-test**
+
+For web projects:
 ```bash
 $B goto <affected-url>
 $B screenshot ".skystack/qa-reports/screenshots/issue-NNN-fixed.png"
@@ -309,7 +311,13 @@ $B console --errors
 $B snapshot -D
 ```
 
-Read the screenshot. Classify the fix:
+For mobile projects ($M):
+```bash
+$M open <bundle-id>
+$M screenshot /tmp/qa-issue-NNN-fixed.png
+$M snapshot
+```
+Read the screenshot either way. Classify the fix:
 - **verified:** re-test confirms the fix, no regressions
 - **best-effort:** fix applied but couldn't fully verify
 - **reverted:** regression detected — `git revert HEAD` — mark "deferred"
