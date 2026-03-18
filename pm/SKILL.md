@@ -279,6 +279,11 @@ Structure findings as:
 
 ### 1d. UX pattern research
 
+**Check for DESIGN.md:** Look for `DESIGN.md` or `design-system.md` in the repo root. If found,
+read it — all design recommendations must be consistent with the project's stated design system.
+If the project uses specific colors, spacing scales, component patterns, or typography choices,
+your recommendations should work within that system, not against it.
+
 Research the right display patterns for this feature:
 
 - If the feature involves **data/statistics**: research chart types, KPI card patterns, sparklines,
