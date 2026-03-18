@@ -1,12 +1,12 @@
 ---
 name: qa
-version: 3.0.0
 description: |
   Your tester friend who breaks things before users do. Opens a real browser,
   clicks through your app, finds bugs, and optionally fixes them with atomic
   commits. Always presents a test plan first. Use when asked to "test", "QA",
   "find bugs", "check the site", "test and fix", "qa report only", or
   "just report bugs". Pass --report-only to skip fixes. Replaces /qa-only.
+argument-hint: "<url> [--report-only] [--quick|--exhaustive]"
 allowed-tools:
   - Bash
   - Read
@@ -15,7 +15,6 @@ allowed-tools:
   - Glob
   - Grep
   - AskUserQuestion
-  - WebSearch
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
@@ -207,6 +206,27 @@ If `NEEDS_SETUP`:
 2. Run: `cd <SKILL_DIR> && ./setup`
 3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
 
+**Find the mobile binary (Flutter/iOS/Android projects):**
+
+## Mobile Setup (run BEFORE any `$M` command)
+
+```bash
+_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+M=""
+[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/skystack/mobile/dist/mobile" ] && M="$_ROOT/.claude/skills/skystack/mobile/dist/mobile"
+[ -z "$M" ] && [ -x ~/.claude/skills/skystack/mobile/dist/mobile ] && M=~/.claude/skills/skystack/mobile/dist/mobile
+if [ -x "$M" ]; then
+  echo "MOBILE_READY: $M"
+else
+  echo "MOBILE_NEEDS_SETUP"
+fi
+```
+
+If `MOBILE_NEEDS_SETUP`:
+1. Tell the user: "skystack mobile needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
+2. Run: `cd ~/.claude/skills/skystack && ./setup`
+3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
+
 **Create output directories:**
 
 ```bash
@@ -323,6 +343,33 @@ Read the initial screenshot so the user can see it.
 Detect the framework (Next.js, Rails, SPA, WordPress, etc.) from page source signals.
 Note it — you'll use framework-specific testing patterns later.
 
+### Mobile-first path (Flutter, iOS, or Android projects)
+
+If the detected stack is Flutter, iOS, or Android — use `$M` instead of `$B`. Skip URL-based testing entirely.
+
+**1. Check available simulators:**
+```bash
+$M devices
+```
+Pick a booted iOS simulator. If none booted:
+```bash
+xcrun simctl boot "iPhone 17 Pro" 2>/dev/null || true
+```
+
+**2. Ensure the app is installed and open a session:**
+```bash
+$M open <bundle-id>
+$M screenshot /tmp/qa-initial.png
+$M snapshot
+```
+Read the screenshot so you can see the current state. Map the screens and navigation from the snapshot.
+
+**3. If app isn't installed:** Check for a build:
+```bash
+ls build/ios/iphonesimulator/*.app 2>/dev/null || echo "NO_BUILD"
+```
+If no build: `flutter build ios --simulator --no-codesign` then `xcrun simctl install booted build/ios/iphonesimulator/Runner.app`
+
 ### If no URL (diff-aware mode):
 Analyze the branch diff to understand what changed:
 
@@ -336,7 +383,7 @@ dev ports (3000, 4000, 5173, 8080). If no local app is found, ask the user for t
 
 Check for richer test plan sources before falling back to diff heuristics:
 1. Project-scoped test plans in `~/.skystack/projects/`
-2. Prior `/plan-eng-review` or `/plan-ceo-review` output in this conversation
+2. Prior `/review` or `/pm` spec output in this conversation
 
 ---
 
@@ -381,6 +428,14 @@ $B console --errors
 ```
 
 Read the screenshot so the user can see it inline.
+
+**For mobile ($M) projects:**
+- After each interaction: `$M snapshot` to verify state changed
+- Tap elements: `$M click @e3` (refs from snapshot output)
+- Text input: `$M click @ref` to focus, then `$M type "text"`
+- Scroll: `$M scroll down` then `$M snapshot` to reveal more
+- Navigate back: `$M back` or tap nav items by @ref
+- Screenshot: `$M screenshot /tmp/qa-<name>.png` then Read it to show user inline
 
 ### 3b. Per-page exploration
 
