@@ -14,6 +14,15 @@ bun install                    # install dependencies
 bin/dev-setup                  # activate dev mode
 ```
 
+**Recommended:** install [semgrep](https://github.com/semgrep/semgrep) (Apache 2.0) for static analysis in `/review` and `/publish`:
+
+```bash
+brew install semgrep       # macOS
+# or: pip install semgrep
+```
+
+semgrep runs zero-token static analysis on changed files using community rules. The `/review` and `/publish` skills use it automatically if it's on your PATH.
+
 Now edit any `SKILL.md`, invoke it in Claude Code (e.g. `/review`), and see your changes live. When you're done developing:
 
 ```bash

@@ -1,6 +1,5 @@
 ---
 name: review
-version: 2.0.0
 description: |
   Your dev friend who catches bugs before they hit production. Reviews diffs for
   SQL safety, race conditions, security issues, and test gaps. Auto-fixes the
@@ -15,6 +14,7 @@ allowed-tools:
   - Write
   - Grep
   - Glob
+  - LSP
   - AskUserQuestion
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
@@ -32,58 +32,21 @@ find ~/.skystack/sessions -mmin +120 -type f -delete 2>/dev/null || true
 _CONTRIB=$(~/.claude/skills/skystack/bin/skystack-config get skystack_contributor 2>/dev/null || true)
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 echo "BRANCH: $_BRANCH"
-_LAKE_SEEN=$([ -f ~/.skystack/.completeness-intro-seen ] && echo "yes" || echo "no")
-echo "LAKE_INTRO: $_LAKE_SEEN"
 ```
 
 If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack/skystack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running skystack v{to} (just updated!)" and continue.
-
-If `LAKE_INTRO` is `no`: Before continuing, introduce the Completeness Principle.
-Tell the user: "skystack follows the **Boil the Lake** principle — when AI makes the marginal cost of completeness near-zero, always do the complete thing. Don't shortcut edge cases, skip tests, or defer coverage 'for later' — with AI assistance, later costs nothing more."
-Then run:
-
-```bash
-touch ~/.skystack/.completeness-intro-seen
-```
-
-Always run `touch` to mark as seen. This only happens once.
 
 ## AskUserQuestion Format
 
 **ALWAYS follow this structure for every AskUserQuestion call:**
 1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
 2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
-3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts (see Completeness Principle). Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
+3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts when the delta is small. Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
 4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
 
 Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
 
 Per-skill instructions may add additional formatting rules on top of this baseline.
-
-## Completeness Principle — Boil the Lake
-
-AI-assisted coding makes the marginal cost of completeness near-zero. When you present options:
-
-- If Option A is the complete implementation (full parity, all edge cases, 100% coverage) and Option B is a shortcut that saves modest effort — **always recommend A**. The delta between 80 lines and 150 lines is meaningless with CC+skystack. "Good enough" is the wrong instinct when "complete" costs minutes more.
-- **Lake vs. ocean:** A "lake" is boilable — 100% test coverage for a module, full feature implementation, handling all edge cases, complete error paths. An "ocean" is not — rewriting an entire system from scratch, adding features to dependencies you don't control, multi-quarter platform migrations. Recommend boiling lakes. Flag oceans as out of scope.
-- **When estimating effort**, always show both scales: human team time and CC+skystack time. The compression ratio varies by task type — use this reference:
-
-| Task type | Human team | CC+skystack | Compression |
-|-----------|-----------|-----------|-------------|
-| Boilerplate / scaffolding | 2 days | 15 min | ~100x |
-| Test writing | 1 day | 15 min | ~50x |
-| Feature implementation | 1 week | 30 min | ~30x |
-| Bug fix + regression test | 4 hours | 15 min | ~20x |
-| Architecture / design | 2 days | 4 hours | ~5x |
-| Research / exploration | 1 day | 3 hours | ~3x |
-
-- This principle applies to test coverage, error handling, documentation, edge cases, and feature completeness. Don't skip the last 10% to "save time" — with AI, that 10% costs seconds.
-
-**Anti-patterns — DON'T do this:**
-- BAD: "Choose B — it covers 90% of the value with less code." (If A is only 70 lines more, choose A.)
-- BAD: "We can skip edge case handling to save time." (Edge case handling costs minutes with CC.)
-- BAD: "Let's defer test coverage to a follow-up PR." (Tests are the cheapest lake to boil.)
-- BAD: Quoting only human-team effort: "This would take 2 weeks." (Say: "2 weeks human / ~1 hour CC.")
 
 ## Contributor Mode
 
@@ -268,6 +231,36 @@ Read `.claude/skills/review/checklist.md`. **If the checklist cannot be read, ST
 
 Skim the diff. Note which areas are touched: backend logic, data models, API endpoints, frontend/UI, tests, config, prompts/LLM, infrastructure. This shapes your review plan.
 
+### Static analysis (if semgrep is available)
+
+```bash
+which semgrep >/dev/null 2>&1 && echo "SEMGREP=available" || echo "SEMGREP=unavailable"
+```
+
+**If `SEMGREP=available`:** Run semgrep on the changed files:
+
+```bash
+CHANGED=$(git diff origin/<base> --name-only | tr '\n' ' ')
+semgrep scan --config=auto $CHANGED --json 2>/dev/null
+```
+
+Parse the JSON output. For each finding:
+- Map `check_id` + `message` + `path:start.line` to a one-line summary
+- Classify as CRITICAL (security, injection, XSS, auth bypass) or INFORMATIONAL (style, perf, other)
+- Include them in your review findings — they follow the same AUTO-FIX / ASK flow
+
+**If `SEMGREP=unavailable`:** Skip silently. (Install: `brew install semgrep` or `pip install semgrep`)
+
+### LSP diagnostics
+
+Use the `LSP` tool to check for type errors and get symbol information on changed files. For each non-test file in the diff:
+
+1. Use `documentSymbol` to list the symbols defined in that file
+2. For any changed function or method, use `hover` at that position to confirm the type signature looks right
+3. If the diff introduces a new enum value, constant, or type variant — use `findReferences` to locate every consumer in the codebase (this is strictly better than Grep: it uses the type system, not string matching)
+
+LSP diagnostics that show type errors or broken references are CRITICAL findings.
+
 ### Architecture review (Phase 1A)
 
 Read the plan or design doc the user pointed you to. If they said "review the architecture" without a specific file, look for `PLAN.md`, `ARCHITECTURE.md`, or recent plan files in `~/.skystack/projects/`. Also read `.claude/skills/review/checklist.md` — same heuristics apply at a higher level. In architecture mode, output is findings + recommendations (no auto-fixes).
@@ -303,7 +296,7 @@ Apply the checklist in two passes:
 1. **Pass 1 (CRITICAL):** SQL & Data Safety, Race Conditions & Concurrency, LLM Output Trust Boundary, Enum & Value Completeness
 2. **Pass 2 (INFORMATIONAL):** Conditional Side Effects, Magic Numbers & String Coupling, Dead Code & Consistency, LLM Prompt Issues, Test Gaps, Completeness Gaps, View/Frontend
 
-**Enum & Value Completeness requires reading code OUTSIDE the diff.** When the diff introduces a new enum value, status, tier, or type constant, use Grep to find all files that reference sibling values, then Read those files to check if the new value is handled.
+**Enum & Value Completeness requires reading code OUTSIDE the diff.** When the diff introduces a new enum value, status, tier, or type constant, use `LSP findReferences` on the new value to find all consumers across the codebase (fall back to Grep if LSP isn't available for that file type). Read each consumer to check if the new value is handled.
 
 Respect the suppressions in the checklist — do NOT flag items listed in "DO NOT flag."
 
@@ -354,7 +347,7 @@ For each focus area from Phase 2, evaluate:
 - **What breaks in production?** For each new codepath or integration, describe one realistic failure scenario (timeout, race, nil, stale data) and whether the plan accounts for it.
 - **What's missing from tests?** Map new data flows, branching logic, and edge cases. For each, check if a test is planned.
 - **What already exists?** Does existing code partially solve a sub-problem the plan rebuilds from scratch?
-- **Completeness check:** Is the plan doing the shortcut version when the complete version costs minutes more with CC? (See Completeness Principle.)
+- **Completeness check:** Is the plan doing the shortcut version when the complete version costs only minutes more?
 
 Present findings as numbered issues with recommendations. For genuine tradeoffs, use AskUserQuestion (one issue per question, with lettered options).
 
@@ -435,11 +428,26 @@ Informational only — never critical. Skip silently if no docs exist.
 
 ---
 
+## Phase 6: Log completion
+
+After all fixes are applied (or no issues found), log the review result so `/publish` knows the review ran:
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+mkdir -p ~/.skystack/projects/$SLUG
+echo '{"skill":"review","timestamp":"TIMESTAMP","status":"STATUS","findings":N,"auto_fixed":M}' >> ~/.skystack/projects/$SLUG/$_BRANCH-reviews.jsonl
+```
+
+Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "clean" if 0 findings or all auto-fixed with no skipped, "issues_found" otherwise, N = total findings, M = auto-fixed count.
+
+---
+
 ## Important Rules
 
 - **Read the FULL diff before commenting.** Don't flag issues already addressed in the diff.
 - **Plan first, review second.** Always present your review plan (Phase 2) and let the user adjust before diving in.
-- **Fix-first, not read-only.** AUTO-FIX items are applied directly. ASK items need approval. Never commit, push, or create PRs — that's /ship's job.
+- **Fix-first, not read-only.** AUTO-FIX items are applied directly. ASK items need approval. Never commit, push, or create PRs — that's /publish's job.
 - **Be terse.** One line problem, one line fix. No essays.
 - **Only flag real problems.** If it's fine, skip it.
 - **Friend, not auditor.** Direct language. "This will race under load" not "Finding 4.2.1: Potential concurrency concern identified in the status transition subsystem."

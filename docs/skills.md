@@ -358,7 +358,7 @@ Findings get action, not just listed. Obvious mechanical fixes (dead code, stale
 
 ### Completeness gaps
 
-`/review` now flags shortcut implementations where the complete version costs less than 30 minutes of CC time. If you chose the 80% solution and the 100% solution is a lake, not an ocean, the review will call it out.
+`/review` now flags shortcut implementations where the complete version costs less than 30 minutes of CC time. If you chose the 80% solution and the complete version is clearly achievable, the review will call it out.
 
 ### Example
 
@@ -588,7 +588,7 @@ It also polishes CHANGELOG voice (without ever overwriting entries), cleans up c
 
 ## Greptile integration
 
-[Greptile](https://greptile.com) is a YC company that reviews your PRs automatically. It catches real bugs — race conditions, security issues, things that pass CI and blow up in production. It has genuinely saved my ass more than once. I love these guys.
+[Greptile](https://greptile.com) reviews your PRs automatically. It catches real bugs — race conditions, security issues, things that pass CI and blow up in production.
 
 ### Setup
 

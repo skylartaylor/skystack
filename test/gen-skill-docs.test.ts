@@ -62,7 +62,7 @@ describe('gen-skill-docs', () => {
     { dir: 'browse', name: 'browse' },
     { dir: 'qa', name: 'qa' },
     { dir: 'review', name: 'review' },
-    { dir: 'ship', name: 'ship' },
+    { dir: 'publish', name: 'publish' },
     { dir: 'retro', name: 'retro' },
     { dir: 'setup-browser-cookies', name: 'setup-browser-cookies' },
     { dir: 'skystack-upgrade', name: 'skystack-upgrade' },
@@ -205,7 +205,7 @@ describe('gen-skill-docs', () => {
 
 describe('BASE_BRANCH_DETECT resolver', () => {
   // Find a generated SKILL.md that uses the placeholder (ship is guaranteed to)
-  const shipContent = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+  const shipContent = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
 
   test('resolver output contains PR base detection command', () => {
     expect(shipContent).toContain('gh pr view --json baseRefName');
@@ -311,7 +311,7 @@ describe('description quality evals', () => {
 
 describe('REVIEW_DASHBOARD resolver', () => {
   test('review dashboard appears in ship generated file', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
     expect(content).toContain('reviews.jsonl');
     expect(content).toContain('REVIEW READINESS DASHBOARD');
   });

@@ -390,7 +390,7 @@
 
 **What:** `skystack-open-url` helper script — detect platform, use `open` (macOS) or `xdg-open` (Linux).
 
-**Why:** The first-time Completeness Principle intro uses macOS `open` to launch the essay. If skystack ever supports Linux, this silently fails.
+**Why:** Some skystack features use macOS `open`. If skystack ever supports Linux, this silently fails.
 
 **Effort:** S (human: ~30 min / CC: ~2 min)
 **Priority:** P4
@@ -474,13 +474,12 @@ Shipped as `/design-consultation` on xr843/design branch. Renamed from `/setup-d
 
 **What:** Track how often Claude chooses the complete option vs shortcut across skystack sessions. Aggregate into a dashboard showing completeness trend over time.
 
-**Why:** Without measurement, we can't know if the Completeness Principle is working. Could surface patterns (e.g., certain skills still bias toward shortcuts).
+**Why:** Without measurement, we can't know if skills are biasing toward complete or shortcut options over time.
 
 **Context:** Would require logging choices (e.g., append to a JSONL file when AskUserQuestion resolves), parsing them, and displaying trends. Similar pattern to eval persistence.
 
 **Effort:** M (human) / S (CC)
 **Priority:** P3
-**Depends on:** Boil the Lake shipped (v0.6.1)
 
 ## Safety & Observability
 

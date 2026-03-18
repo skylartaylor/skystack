@@ -492,9 +492,9 @@ describe('Enum & Value Completeness in review checklist', () => {
   });
 });
 
-// --- Completeness Principle spot-check ---
+// --- Preamble spot-check ---
 
-describe('Completeness Principle in generated SKILL.md files', () => {
+describe('Preamble in generated SKILL.md files', () => {
   const skillsWithPreamble = [
     'SKILL.md', 'browse/SKILL.md', 'qa/SKILL.md',
     'setup-browser-cookies/SKILL.md',
@@ -505,24 +505,12 @@ describe('Completeness Principle in generated SKILL.md files', () => {
   ];
 
   for (const skill of skillsWithPreamble) {
-    test(`${skill} contains Completeness Principle section`, () => {
+    test(`${skill} contains AskUserQuestion format`, () => {
       const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
-      expect(content).toContain('Completeness Principle');
-      expect(content).toContain('Boil the Lake');
+      expect(content).toContain('AskUserQuestion Format');
+      expect(content).toContain('Completeness: X/10');
     });
   }
-
-  test('Completeness Principle includes compression table', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('CC+skystack');
-    expect(content).toContain('Compression');
-  });
-
-  test('Completeness Principle includes anti-patterns', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('BAD:');
-    expect(content).toContain('Anti-patterns');
-  });
 });
 
 // --- Part 7: Planted-bug fixture validation (A4) ---

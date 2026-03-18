@@ -1,6 +1,5 @@
 ---
 name: docs
-version: 2.0.0
 description: |
   Your writer friend who keeps docs accurate and writes new ones when needed.
   Updates docs after shipping, writes docs for new features, audits existing
@@ -14,7 +13,6 @@ allowed-tools:
   - Glob
   - Grep
   - AskUserQuestion
-  - WebSearch
 ---
 
 {{PREAMBLE}}
@@ -53,7 +51,7 @@ file serves, how they cross-reference each other.
 
 Auto-detect from what the user asked:
 
-1. **Post-ship update** — "update docs", "sync docs", ran `/ship`. Cross-reference
+1. **Post-ship update** — "update docs", "sync docs", ran `/publish`. Cross-reference
    the diff against existing docs, update what drifted.
 2. **Write new docs** — "write docs for...", "document this...". Read the code,
    write clear documentation for a specific feature, module, or API.

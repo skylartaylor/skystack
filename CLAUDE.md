@@ -51,15 +51,16 @@ skystack/
 │   ├── gen-skill-docs.test.ts    # Tier 1: generator quality (free, <1s)
 │   ├── skill-llm-eval.test.ts   # Tier 3: LLM-as-judge (~$0.15/run)
 │   └── skill-e2e.test.ts         # Tier 2: E2E via claude -p (~$3.85/run)
-├── qa-only/         # /qa-only skill (report-only QA, no fixes)
-├── plan-design-review/  # /plan-design-review skill (report-only design audit)
-├── design-review/    # /design-review skill (design audit + fix loop)
-├── ship/            # Ship workflow skill
-├── review/          # PR review skill
-├── plan-ceo-review/ # /plan-ceo-review skill
-├── plan-eng-review/ # /plan-eng-review skill
-├── retro/           # Retrospective skill
+├── pm/              # /pm skill (idea → shipped feature, orchestrates crew)
+├── design/          # /design skill (design consultation + review)
+├── review/          # /review skill (dev code review + architecture review)
+├── qa/              # /qa skill (browser testing + bug fixes)
+├── publish/         # /publish skill (publish workflow)
+├── retro/           # /retro skill (retrospective)
+├── research/        # /research skill (update reference files)
+├── docs/            # documentation (skills.md, architecture guides)
 ├── document-release/ # /document-release skill (post-ship doc updates)
+├── skystack-upgrade/ # /skystack-upgrade skill
 ├── setup            # One-time setup: build binary + symlink skills
 ├── SKILL.md         # Generated from SKILL.md.tmpl (don't edit directly)
 ├── SKILL.md.tmpl    # Template: edit this, run gen:skill-docs
@@ -161,9 +162,7 @@ When estimating or discussing effort, always show both human-team and CC+skystac
 | Architecture / design | 2 days | 4 hours | ~5x |
 | Research / exploration | 1 day | 3 hours | ~3x |
 
-Completeness is cheap. Don't recommend shortcuts when the complete implementation
-is a "lake" (achievable) not an "ocean" (multi-quarter migration). See the
-Completeness Principle in the skill preamble for the full philosophy.
+Completeness is cheap. Don't recommend shortcuts when the complete implementation is clearly achievable.
 
 ## Local plans
 
@@ -173,7 +172,7 @@ that may be ready to promote to TODOs or implement.
 
 ## E2E eval failure blame protocol
 
-When an E2E eval fails during `/ship` or any other workflow, **never claim "not
+When an E2E eval fails during `/publish` or any other workflow, **never claim "not
 related to our changes" without proving it.** These systems have invisible couplings —
 a preamble text change affects agent behavior, a new helper changes timing, a
 regenerated SKILL.md shifts prompt context.

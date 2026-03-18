@@ -537,7 +537,6 @@ describeIfSelected('Review skill E2E', ['review-sql-injection'], () => {
     // Copy review skill files
     fs.copyFileSync(path.join(ROOT, 'review', 'SKILL.md'), path.join(reviewDir, 'review-SKILL.md'));
     fs.copyFileSync(path.join(ROOT, 'review', 'checklist.md'), path.join(reviewDir, 'review-checklist.md'));
-    fs.copyFileSync(path.join(ROOT, 'review', 'greptile-triage.md'), path.join(reviewDir, 'review-greptile-triage.md'));
   });
 
   afterAll(() => {
@@ -595,7 +594,6 @@ describeIfSelected('Review enum completeness E2E', ['review-enum-completeness'],
     // Copy review skill files
     fs.copyFileSync(path.join(ROOT, 'review', 'SKILL.md'), path.join(enumDir, 'review-SKILL.md'));
     fs.copyFileSync(path.join(ROOT, 'review', 'checklist.md'), path.join(enumDir, 'review-checklist.md'));
-    fs.copyFileSync(path.join(ROOT, 'review', 'greptile-triage.md'), path.join(enumDir, 'review-greptile-triage.md'));
   });
 
   afterAll(() => {
@@ -670,7 +668,6 @@ describeE2E('Review design lite E2E', () => {
     fs.copyFileSync(path.join(ROOT, 'review', 'SKILL.md'), path.join(designDir, 'review-SKILL.md'));
     fs.copyFileSync(path.join(ROOT, 'review', 'checklist.md'), path.join(designDir, 'review-checklist.md'));
     fs.copyFileSync(path.join(ROOT, 'review', 'design-checklist.md'), path.join(designDir, 'review-design-checklist.md'));
-    fs.copyFileSync(path.join(ROOT, 'review', 'greptile-triage.md'), path.join(designDir, 'review-greptile-triage.md'));
   });
 
   afterAll(() => {
@@ -1577,7 +1574,7 @@ Write your review to ${planDir}/review-output.md`,
 
 // --- Base branch detection smoke tests ---
 
-describeIfSelected('Base branch detection', ['review-base-branch', 'ship-base-branch', 'retro-base-branch'], () => {
+describeIfSelected('Base branch detection', ['review-base-branch', 'publish-base-branch', 'retro-base-branch'], () => {
   let baseBranchDir: string;
   const run = (cmd: string, args: string[], cwd: string) =>
     spawnSync(cmd, args, { cwd, stdio: 'pipe', timeout: 5000 });
@@ -1612,7 +1609,6 @@ describeIfSelected('Base branch detection', ['review-base-branch', 'ship-base-br
     // Copy review skill files
     fs.copyFileSync(path.join(ROOT, 'review', 'SKILL.md'), path.join(dir, 'review-SKILL.md'));
     fs.copyFileSync(path.join(ROOT, 'review', 'checklist.md'), path.join(dir, 'review-checklist.md'));
-    fs.copyFileSync(path.join(ROOT, 'review', 'greptile-triage.md'), path.join(dir, 'review-greptile-triage.md'));
 
     const result = await runSkillTest({
       prompt: `You are in a git repo on a feature branch with changes.
@@ -1643,8 +1639,8 @@ Write your findings to ${dir}/review-output.md`,
     expect(usedGitDiff).toBe(true);
   }, 120_000);
 
-  testIfSelected('ship-base-branch', async () => {
-    const dir = path.join(baseBranchDir, 'ship-base');
+  testIfSelected('publish-base-branch', async () => {
+    const dir = path.join(baseBranchDir, 'publish-base');
     fs.mkdirSync(dir, { recursive: true });
 
     // Create git repo with feature branch
@@ -1656,16 +1652,16 @@ Write your findings to ${dir}/review-output.md`,
     run('git', ['add', 'app.ts'], dir);
     run('git', ['commit', '-m', 'initial'], dir);
 
-    run('git', ['checkout', '-b', 'feature/ship-test'], dir);
+    run('git', ['checkout', '-b', 'feature/publish-test'], dir);
     fs.writeFileSync(path.join(dir, 'app.ts'), 'console.log("v2");\n');
     run('git', ['add', 'app.ts'], dir);
     run('git', ['commit', '-m', 'feat: update to v2'], dir);
 
     // Copy ship skill
-    fs.copyFileSync(path.join(ROOT, 'ship', 'SKILL.md'), path.join(dir, 'ship-SKILL.md'));
+    fs.copyFileSync(path.join(ROOT, 'publish', 'SKILL.md'), path.join(dir, 'publish-SKILL.md'));
 
     const result = await runSkillTest({
-      prompt: `Read ship-SKILL.md for the ship workflow.
+      prompt: `Read publish-SKILL.md for the ship workflow.
 
 Run ONLY Step 0 (Detect base branch) and Step 1 (Pre-flight) from the ship workflow.
 Since there is no remote, gh commands will fail — fall back to main.
@@ -1673,23 +1669,23 @@ Since there is no remote, gh commands will fail — fall back to main.
 After completing Step 0 and Step 1, STOP. Do NOT proceed to Step 2 or beyond.
 Do NOT push, create PRs, or modify VERSION/CHANGELOG.
 
-Write a summary of what you detected to ${dir}/ship-preflight.md including:
+Write a summary of what you detected to ${dir}/publish-preflight.md including:
 - The detected base branch name
 - The current branch name
 - The diff stat against the base branch`,
       workingDirectory: dir,
       maxTurns: 10,
       timeout: 60_000,
-      testName: 'ship-base-branch',
+      testName: 'publish-base-branch',
       runId,
     });
 
-    logCost('/ship base-branch', result);
+    logCost('/publish base-branch', result);
     recordE2E('/ship base branch detection', 'Base branch detection', result);
     expect(result.exitReason).toBe('success');
 
     // Verify preflight output was written
-    const preflightPath = path.join(dir, 'ship-preflight.md');
+    const preflightPath = path.join(dir, 'publish-preflight.md');
     if (fs.existsSync(preflightPath)) {
       const content = fs.readFileSync(preflightPath, 'utf-8');
       expect(content.length).toBeGreaterThan(20);
@@ -1871,7 +1867,7 @@ IMPORTANT:
 // Deferred tests — only test.todo entries, no selection needed
 describeE2E('Deferred skill E2E', () => {
   // Ship is destructive: pushes to remote, creates PRs, modifies VERSION/CHANGELOG
-  test.todo('/ship completes full workflow');
+  test.todo('/publish completes full workflow');
 
   // Setup-browser-cookies requires interactive browser picker UI
   test.todo('/setup-browser-cookies imports cookies');
@@ -2717,14 +2713,14 @@ This is a test+fix loop: find bugs, fix them, write regression tests, commit eac
 
 // --- Test Coverage Audit E2E ---
 
-describeIfSelected('Test Coverage Audit E2E', ['ship-coverage-audit'], () => {
+describeIfSelected('Test Coverage Audit E2E', ['publish-coverage-audit'], () => {
   let coverageDir: string;
 
   beforeAll(() => {
     coverageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-coverage-'));
 
     // Copy ship skill files
-    copyDirSync(path.join(ROOT, 'ship'), path.join(coverageDir, 'ship'));
+    copyDirSync(path.join(ROOT, 'publish'), path.join(coverageDir, 'ship'));
     copyDirSync(path.join(ROOT, 'review'), path.join(coverageDir, 'review'));
 
     // Create a Node.js project WITH test framework but coverage gaps
@@ -2793,9 +2789,9 @@ describe('processPayment', () => {
     try { fs.rmSync(coverageDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/ship Step 3.4 produces coverage diagram', async () => {
+  test('/publish Step 3.4 produces coverage diagram', async () => {
     const result = await runSkillTest({
-      prompt: `Read the file ship/SKILL.md for the ship workflow instructions.
+      prompt: `Read the file publish/SKILL.md for the ship workflow instructions.
 
 You are on the feature/billing branch. The base branch is main.
 This is a test project — there is no remote, no PR to create.
@@ -2814,12 +2810,12 @@ Output the diagram directly.`,
       maxTurns: 15,
       allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep'],
       timeout: 120_000,
-      testName: 'ship-coverage-audit',
+      testName: 'publish-coverage-audit',
       runId,
     });
 
-    logCost('/ship coverage audit', result);
-    recordE2E('/ship Step 3.4 coverage audit', 'Test Coverage Audit E2E', result, {
+    logCost('/publish coverage audit', result);
+    recordE2E('/publish Step 3.4 coverage audit', 'Test Coverage Audit E2E', result, {
       passed: result.exitReason === 'success',
     });
 
