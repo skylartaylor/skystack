@@ -111,8 +111,10 @@ export async function handleMetaCommand(
       }
 
       // Separate target (selector/@ref) from output path
+      // Path detection takes priority: args containing '/' or ending with image extension are paths
       for (const arg of remaining) {
-        if (arg.startsWith('@e') || arg.startsWith('@c') || arg.startsWith('.') || arg.startsWith('#') || arg.includes('[')) {
+        const isPath = arg.includes('/') || /\.(png|jpg|jpeg|webp|gif)$/i.test(arg);
+        if (!isPath && (arg.startsWith('@e') || arg.startsWith('@c') || arg.startsWith('.') || arg.startsWith('#') || arg.includes('['))) {
           targetSelector = arg;
         } else {
           outputPath = arg;
