@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.4.1] - 2026-03-18
+
+### Added
+
+- **Skills now discoverable via natural language.** All 12 skills that were missing explicit trigger phrases now have them — say "deploy this" and Claude finds `/ship`, say "check my diff" and it finds `/review`. Following Anthropic's best practice: "the description field is not a summary — it's when to trigger."
+
 ## [0.6.4.0] - 2026-03-17
 
 ### Added

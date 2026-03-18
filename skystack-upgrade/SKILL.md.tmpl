@@ -3,7 +3,8 @@ name: skystack-upgrade
 version: 1.1.0
 description: |
   Upgrade skystack to the latest version. Detects global vs vendored install,
-  runs the upgrade, and shows what's new.
+  runs the upgrade, and shows what's new. Use when asked to "upgrade skystack",
+  "update skystack", or "get latest version".
 allowed-tools:
   - Bash
   - Read

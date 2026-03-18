@@ -141,6 +141,8 @@ CHANGELOG.md is **for users**, not contributors. Write it like product release n
 
 - Lead with what the user can now **do** that they couldn't before. Sell the feature.
 - Use plain language, not implementation details. "You can now..." not "Refactored the..."
+- **Never mention TODOS.md, internal tracking, eval infrastructure, or contributor-facing
+  details.** These are invisible to users and meaningless to them.
 - Put contributor/internal changes in a separate "For contributors" section at the bottom.
 - Every entry should make someone think "oh nice, I want to try that."
 - No jargon: say "every question now tells you which project and branch you're in" not

@@ -482,6 +482,37 @@ Shipped as `/design-consultation` on xr843/design branch. Renamed from `/setup-d
 **Priority:** P3
 **Depends on:** Boil the Lake shipped (v0.6.1)
 
+## Safety & Observability
+
+### On-demand hook skills (/careful, /freeze, /guard)
+
+**What:** Three new skills that use Claude Code's session-scoped PreToolUse hooks to add safety guardrails on demand.
+
+**Why:** Anthropic's internal skill best practices recommend on-demand hooks for safety. Claude Code already handles destructive command permissions, but these add an explicit opt-in layer for high-risk sessions (touching prod, debugging live systems).
+
+**Skills:**
+- `/careful` — PreToolUse hook on Bash tool. Warns (not blocks) before destructive commands: `rm -rf`, `DROP TABLE`, `git push --force`, `git reset --hard`, `kubectl delete`, `docker system prune`. Uses `permissionDecision: "ask"` so user can override.
+- `/freeze` — PreToolUse hook on Edit/Write tools. Restricts file edits to a user-specified directory. Great for debugging without accidentally "fixing" unrelated code.
+- `/guard` — meta-skill composing `/careful` + `/freeze` into one command.
+
+**Implementation notes:** Use `${CLAUDE_SKILL_DIR}` (not `${SKILL_DIR}`) for script paths in hook commands. Pure bash JSON parsing (no jq dependency). Freeze dir storage: `${CLAUDE_PLUGIN_DATA}/freeze-dir.txt` with `~/.gstack/freeze-dir.txt` fallback. Ensure trailing `/` on freeze dir paths to prevent `/src` matching `/src-old`.
+
+**Effort:** M (human) / S (CC)
+**Priority:** P3
+**Depends on:** None
+
+### Skill usage telemetry
+
+**What:** Track which skills get invoked, how often, from which repo.
+
+**Why:** Enables finding undertriggering skills and measuring adoption. Anthropic uses a PreToolUse hook for this; simpler approach is appending JSONL from the preamble.
+
+**Context:** Add to `generatePreamble()` in `scripts/gen-skill-docs.ts`. Append to `~/.gstack/analytics/skill-usage.jsonl` with skill name, timestamp, and repo name. `mkdir -p` ensures the directory exists.
+
+**Effort:** S (human) / S (CC)
+**Priority:** P3
+**Depends on:** None
+
 ## Completed
 
 ### Phase 1: Foundations (v0.2.0)

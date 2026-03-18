@@ -4,7 +4,8 @@ version: 1.0.0
 description: |
   Eng manager-mode plan review. Lock in the execution plan — architecture,
   data flow, diagrams, edge cases, test coverage, performance. Walks through
-  issues interactively with opinionated recommendations.
+  issues interactively with opinionated recommendations. Use when asked to
+  "review the architecture", "engineering review", or "lock in the plan".
 allowed-tools:
   - Read
   - Write

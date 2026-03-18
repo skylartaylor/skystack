@@ -2,7 +2,7 @@
 name: ship
 version: 1.0.0
 description: |
-  Ship workflow: detect + merge base branch, run tests, review diff, bump VERSION, update CHANGELOG, commit, push, create PR.
+  Ship workflow: detect + merge base branch, run tests, review diff, bump VERSION, update CHANGELOG, commit, push, create PR. Use when asked to "ship", "deploy", "push to main", "create a PR", or "merge and push".
 allowed-tools:
   - Bash
   - Read

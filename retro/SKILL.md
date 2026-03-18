@@ -5,6 +5,7 @@ description: |
   Weekly engineering retrospective. Analyzes commit history, work patterns,
   and code quality metrics with persistent history and trend tracking.
   Team-aware: breaks down per-person contributions with praise and growth areas.
+  Use when asked to "weekly retro", "what did we ship", or "engineering retrospective".
 allowed-tools:
   - Bash
   - Read

@@ -5,7 +5,8 @@ description: |
   Designer's eye plan review — interactive, like CEO and Eng review.
   Rates each design dimension 0-10, explains what would make it a 10,
   then fixes the plan to get there. Works in plan mode. For live site
-  visual audits, use /design-review.
+  visual audits, use /design-review. Use when asked to "review the design plan"
+  or "design critique".
 allowed-tools:
   - Read
   - Edit
