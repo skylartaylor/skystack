@@ -44,12 +44,12 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'session-awareness':        ['SKILL.md', 'SKILL.md.tmpl'],
 
   // QA
-  'qa-quick':       ['qa/**', 'browse/src/**'],
-  'qa-b6-static':   ['qa/**', 'browse/src/**', 'browse/test/fixtures/qa-eval.html', 'test/fixtures/qa-eval-ground-truth.json'],
-  'qa-b7-spa':      ['qa/**', 'browse/src/**', 'browse/test/fixtures/qa-eval-spa.html', 'test/fixtures/qa-eval-spa-ground-truth.json'],
-  'qa-b8-checkout': ['qa/**', 'browse/src/**', 'browse/test/fixtures/qa-eval-checkout.html', 'test/fixtures/qa-eval-checkout-ground-truth.json'],
+  'qa-quick':       ['qa/**', 'browse/src/**', 'mobile/**'],
+  'qa-b6-static':   ['qa/**', 'browse/src/**', 'mobile/**', 'browse/test/fixtures/qa-eval.html', 'test/fixtures/qa-eval-ground-truth.json'],
+  'qa-b7-spa':      ['qa/**', 'browse/src/**', 'mobile/**', 'browse/test/fixtures/qa-eval-spa.html', 'test/fixtures/qa-eval-spa-ground-truth.json'],
+  'qa-b8-checkout': ['qa/**', 'browse/src/**', 'mobile/**', 'browse/test/fixtures/qa-eval-checkout.html', 'test/fixtures/qa-eval-checkout-ground-truth.json'],
   'qa-only-no-fix': ['qa-only/**', 'qa/templates/**'],
-  'qa-fix-loop':    ['qa/**', 'browse/src/**'],
+  'qa-fix-loop':    ['qa/**', 'browse/src/**', 'mobile/**'],
 
   // Review
   'review-sql-injection':     ['review/**', 'test/fixtures/review-eval-vuln.rb'],
@@ -64,7 +64,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'plan-eng-review-artifact':  ['plan-eng-review/**'],
 
   // Ship
-  'ship-base-branch': ['ship/**'],
+  'publish-base-branch': ['publish/**'],
 
   // Retro
   'retro':             ['retro/**'],
@@ -74,10 +74,10 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'document-release': ['document-release/**'],
 
   // QA bootstrap
-  'qa-bootstrap': ['qa/**', 'browse/src/**', 'ship/**'],
+  'qa-bootstrap': ['qa/**', 'browse/src/**', 'mobile/**', 'publish/**'],
 
   // Ship coverage audit
-  'ship-coverage-audit': ['ship/**'],
+  'publish-coverage-audit': ['publish/**'],
 
   // Design
   'design-consultation-core':     ['design-consultation/**'],
@@ -103,11 +103,11 @@ export const LLM_JUDGE_TOUCHFILES: Record<string, string[]> = {
   'regression vs baseline':           ['SKILL.md', 'SKILL.md.tmpl', 'browse/src/commands.ts', 'test/fixtures/eval-baselines.json'],
   'qa/SKILL.md workflow':             ['qa/SKILL.md', 'qa/SKILL.md.tmpl'],
   'qa/SKILL.md health rubric':        ['qa/SKILL.md', 'qa/SKILL.md.tmpl'],
-  'cross-skill greptile consistency': ['review/SKILL.md', 'review/SKILL.md.tmpl', 'ship/SKILL.md', 'ship/SKILL.md.tmpl', 'review/greptile-triage.md', 'retro/SKILL.md', 'retro/SKILL.md.tmpl'],
+
   'baseline score pinning':           ['SKILL.md', 'SKILL.md.tmpl', 'test/fixtures/eval-baselines.json'],
 
   // Ship & Release
-  'ship/SKILL.md workflow':               ['ship/SKILL.md', 'ship/SKILL.md.tmpl'],
+  'publish/SKILL.md workflow':               ['publish/SKILL.md', 'publish/SKILL.md.tmpl'],
   'document-release/SKILL.md workflow':   ['document-release/SKILL.md', 'document-release/SKILL.md.tmpl'],
 
   // Plan Reviews

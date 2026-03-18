@@ -824,3 +824,25 @@ describe('QA report template', () => {
     expect(content).toContain('**Precondition:**');
   });
 });
+
+// --- Mobile binary validation ---
+
+describe('Mobile binary', () => {
+  test('mobile/dist/mobile exists and is executable', () => {
+    const bin = path.join(ROOT, 'mobile', 'dist', 'mobile');
+    expect(fs.existsSync(bin)).toBe(true);
+    const stat = fs.statSync(bin);
+    expect(stat.mode & 0o111).toBeGreaterThan(0);
+  });
+
+  test('qa SKILL.md contains $M commands', () => {
+    const qa = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(qa).toContain('$M');
+    expect(qa).toContain('MOBILE_READY');
+  });
+
+  test('qa SKILL.md contains mobile/dist/mobile path', () => {
+    const qa = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(qa).toContain('mobile/dist/mobile');
+  });
+});
