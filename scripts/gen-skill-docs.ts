@@ -549,7 +549,7 @@ After completing the review, read the review log and config to display the dashb
 eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
 cat ~/.skystack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null || echo "NO_REVIEWS"
 echo "---CONFIG---"
-~/.claude/skills/skystack/bin/skystack-config get skip_eng_review 2>/dev/null || echo "false"
+~/.claude/skills/skystack/bin/skystack-config get skip_dev_review 2>/dev/null || echo "false"
 \`\`\`
 
 Parse the output. Find the most recent entry for each skill (review, pm, design, design-review-lite). Ignore entries with timestamps older than 7 days. For Design Review, show whichever is more recent between \`design\` (full visual audit) and \`design-review-lite\` (inline check). Append "(FULL)" or "(LITE)" to the status to distinguish. Display:
@@ -569,15 +569,15 @@ Parse the output. Find the most recent entry for each skill (review, pm, design,
 \`\`\`
 
 **Review tiers:**
-- **Dev Review (required by default):** The only review that gates shipping. Covers architecture, code quality, tests, security. Run with \`/review\`. Can be disabled globally with \\\`skystack-config set skip_eng_review true\\\` (the "don't bother me" setting).
+- **Dev Review (required by default):** The only review that gates shipping. Covers architecture, code quality, tests, security. Run with \`/review\`. Can be disabled globally with \\\`skystack-config set skip_dev_review true\\\` (the "don't bother me" setting).
 - **PM Review (optional):** Use your judgment. Recommend for new features where a product spec was written with \`/pm\`. Skip for bug fixes, refactors, and cleanup.
 - **Design Review (optional):** Use your judgment. Recommend for UI/UX changes. Run with \`/design\`. Skip for backend-only or infra changes.
 
 **Verdict logic:**
-- **CLEARED**: Dev Review has >= 1 entry within 7 days with status "clean" (or \\\`skip_eng_review\\\` is \\\`true\\\`)
+- **CLEARED**: Dev Review has >= 1 entry within 7 days with status "clean" (or \\\`skip_dev_review\\\` is \\\`true\\\`)
 - **NOT CLEARED**: Dev Review missing, stale (>7 days), or has open issues
 - PM and Design reviews are shown for context but never block shipping
-- If \\\`skip_eng_review\\\` config is \\\`true\\\`, Dev Review shows "SKIPPED (global)" and verdict is CLEARED`;
+- If \\\`skip_dev_review\\\` config is \\\`true\\\`, Dev Review shows "SKIPPED (global)" and verdict is CLEARED`;
 }
 
 function generateTestBootstrap(): string {

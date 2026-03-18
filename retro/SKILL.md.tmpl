@@ -28,7 +28,7 @@ say `origin/<default>` below.
 
 # /retro — Weekly Engineering Retrospective
 
-Generates a comprehensive engineering retrospective analyzing commit history, work patterns, and code quality metrics. Team-aware: identifies the user running the command, then analyzes every contributor with per-person praise and growth opportunities. Designed for a senior IC/CTO-level builder using Claude Code as a force multiplier.
+Generates a weekly engineering retrospective analyzing commit history, work patterns, and code quality metrics. Works solo or with a team — identifies the user running the command, then covers every contributor with per-person praise and growth areas.
 
 ## User-invocable
 When the user types `/retro`, run this skill.
@@ -128,7 +128,7 @@ Calculate and present these metrics in a summary table:
 | Avg LOC/session-hour | N |
 | Test Health | N total tests · M added this period · K regression tests |
 
-Then show a **per-author leaderboard** immediately below:
+Then show a **per-author breakdown** immediately below:
 
 ```
 Contributor         Commits   +/-          Top area
@@ -454,10 +454,10 @@ Identify the 3 highest-impact things shipped in the window across the whole team
 - Why it matters (product/architecture impact)
 
 ### 3 Things to Improve
-Specific, actionable, anchored in actual commits. Mix personal and team-level suggestions. Phrase as "to get even better, the team could..."
+Specific, actionable, anchored in actual commits. Phrase as "one thing to try next week:" — works equally for solo devs and teams.
 
 ### 3 Habits for Next Week
-Small, practical, realistic. Each must be something that takes <5 minutes to adopt. At least one should be team-oriented (e.g., "review each other's PRs same-day").
+Small, practical, realistic. Each must be something that takes <5 minutes to adopt. If solo, make all three personal habits. If there are collaborators, at least one can be collaborative (e.g., "review each other's PRs same-day").
 
 ### Week-over-Week Trends
 (if applicable, from Step 10)

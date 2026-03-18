@@ -32,7 +32,30 @@ If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack
 
 ## AskUserQuestion Format
 
-**ALWAYS follow this structure for every AskUserQuestion call:**
+**Two types of AskUserQuestion calls — use the right format for each:**
+
+### Plan approval (review plan, test plan, spec approval, implementation plan)
+
+Output the plan details as **regular chat text first** — never inside the AskUserQuestion call. Then use AskUserQuestion with only a short question and 2-3 clean options. No detail in option descriptions.
+
+Example:
+```
+[chat text output]
+I've read the diff (~180 lines, 4 files). Here's what I'll focus on:
+
+1. **Race condition** — status transition in OrderService isn't atomic
+2. **N+1** — PostsController#index missing includes(:author)
+3. **Test coverage** — BillingService has no tests
+
+[AskUserQuestion]
+Question: "Anything to add or skip?"
+A) Looks good, go
+B) Adjust the focus
+```
+
+### Judgment questions (bugs, design decisions, tradeoffs)
+
+**ALWAYS follow this structure:**
 1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
 2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
 3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts when the delta is small. Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
@@ -128,7 +151,7 @@ After completing the review, read the review log and config to display the dashb
 eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
 cat ~/.skystack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null || echo "NO_REVIEWS"
 echo "---CONFIG---"
-~/.claude/skills/skystack/bin/skystack-config get skip_eng_review 2>/dev/null || echo "false"
+~/.claude/skills/skystack/bin/skystack-config get skip_dev_review 2>/dev/null || echo "false"
 ```
 
 Parse the output. Find the most recent entry for each skill (review, pm, design, design-review-lite). Ignore entries with timestamps older than 7 days. For Design Review, show whichever is more recent between `design` (full visual audit) and `design-review-lite` (inline check). Append "(FULL)" or "(LITE)" to the status to distinguish. Display:
@@ -148,32 +171,32 @@ Parse the output. Find the most recent entry for each skill (review, pm, design,
 ```
 
 **Review tiers:**
-- **Dev Review (required by default):** The only review that gates shipping. Covers architecture, code quality, tests, security. Run with `/review`. Can be disabled globally with \`skystack-config set skip_eng_review true\` (the "don't bother me" setting).
+- **Dev Review (required by default):** The only review that gates shipping. Covers architecture, code quality, tests, security. Run with `/review`. Can be disabled globally with \`skystack-config set skip_dev_review true\` (the "don't bother me" setting).
 - **PM Review (optional):** Use your judgment. Recommend for new features where a product spec was written with `/pm`. Skip for bug fixes, refactors, and cleanup.
 - **Design Review (optional):** Use your judgment. Recommend for UI/UX changes. Run with `/design`. Skip for backend-only or infra changes.
 
 **Verdict logic:**
-- **CLEARED**: Dev Review has >= 1 entry within 7 days with status "clean" (or \`skip_eng_review\` is \`true\`)
+- **CLEARED**: Dev Review has >= 1 entry within 7 days with status "clean" (or \`skip_dev_review\` is \`true\`)
 - **NOT CLEARED**: Dev Review missing, stale (>7 days), or has open issues
 - PM and Design reviews are shown for context but never block shipping
-- If \`skip_eng_review\` config is \`true\`, Dev Review shows "SKIPPED (global)" and verdict is CLEARED
+- If \`skip_dev_review\` config is \`true\`, Dev Review shows "SKIPPED (global)" and verdict is CLEARED
 
-If the Eng Review is NOT "CLEAR":
+If the Dev Review is NOT "CLEAR":
 
 1. **Check for a prior override on this branch:**
    ```bash
    eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
    grep '"skill":"publish-review-override"' ~/.skystack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null || echo "NO_OVERRIDE"
    ```
-   If an override exists, display the dashboard and note "Review gate previously accepted — continuing." Do NOT ask again.
+   If an override exists, display the dashboard and note "Dev Review check previously accepted — continuing." Do NOT ask again.
 
 2. **If no override exists,** use AskUserQuestion:
-   - Show that Eng Review is missing or has open issues
+   - Show that Dev Review is missing or has open issues
    - RECOMMENDATION: Choose C if the change is obviously trivial (< 20 lines, typo fix, config-only); Choose B for larger changes
    - Options: A) Ship anyway  B) Abort — run /review first  C) Change is too small to need eng review
    - For Design Review: run `eval $(~/.claude/skills/skystack/bin/skystack-diff-scope <base> 2>/dev/null)`. If `SCOPE_FRONTEND=true` and no design review exists in the dashboard, mention: "Design Review not run — this PR changes frontend code. The lite design check will run automatically in Step 3.5, but consider running /design for a full visual audit post-implementation." Still never block.
 
-3. **If the user chooses A or C,** persist the decision so future `/publish` runs on this branch skip the gate:
+3. **If the user chooses A or C,** persist the decision so future `/publish` runs on this branch skip the check:
    ```bash
    eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
    echo '{"skill":"publish-review-override","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","decision":"USER_CHOICE"}' >> ~/.skystack/projects/$SLUG/$BRANCH-reviews.jsonl
