@@ -46,19 +46,29 @@ Read `.skystack/references/dev.md` (fall back to `.claude/skills/review/dev.md`)
 
 1. Run `git branch --show-current` to get the current branch.
 2. If the user explicitly asked to review a plan, design doc, or architecture — you're in **architecture mode**. Go to Phase 1A.
-3. Otherwise, check for a diff:
+3. Otherwise, check for a diff against the remote base branch:
 
 ```bash
-git fetch origin <base> --quiet
-git diff origin/<base> --stat
+git fetch origin <base> --quiet 2>/dev/null || true
+git diff origin/<base> --stat 2>/dev/null
 ```
 
-4. If there's a diff, you're in **code review mode**. Continue below.
-5. If no diff, output: **"Nothing to review — no changes against the base branch."** and stop.
+4. If there's a diff against origin, you're in **branch review mode**. Use `git diff origin/<base>` as the diff throughout. Continue below.
+5. If no diff against origin (you're on the base branch working directly), check for local changes:
+
+```bash
+git diff --stat          # unstaged changes
+git diff --cached --stat # staged changes
+```
+
+6. If either has content, you're in **local changes mode**. Use `git diff HEAD` as the diff throughout (covers both staged and unstaged). Continue below.
+7. If no changes at all, output: **"Nothing to review — no staged, unstaged, or unpushed changes."** and stop.
 
 ### Code review: read the diff
 
-Run `git diff origin/<base>` to get the full diff (committed + uncommitted changes).
+**Branch review mode:** Run `git diff origin/<base>` to get the full diff.
+
+**Local changes mode:** Run `git diff HEAD` to get staged + unstaged changes against the last commit.
 
 Read `.claude/skills/review/checklist.md`. **If the checklist cannot be read, STOP and report the error.** The checklist is required.
 
