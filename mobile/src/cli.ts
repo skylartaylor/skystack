@@ -36,10 +36,10 @@ export function buildAgentArgs(command: string, userArgs: string[], platform: st
   const def = COMMANDS[command];
   if (!def) {
     // Unknown command — pass through verbatim, add platform
-    return [command, ...userArgs, '--platform', platform];
+    return [command, ...userArgs, '--platform', platform].filter((a): a is string => a !== undefined);
   }
 
-  const base = [command, ...def.agentArgs(userArgs)];
+  const base = [command, ...def.agentArgs(userArgs)].filter((a): a is string => a !== undefined);
   if (def.noPlatform) return base;
   return [...base, '--platform', platform];
 }
@@ -89,8 +89,8 @@ async function main() {
   const err = result.stderr.toString();
 
   if (out) process.stdout.write(out);
+  if (err) process.stderr.write(err);
   if (result.exitCode !== 0) {
-    if (err) process.stderr.write(err);
     process.exit(result.exitCode ?? 1);
   }
 }
