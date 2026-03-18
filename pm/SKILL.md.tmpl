@@ -319,6 +319,13 @@ test, and commit independently. Structure every task in TDD order:
 before controllers/views, infrastructure before features. Each committed task should
 be independently valid (no broken imports, no references to code not yet written).
 
+**Mark parallelism explicitly.** For each task, note whether it can run in parallel with others:
+- `[INDEPENDENT]` — no shared files with sibling tasks, can run concurrently
+- `[DEPENDS ON: Task N]` — must wait for that task to commit first
+
+Tasks that touch different files with no shared imports are almost always independent.
+UI components and their tests are usually independent of data layer tasks.
+
 Keep the plan grounded in codebase patterns from Phase 1b. Don't introduce new
 architectural patterns unless existing ones genuinely can't support the feature.
 
@@ -330,34 +337,51 @@ Present the plan via AskUserQuestion (still in plan mode). Once approved, exit p
 
 {{TEST_BOOTSTRAP}}
 
-Implement the feature task by task, following the approved plan exactly.
+**Use subagents for implementation — don't execute tasks yourself.**
 
-**TDD discipline:** For each task, write the failing test first. Run it to confirm
-it fails with the expected error. Then implement the minimal code to make it pass.
-Then handle the edge cases. Then commit. Never skip the failing-test step — it
-proves the test actually exercises the code.
+Each task gets a fresh subagent via the Agent tool. Fresh context per task means no
+accumulated noise, no confusion between tasks, and independent tasks can run in parallel.
 
-**Implementation rules:**
-- Follow the task order from the plan (dependencies first)
-- Follow existing codebase patterns exactly
-- Include accessibility attributes during implementation, not after
-- Handle every edge case from the spec (empty states, error states, offline, etc.)
-- Use the recommended libraries/components from the spec
-- Each task ends in a commit — don't batch multiple tasks into one commit
+### Dispatch pattern
 
-**After all tasks, run the full test suite:**
+**For independent tasks** (marked `[INDEPENDENT]` in the plan): dispatch in parallel —
+send multiple Agent tool calls in a single message.
+
+**For dependent tasks** (marked `[DEPENDS ON: Task N]`): wait for the dependency to commit,
+then dispatch.
+
+### What to include in each subagent prompt
+
+Give each subagent exactly what it needs, nothing more:
+- The full task spec (files, steps, test commands, expected code)
+- The detected stack and working directory
+- The 2-3 codebase patterns most relevant to this task (from Phase 1b)
+- The spec section relevant to this task (from the approved spec)
+
+Never paste your whole session history. Subagents work best with focused, minimal context.
+
+### Implementation rules (pass these to each subagent)
+
+- Write the failing test first. Run it. Confirm it fails with the expected error.
+- Implement the minimal code to make it pass.
+- Handle edge cases from the spec.
+- Include accessibility attributes during implementation, not after.
+- Follow existing codebase patterns exactly — no new architectural patterns.
+- End with a commit. Don't batch multiple tasks into one commit.
+
+### After all tasks complete
+
+Run the full test suite yourself (in the main session):
 
 ```bash
-# Detect and run full suite
 [ -f pubspec.yaml ] && flutter test
 [ -f package.json ] && (npm test || bun test || yarn test) 2>/dev/null
 [ -f Gemfile ] && bundle exec rake test 2>/dev/null
 [ -f go.mod ] && go test ./... 2>/dev/null
 ```
 
-If any tests fail, fix them before proceeding. If a test you didn't write breaks,
-investigate — it may indicate your implementation conflicts with existing behavior.
-Fix the conflict rather than deleting the test.
+If any tests fail, dispatch a fix subagent with the failure output and the relevant task context.
+If a test you didn't write breaks, investigate before fixing — it may signal a real conflict.
 
 ---
 
