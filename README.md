@@ -24,17 +24,17 @@ The code is good. The politics are bad. So I forked it.
 
 **skystack** takes gstack's skill architecture and adapts it for how I actually work — primarily Flutter mobile apps (iOS/Android) alongside web projects. It strips out the YC self-promotion and refocuses on being a useful tool rather than a founder-bro manifesto.
 
-It turns Claude Code into a virtual engineering team: a reviewer who finds production bugs, a QA lead who tests your app, a designer who catches AI slop, and a release engineer who ships the PR. All slash commands, all Markdown, all free, MIT license.
+It turns Claude Code into a small group of collaborators: a planner who figures out what to build, a designer who makes it look right, a dev who reviews the architecture, and a tester who breaks things before users do. They share context, give each other feedback, and work together. All slash commands, all Markdown, all free, MIT license.
 
 **Who this is for:**
 - **Solo developers and small teams** — especially if you're building mobile and web apps simultaneously
-- **First-time Claude Code users** — skystack gives you structured roles instead of a blank prompt
-- **Tech leads and staff engineers** — bring rigorous review, QA, and release automation to every PR
+- **First-time Claude Code users** — skystack gives you structured collaborators instead of a blank prompt
+- **Anyone who ships** — bring design feedback, code review, QA, and release automation to every PR
 
 ## Quick start: your first 10 minutes
 
 1. Install skystack (30 seconds — see below)
-2. Run `/plan-ceo-review` on any feature idea
+2. Run `/pm "your feature idea"` to plan a feature
 3. Run `/review` on any branch with changes
 4. Run `/qa` on your staging URL
 5. Stop there. You'll know if this is for you.
@@ -51,50 +51,33 @@ Expect first useful run in under 5 minutes on any repo with tests already set up
 
 Open Claude Code and paste this. Claude does the rest.
 
-> Install skystack: run **`git clone https://github.com/xr843/skystack.git ~/.claude/skills/skystack && cd ~/.claude/skills/skystack && ./setup`** then add a "skystack" section to CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /pm, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /browse, /qa, /qa-only, /qa-design-review, /setup-browser-cookies, /retro, /document-release. Then ask the user if they also want to add skystack to the current project so teammates get it.
+> Install skystack: run **`git clone https://github.com/xr843/skystack.git ~/.claude/skills/skystack && cd ~/.claude/skills/skystack && ./setup`** then add a "skystack" section to CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /pm, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /browse, /qa, /qa-only, /setup-browser-cookies, /retro, /document-release. Then ask the user if they also want to add skystack to the current project so teammates get it.
 
 ### Step 2: Add to your repo so teammates get it (optional)
 
-> Add skystack to this project: run **`cp -Rf ~/.claude/skills/skystack .claude/skills/skystack && rm -rf .claude/skills/skystack/.git && cd .claude/skills/skystack && ./setup`** then add a "skystack" section to this project's CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /pm, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /browse, /qa, /qa-only, /qa-design-review, /setup-browser-cookies, /retro, /document-release, and tells Claude that if skystack skills aren't working, run `cd .claude/skills/skystack && ./setup` to build the binary and register skills.
+> Add skystack to this project: run **`cp -Rf ~/.claude/skills/skystack .claude/skills/skystack && rm -rf .claude/skills/skystack/.git && cd .claude/skills/skystack && ./setup`** then add a "skystack" section to this project's CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /pm, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /browse, /qa, /qa-only, /setup-browser-cookies, /retro, /document-release, and tells Claude that if skystack skills aren't working, run `cd .claude/skills/skystack && ./setup` to build the binary and register skills.
 
 Real files get committed to your repo (not a submodule), so `git clone` just works. Everything lives inside `.claude/`. Nothing touches your PATH or runs in the background.
 
 ## See it work
 
 ```
-You:    I want to add photo upload for sellers.
-You:    /plan-ceo-review
-Claude: "Photo upload" is not the feature. The real job is helping
-        sellers create listings that actually sell. What if we
-        auto-identify the product, pull specs and comps from the
-        web, and draft the listing automatically? That's 10 stars.
-        "Upload a photo" is 3 stars. Which are we building?
-        [8 expansion proposals, you cherry-pick 5, defer 3 to backlog]
+You:    /pm "add photo upload for sellers"
+Claude: [researches competitor apps, checks your DESIGN.md, explores codebase]
+        [asks the Designer for feedback on the upload flow]
+        [asks the Dev to check the architecture]
 
-You:    /plan-design-review
-Claude: Design Score: B  |  AI Slop Score: C
-        "Upload flow looks like a default Bootstrap form."
-        [80-item audit, infers your design system, exports DESIGN.md]
-        [flags 3 AI slop patterns: gradient hero, icon grid, uniform radius]
+        "Upload is table stakes — but auto-identifying the product and
+        drafting the listing from photos is what makes it great. Designer
+        says: use a bottom sheet upload flow, not a modal. Dev says: use
+        the existing ImageService, add a ClassificationRepository.
+        Here's the spec — approve it?"
 
-You:    /plan-eng-review
-Claude: ┌─────────┐    ┌──────────┐    ┌──────────┐    ┌─────────┐
-        │ Upload  │───▶│ Classify │───▶│ Enrich   │───▶│ Draft   │
-        │ (sync)  │    │ (async)  │    │ (async)  │    │ (async) │
-        └─────────┘    └──────────┘    └──────────┘    └─────────┘
-        [ASCII diagrams for every data flow, state machine, error path]
-        [14-case test matrix, 6 failure modes mapped, 3 security concerns]
-
-You:    Approve plan. Exit plan mode.
+You:    Looks good, build it.
         [Claude writes 2,400 lines across 11 files — models, services,
-         controllers, views, migrations, and tests. ~8 minutes.]
+         controllers, views, and tests. ~8 minutes.]
 
-You:    /review
-Claude: [AUTO-FIXED] Orphan S3 cleanup on failed upload
-        [AUTO-FIXED] Missing index on listings.status
-        [ASK] Race condition on hero image selection → You: yes
-        [traces every new enum value through all switch statements]
-        3 issues — 2 auto-fixed, 1 fixed.
+        [self-reviews for correctness, accessibility, edge cases]
 
 You:    /qa https://staging.myapp.com
 Claude: [opens real browser, logs in, uploads photos, clicks through flows]
@@ -109,40 +92,45 @@ Claude: Tests: 42 → 51 (+9 new)
         PR: github.com/you/app/pull/42
 ```
 
-One feature. Seven commands. The agent reframed the product, ran an 80-item design audit, drew the architecture, wrote 2,400 lines of code, found a race condition I would have missed, auto-fixed two issues, opened a real browser to QA test, found and fixed a bug I didn't know about, wrote 9 tests, and generated a regression test. That is not a copilot. That is a team.
+One feature. Three commands. The planner researched the problem, got design and architecture feedback, wrote the spec, built it, self-reviewed, and shipped. The tester opened a real browser and caught a bug. That's not a copilot — that's a crew.
 
-## The team
+## The crew
 
-| Skill | Your specialist | What they do |
-|-------|----------------|--------------|
-| `/pm` | **Product Manager** | Feature from idea to shipped code. Competitive research, UX patterns, accessibility, spec, implement, review, ship. Auto-detects your stack. |
-| `/plan-ceo-review` | **CEO / Founder** | Rethink the problem. Find the 10-star product hiding inside the request. Four modes: Expansion, Selective Expansion, Hold Scope, Reduction. |
-| `/plan-eng-review` | **Eng Manager** | Lock in architecture, data flow, diagrams, edge cases, and tests. Forces hidden assumptions into the open. |
-| `/plan-design-review` | **Senior Designer** | 80-item design audit with letter grades. AI Slop detection. Infers your design system. Report only — never touches code. |
-| `/design-consultation` | **Design Partner** | Build a complete design system from scratch. Knows the landscape, proposes creative risks, generates realistic product mockups. Design at the heart of all other phases. |
-| `/review` | **Staff Engineer** | Find the bugs that pass CI but blow up in production. Auto-fixes the obvious ones. Flags completeness gaps. |
-| `/ship` | **Release Engineer** | Sync main, run tests, audit coverage, push, open PR. Bootstraps test frameworks if you don't have one. One command. |
-| `/browse` | **QA Engineer** | Give the agent eyes. Real Chromium browser, real clicks, real screenshots. ~100ms per command. |
-| `/qa` | **QA Lead** | Test your app, find bugs, fix them with atomic commits, re-verify. Auto-generates regression tests for every fix. |
-| `/qa-only` | **QA Reporter** | Same methodology as /qa but report only. Use when you want a pure bug report without code changes. |
-| `/design-review` | **Designer Who Codes** | Same audit as /plan-design-review, then fixes what it finds. Atomic commits, before/after screenshots. |
-| `/setup-browser-cookies` | **Session Manager** | Import cookies from your real browser (Chrome, Arc, Brave, Edge) into the headless session. Test authenticated pages. |
-| `/retro` | **Eng Manager** | Team-aware weekly retro. Per-person breakdowns, shipping streaks, test health trends, growth opportunities. |
-| `/document-release` | **Technical Writer** | Update all project docs to match what you just shipped. Catches stale READMEs automatically. |
+Four friends who collaborate on your projects:
+
+| Skill | Your friend | What they do |
+|-------|-------------|--------------|
+| `/pm` | **The Planner** | Takes a feature from idea to shipped code. Does the research, writes the spec, coordinates the others, builds it, ships it. Auto-detects your stack. |
+| `/review` | **The Dev** | Reads your diff and finds the bugs that pass CI but blow up in production. Auto-fixes the obvious ones. Catches what you missed. |
+| `/qa` | **The Tester** | Opens a real browser, clicks through your app, finds bugs, fixes them, writes regression tests. Also available as `/qa-only` for report-only mode. |
+| `/design-consultation` | **The Designer** | Builds a complete design system from scratch. Researches the landscape, proposes creative risks, generates mockups. Creates `DESIGN.md`. |
+
+Plus skills for specific jobs:
+
+| Skill | What it does |
+|-------|-------------|
+| `/plan-eng-review` | Think through architecture, data flow, edge cases, and tests before building |
+| `/plan-design-review` | 80-item design audit with letter grades and AI slop detection (report only) |
+| `/design-review` | Same design audit, then fixes what it finds with atomic commits |
+| `/ship` | Sync main, run tests, push, open PR. One command. |
+| `/browse` | Give the agent a real browser. Chromium, real clicks, real screenshots. ~100ms per command. |
+| `/setup-browser-cookies` | Import cookies from your browser into the headless session for authenticated testing. |
+| `/retro` | Weekly retro. Per-person breakdowns, shipping streaks, test health trends. |
+| `/document-release` | Update all project docs to match what you just shipped. |
 
 **[Deep dives with examples and philosophy for every skill →](docs/skills.md)**
 
-## What's new and why it matters
+## What's different from gstack
 
-**Design is at the heart.** `/design-consultation` doesn't just pick fonts. It researches what's out there in your space, proposes safe choices AND creative risks, generates realistic mockups of your actual product, and writes `DESIGN.md` — and then `/design-review` and `/plan-eng-review` read what you chose. Design decisions flow through the whole system.
+**No corporate hierarchy.** gstack frames everything as CEO reviews, eng manager gates, staff engineer audits. skystack uses a friend-group model — a planner, a designer, a dev, and a tester who collaborate and give each other feedback.
 
-**`/qa` was a massive unlock.** It let me go from 6 to 12 parallel workers. Claude Code saying *"I SEE THE ISSUE"* and then actually fixing it, generating a regression test, and verifying the fix — that changed how I work. The agent has eyes now.
+**Stack-aware.** skystack auto-detects your project's tech stack (Flutter, SwiftUI, React, Rails, etc.) and tailors all recommendations — accessibility APIs, chart libraries, design patterns, build commands — to match.
 
-**Smart review routing.** CEO doesn't have to look at infra bug fixes, design review isn't needed for backend changes. skystack tracks what reviews are run, figures out what's appropriate, and just does the smart thing. The Review Readiness Dashboard tells you where you stand before you ship.
+**`/pm` is the orchestrator.** One command takes a feature from idea to shipped code: research, spec, design feedback, architecture check, implementation, QA, ship.
 
-**Test everything.** `/ship` bootstraps test frameworks from scratch if your project doesn't have one. Every `/ship` run produces a coverage audit. Every `/qa` bug fix generates a regression test. 100% test coverage is the goal — tests make vibe coding safe instead of yolo coding.
+**`/qa` gives the agent eyes.** It opens a real browser, clicks through your app, finds bugs, fixes them with atomic commits, and writes regression tests. That changed how I work.
 
-**`/document-release` is the engineer you never had.** It reads every doc file in your project, cross-references the diff, and updates everything that drifted. README, ARCHITECTURE, CONTRIBUTING, CLAUDE.md, TODOS — all kept current automatically.
+**Test everything.** `/ship` bootstraps test frameworks from scratch if you don't have one. Every `/qa` bug fix generates a regression test. Tests make vibe coding safe instead of yolo coding.
 
 ## Parallel sessions
 
