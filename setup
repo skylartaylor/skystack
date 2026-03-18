@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# gstack setup — build browser binary + register all skills with Claude Code
+# skystack setup — build browser binary + register all skills with Claude Code
 set -e
 
 GSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -39,7 +39,7 @@ if [ "$NEEDS_BUILD" -eq 1 ]; then
 fi
 
 if [ ! -x "$BROWSE_BIN" ]; then
-  echo "gstack setup failed: browse binary missing at $BROWSE_BIN" >&2
+  echo "skystack setup failed: browse binary missing at $BROWSE_BIN" >&2
   exit 1
 fi
 
@@ -53,12 +53,12 @@ if ! ensure_playwright_browser; then
 fi
 
 if ! ensure_playwright_browser; then
-  echo "gstack setup failed: Playwright Chromium could not be launched" >&2
+  echo "skystack setup failed: Playwright Chromium could not be launched" >&2
   exit 1
 fi
 
-# 3. Ensure ~/.gstack global state directory exists
-mkdir -p "$HOME/.gstack/projects"
+# 3. Ensure ~/.skystack global state directory exists
+mkdir -p "$HOME/.skystack/projects"
 
 # 4. Only create skill symlinks if we're inside a .claude/skills directory
 SKILLS_BASENAME="$(basename "$SKILLS_DIR")"
@@ -72,26 +72,26 @@ if [ "$SKILLS_BASENAME" = "skills" ]; then
       target="$SKILLS_DIR/$skill_name"
       # Create or update symlink; skip if a real file/directory exists
       if [ -L "$target" ] || [ ! -e "$target" ]; then
-        ln -snf "gstack/$skill_name" "$target"
+        ln -snf "skystack/$skill_name" "$target"
         linked+=("$skill_name")
       fi
     fi
   done
 
-  echo "gstack ready."
+  echo "skystack ready."
   echo "  browse: $BROWSE_BIN"
   if [ ${#linked[@]} -gt 0 ]; then
     echo "  linked skills: ${linked[*]}"
   fi
 else
-  echo "gstack ready."
+  echo "skystack ready."
   echo "  browse: $BROWSE_BIN"
   echo "  (skipped skill symlinks — not inside .claude/skills/)"
 fi
 
 # 4. First-time welcome + legacy cleanup
-if [ ! -d "$HOME/.gstack" ]; then
-  mkdir -p "$HOME/.gstack"
-  echo "  Welcome! Run /gstack-upgrade anytime to stay current."
+if [ ! -d "$HOME/.skystack" ]; then
+  mkdir -p "$HOME/.skystack"
+  echo "  Welcome! Run /skystack-upgrade anytime to stay current."
 fi
-rm -f /tmp/gstack-latest-version
+rm -f /tmp/skystack-latest-version

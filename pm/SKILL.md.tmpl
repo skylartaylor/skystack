@@ -61,10 +61,10 @@ Before researching externally, check what the project already knows:
    - Blocking items that might affect implementation
    Note any relevant TODOs — reference them in the feature spec (Phase 2).
 
-2. **Check for existing feature specs** in `~/.gstack/projects/$SLUG/pm-specs/`:
+2. **Check for existing feature specs** in `~/.skystack/projects/$SLUG/pm-specs/`:
    ```bash
-   eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
-   ls -t ~/.gstack/projects/$SLUG/pm-specs/*.md 2>/dev/null | head -5
+   eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+   ls -t ~/.skystack/projects/$SLUG/pm-specs/*.md 2>/dev/null | head -5
    ```
    If prior specs exist for related features, read them to understand past decisions and avoid contradicting them.
 
@@ -256,12 +256,12 @@ a one-line rationale. If the Designer or Dev flagged something important, mentio
 **After the user approves the spec**, persist it so other skills can reference it:
 
 ```bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
 DATETIME=$(date +%Y%m%d-%H%M%S)
-mkdir -p ~/.gstack/projects/$SLUG/pm-specs
+mkdir -p ~/.skystack/projects/$SLUG/pm-specs
 ```
 
-Write the approved spec to `~/.gstack/projects/$SLUG/pm-specs/{date}-{feature-slug}.md`.
+Write the approved spec to `~/.skystack/projects/$SLUG/pm-specs/{date}-{feature-slug}.md`.
 Include all six sections (problem statement, proposed solution, design recommendations,
 accessibility plan, edge cases, non-goals). This artifact lets future `/qa` runs verify
 against the spec and `/design-review` runs calibrate against the design recommendations.
@@ -373,9 +373,9 @@ offer to create a PR.
 **Log the completion** for project history:
 
 ```bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
-mkdir -p ~/.gstack/projects/$SLUG
-echo '{"skill":"pm","timestamp":"TIMESTAMP","status":"STATUS","feature":"FEATURE_SLUG","files_changed":N,"tests_added":M}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+mkdir -p ~/.skystack/projects/$SLUG
+echo '{"skill":"pm","timestamp":"TIMESTAMP","status":"STATUS","feature":"FEATURE_SLUG","files_changed":N,"tests_added":M}' >> ~/.skystack/projects/$SLUG/$BRANCH-reviews.jsonl
 ```
 
 Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "shipped" if user chose A, "pending" if user chose B/C/D, FEATURE_SLUG = kebab-case feature name, N = files changed count, M = tests added count.

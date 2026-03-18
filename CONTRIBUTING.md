@@ -1,15 +1,15 @@
-# Contributing to gstack
+# Contributing to skystack
 
-Thanks for wanting to make gstack better. Whether you're fixing a typo in a skill prompt or building an entirely new workflow, this guide will get you up and running fast.
+Thanks for wanting to make skystack better. Whether you're fixing a typo in a skill prompt or building an entirely new workflow, this guide will get you up and running fast.
 
 ## Quick start
 
-gstack skills are Markdown files that Claude Code discovers from a `skills/` directory. Normally they live at `~/.claude/skills/gstack/` (your global install). But when you're developing gstack itself, you want Claude Code to use the skills *in your working tree* — so edits take effect instantly without copying or deploying anything.
+skystack skills are Markdown files that Claude Code discovers from a `skills/` directory. Normally they live at `~/.claude/skills/skystack/` (your global install). But when you're developing skystack itself, you want Claude Code to use the skills *in your working tree* — so edits take effect instantly without copying or deploying anything.
 
 That's what dev mode does. It symlinks your repo into the local `.claude/skills/` directory so Claude Code reads skills straight from your checkout.
 
 ```bash
-git clone <repo> && cd gstack
+git clone <repo> && cd skystack
 bun install                    # install dependencies
 bin/dev-setup                  # activate dev mode
 ```
@@ -22,55 +22,55 @@ bin/dev-teardown               # deactivate — back to your global install
 
 ## Contributor mode
 
-Contributor mode turns gstack into a self-improving tool. Enable it and Claude Code
-will periodically reflect on its gstack experience — rating it 0-10 at the end of
+Contributor mode turns skystack into a self-improving tool. Enable it and Claude Code
+will periodically reflect on its skystack experience — rating it 0-10 at the end of
 each major workflow step. When something isn't a 10, it thinks about why and files
-a report to `~/.gstack/contributor-logs/` with what happened, repro steps, and what
+a report to `~/.skystack/contributor-logs/` with what happened, repro steps, and what
 would make it better.
 
 ```bash
-~/.claude/skills/gstack/bin/gstack-config set gstack_contributor true
+~/.claude/skills/skystack/bin/skystack-config set skystack_contributor true
 ```
 
 The logs are for **you**. When something bugs you enough to fix, the report is
-already written. Fork gstack, symlink your fork into the project where you hit
+already written. Fork skystack, symlink your fork into the project where you hit
 the issue, fix it, and open a PR.
 
 ### The contributor workflow
 
-1. **Use gstack normally** — contributor mode reflects and logs issues automatically
-2. **Check your logs:** `ls ~/.gstack/contributor-logs/`
-3. **Fork and clone gstack** (if you haven't already)
+1. **Use skystack normally** — contributor mode reflects and logs issues automatically
+2. **Check your logs:** `ls ~/.skystack/contributor-logs/`
+3. **Fork and clone skystack** (if you haven't already)
 4. **Symlink your fork into the project where you hit the bug:**
    ```bash
-   # In your core project (the one where gstack annoyed you)
-   ln -sfn /path/to/your/gstack-fork .claude/skills/gstack
-   cd .claude/skills/gstack && bun install && bun run build
+   # In your core project (the one where skystack annoyed you)
+   ln -sfn /path/to/your/skystack-fork .claude/skills/skystack
+   cd .claude/skills/skystack && bun install && bun run build
    ```
 5. **Fix the issue** — your changes are live immediately in this project
-6. **Test by actually using gstack** — do the thing that annoyed you, verify it's fixed
+6. **Test by actually using skystack** — do the thing that annoyed you, verify it's fixed
 7. **Open a PR from your fork**
 
-This is the best way to contribute: fix gstack while doing your real work, in the
+This is the best way to contribute: fix skystack while doing your real work, in the
 project where you actually felt the pain.
 
 ### Session awareness
 
-When you have 3+ gstack sessions open simultaneously, every question tells you which project, which branch, and what's happening. No more staring at a question thinking "wait, which window is this?" The format is consistent across all 13 skills.
+When you have 3+ skystack sessions open simultaneously, every question tells you which project, which branch, and what's happening. No more staring at a question thinking "wait, which window is this?" The format is consistent across all 13 skills.
 
-## Working on gstack inside the gstack repo
+## Working on skystack inside the skystack repo
 
-When you're editing gstack skills and want to test them by actually using gstack
+When you're editing skystack skills and want to test them by actually using skystack
 in the same repo, `bin/dev-setup` wires this up. It creates `.claude/skills/`
 symlinks (gitignored) pointing back to your working tree, so Claude Code uses
 your local edits instead of the global install.
 
 ```
-gstack/                          <- your working tree
+skystack/                          <- your working tree
 ├── .claude/skills/              <- created by dev-setup (gitignored)
-│   ├── gstack -> ../../         <- symlink back to repo root
-│   ├── review -> gstack/review
-│   ├── ship -> gstack/ship
+│   ├── skystack -> ../../         <- symlink back to repo root
+│   ├── review -> skystack/review
+│   ├── ship -> skystack/ship
 │   └── ...                      <- one symlink per skill
 ├── review/
 │   └── SKILL.md                 <- edit this, test with /review
@@ -157,7 +157,7 @@ EVALS=1 bun test test/skill-e2e.test.ts
 
 ### E2E observability
 
-When E2E tests run, they produce machine-readable artifacts in `~/.gstack-dev/`:
+When E2E tests run, they produce machine-readable artifacts in `~/.skystack-dev/`:
 
 | Artifact | Path | Purpose |
 |----------|------|---------|
@@ -179,7 +179,7 @@ bun run eval:summary         # aggregate stats + per-test efficiency averages ac
 
 **Eval comparison commentary:** `eval:compare` generates natural-language Takeaway sections interpreting what changed between runs — flagging regressions, noting improvements, calling out efficiency gains (fewer turns, faster, cheaper), and producing an overall summary. This is driven by `generateCommentary()` in `eval-store.ts`.
 
-Artifacts are never cleaned up — they accumulate in `~/.gstack-dev/` for post-mortem debugging and trend analysis.
+Artifacts are never cleaned up — they accumulate in `~/.skystack-dev/` for post-mortem debugging and trend analysis.
 
 ### Tier 3: LLM-as-judge (~$0.15/run)
 
@@ -245,41 +245,41 @@ When Conductor creates a new workspace, `bin/dev-setup` runs automatically. It d
 - **SKILL.md files are generated.** Edit the `.tmpl` template, not the `.md`. Run `bun run gen:skill-docs` to regenerate.
 - **TODOS.md is the unified backlog.** Organized by skill/component with P0-P4 priorities. `/ship` auto-detects completed items. All planning/review/retro skills read it for context.
 - **Browse source changes need a rebuild.** If you touch `browse/src/*.ts`, run `bun run build`.
-- **Dev mode shadows your global install.** Project-local skills take priority over `~/.claude/skills/gstack`. `bin/dev-teardown` restores the global one.
+- **Dev mode shadows your global install.** Project-local skills take priority over `~/.claude/skills/skystack`. `bin/dev-teardown` restores the global one.
 - **Conductor workspaces are independent.** Each workspace is its own git worktree. `bin/dev-setup` runs automatically via `conductor.json`.
 - **`.env` propagates across worktrees.** Set it once in the main repo, all Conductor workspaces get it.
 - **`.claude/skills/` is gitignored.** The symlinks never get committed.
 
 ## Testing your changes in a real project
 
-**This is the recommended way to develop gstack.** Symlink your gstack checkout
+**This is the recommended way to develop skystack.** Symlink your skystack checkout
 into the project where you actually use it, so your changes are live while you
 do real work:
 
 ```bash
 # In your core project
-ln -sfn /path/to/your/gstack-checkout .claude/skills/gstack
-cd .claude/skills/gstack && bun install && bun run build
+ln -sfn /path/to/your/skystack-checkout .claude/skills/skystack
+cd .claude/skills/skystack && bun install && bun run build
 ```
 
-Now every gstack skill invocation in this project uses your working tree. Edit a
+Now every skystack skill invocation in this project uses your working tree. Edit a
 template, run `bun run gen:skill-docs`, and the next `/review` or `/qa` call picks
 it up immediately.
 
 **To go back to the stable global install**, just remove the symlink:
 
 ```bash
-rm .claude/skills/gstack
+rm .claude/skills/skystack
 ```
 
-Claude Code falls back to `~/.claude/skills/gstack/` automatically.
+Claude Code falls back to `~/.claude/skills/skystack/` automatically.
 
 ### Alternative: point your global install at a branch
 
 If you don't want per-project symlinks, you can switch the global install:
 
 ```bash
-cd ~/.claude/skills/gstack
+cd ~/.claude/skills/skystack
 git fetch origin
 git checkout origin/<branch>
 bun install && bun run build

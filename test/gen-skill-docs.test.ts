@@ -58,7 +58,7 @@ describe('gen-skill-docs', () => {
 
   // All skills that must have templates — single source of truth
   const ALL_SKILLS = [
-    { dir: '.', name: 'root gstack' },
+    { dir: '.', name: 'root skystack' },
     { dir: 'browse', name: 'browse' },
     { dir: 'qa', name: 'qa' },
     { dir: 'qa-only', name: 'qa-only' },
@@ -68,7 +68,7 @@ describe('gen-skill-docs', () => {
     { dir: 'plan-eng-review', name: 'plan-eng-review' },
     { dir: 'retro', name: 'retro' },
     { dir: 'setup-browser-cookies', name: 'setup-browser-cookies' },
-    { dir: 'gstack-upgrade', name: 'gstack-upgrade' },
+    { dir: 'skystack-upgrade', name: 'skystack-upgrade' },
     { dir: 'plan-design-review', name: 'plan-design-review' },
     { dir: 'design-review', name: 'design-review' },
     { dir: 'design-consultation', name: 'design-consultation' },
@@ -139,7 +139,7 @@ describe('gen-skill-docs', () => {
   test('generated SKILL.md contains contributor mode check', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     expect(content).toContain('Contributor Mode');
-    expect(content).toContain('gstack_contributor');
+    expect(content).toContain('skystack_contributor');
     expect(content).toContain('contributor-logs');
   });
 
