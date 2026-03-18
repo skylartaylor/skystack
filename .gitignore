@@ -2,6 +2,7 @@
 node_modules/
 browse/dist/
 .gstack/
+.skystack/
 .claude/skills/
 /tmp/
 *.log
