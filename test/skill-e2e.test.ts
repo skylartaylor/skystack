@@ -636,6 +636,97 @@ The diff adds a new "returned" status to the Order model. Your job is to check i
   }, 120_000);
 });
 
+// --- Review: Design review lite E2E ---
+
+describeE2E('Review design lite E2E', () => {
+  let designDir: string;
+
+  beforeAll(() => {
+    designDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-design-lite-'));
+
+    const run = (cmd: string, args: string[]) =>
+      spawnSync(cmd, args, { cwd: designDir, stdio: 'pipe', timeout: 5000 });
+
+    run('git', ['init']);
+    run('git', ['config', 'user.email', 'test@test.com']);
+    run('git', ['config', 'user.name', 'Test']);
+
+    // Commit clean base on main
+    fs.writeFileSync(path.join(designDir, 'index.html'), '<h1>Clean</h1>\n');
+    fs.writeFileSync(path.join(designDir, 'styles.css'), 'body { font-size: 16px; }\n');
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'initial']);
+
+    // Feature branch adds AI slop CSS + HTML
+    run('git', ['checkout', '-b', 'feature/add-landing-page']);
+    const slopCss = fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'review-eval-design-slop.css'), 'utf-8');
+    const slopHtml = fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'review-eval-design-slop.html'), 'utf-8');
+    fs.writeFileSync(path.join(designDir, 'styles.css'), slopCss);
+    fs.writeFileSync(path.join(designDir, 'landing.html'), slopHtml);
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'add landing page']);
+
+    // Copy review skill files
+    fs.copyFileSync(path.join(ROOT, 'review', 'SKILL.md'), path.join(designDir, 'review-SKILL.md'));
+    fs.copyFileSync(path.join(ROOT, 'review', 'checklist.md'), path.join(designDir, 'review-checklist.md'));
+    fs.copyFileSync(path.join(ROOT, 'review', 'design-checklist.md'), path.join(designDir, 'review-design-checklist.md'));
+    fs.copyFileSync(path.join(ROOT, 'review', 'greptile-triage.md'), path.join(designDir, 'review-greptile-triage.md'));
+  });
+
+  afterAll(() => {
+    try { fs.rmSync(designDir, { recursive: true, force: true }); } catch {}
+  });
+
+  test('/review catches design anti-patterns in CSS/HTML diff', async () => {
+    const result = await runSkillTest({
+      prompt: `You are in a git repo on branch feature/add-landing-page with changes against main.
+Read review-SKILL.md for the review workflow instructions.
+Read review-checklist.md for the code review checklist.
+Read review-design-checklist.md for the design review checklist.
+Run /review on the current diff (git diff main...HEAD).
+
+The diff adds a landing page with CSS and HTML. Check for both code issues AND design anti-patterns.
+Write your review findings to ${designDir}/review-output.md
+
+Important: The design checklist should catch issues like blacklisted fonts, small font sizes, outline:none, !important, AI slop patterns (purple gradients, generic hero copy, 3-column feature grid), etc.`,
+      workingDirectory: designDir,
+      maxTurns: 15,
+      timeout: 120_000,
+      testName: 'review-design-lite',
+      runId,
+    });
+
+    logCost('/review design lite', result);
+    recordE2E('/review design lite', 'Review design lite E2E', result);
+    expect(result.exitReason).toBe('success');
+
+    // Verify the review caught at least 4 of 7 planted design issues
+    const reviewPath = path.join(designDir, 'review-output.md');
+    if (fs.existsSync(reviewPath)) {
+      const review = fs.readFileSync(reviewPath, 'utf-8').toLowerCase();
+      let detected = 0;
+
+      // Issue 1: Blacklisted font (Papyrus) — HIGH
+      if (review.includes('papyrus') || review.includes('blacklisted font') || review.includes('font family')) detected++;
+      // Issue 2: Body text < 16px — HIGH
+      if (review.includes('14px') || review.includes('font-size') || review.includes('font size') || review.includes('body text')) detected++;
+      // Issue 3: outline: none — HIGH
+      if (review.includes('outline') || review.includes('focus')) detected++;
+      // Issue 4: !important — HIGH
+      if (review.includes('!important') || review.includes('important')) detected++;
+      // Issue 5: Purple gradient — MEDIUM
+      if (review.includes('gradient') || review.includes('purple') || review.includes('violet') || review.includes('#6366f1') || review.includes('#8b5cf6')) detected++;
+      // Issue 6: Generic hero copy — MEDIUM
+      if (review.includes('welcome to') || review.includes('all-in-one') || review.includes('generic') || review.includes('hero copy') || review.includes('ai slop')) detected++;
+      // Issue 7: 3-column feature grid — LOW
+      if (review.includes('3-column') || review.includes('three-column') || review.includes('feature grid') || review.includes('icon') || review.includes('circle')) detected++;
+
+      console.log(`Design review detected ${detected}/7 planted issues`);
+      expect(detected).toBeGreaterThanOrEqual(4);
+    }
+  }, 150_000);
+});
+
 // --- B6/B7/B8: Planted-bug outcome evals ---
 
 // Outcome evals also need ANTHROPIC_API_KEY for the LLM judge

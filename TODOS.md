@@ -444,17 +444,17 @@ Shipped as `/design-consultation` on garrytan/design branch. Renamed from `/setu
 
 ## Ship Confidence Dashboard
 
-### Smart review relevance detection
+### Smart review relevance detection — PARTIALLY SHIPPED
 
-**What:** Auto-detect which of the 4 reviews are relevant based on branch changes (skip Design Review if no CSS/view changes, skip Code Review if plan-only).
+~~**What:** Auto-detect which of the 4 reviews are relevant based on branch changes (skip Design Review if no CSS/view changes, skip Code Review if plan-only).~~
 
-**Why:** Currently dashboard always shows 4 rows. On docs-only changes, "Design Review: NOT YET RUN" is noise.
+`bin/gstack-diff-scope` shipped — categorizes diff into SCOPE_FRONTEND, SCOPE_BACKEND, SCOPE_PROMPTS, SCOPE_TESTS, SCOPE_DOCS, SCOPE_CONFIG. Used by design-review-lite to skip when no frontend files changed. Dashboard integration for conditional row display is a follow-up.
 
-**Context:** /plan-design-review and /qa already do file-type detection in diff-aware mode. Could reuse that heuristic. Would require a `gstack-diff-scope` helper or enriching `gstack-slug` to also output change categories.
+**Remaining:** Dashboard conditional row display (hide "Design Review: NOT YET RUN" when SCOPE_FRONTEND=false). Extend to Eng Review (skip for docs-only) and CEO Review (skip for config-only).
 
-**Effort:** M
+**Effort:** S
 **Priority:** P3
-**Depends on:** Ship Confidence Dashboard (shipped)
+**Depends on:** gstack-diff-scope (shipped)
 
 ### /merge skill — review-gated PR merge
 

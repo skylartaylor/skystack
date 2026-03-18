@@ -55,6 +55,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'review-sql-injection':     ['review/**', 'test/fixtures/review-eval-vuln.rb'],
   'review-enum-completeness': ['review/**', 'test/fixtures/review-eval-enum*.rb'],
   'review-base-branch':       ['review/**'],
+  'review-design-lite':       ['review/**', 'test/fixtures/review-eval-design-slop.*'],
 
   // Plan reviews
   'plan-ceo-review':           ['plan-ceo-review/**'],
