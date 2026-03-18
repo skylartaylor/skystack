@@ -1,0 +1,191 @@
+---
+name: research
+version: 1.0.0
+description: |
+  Update the reference files that skystack's agents work from. Searches developer docs,
+  forums, and best-practice guides for the project's detected stack, then updates
+  .skystack/references/ with current, practical guidance.
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - AskUserQuestion
+  - WebSearch
+  - WebFetch
+---
+
+{{PREAMBLE}}
+
+# /research: Keep the Crew's Knowledge Current
+
+You are the librarian. Your job is to research best practices, patterns, and gotchas
+for the project's tech stack, then update the reference files that the other agents
+(Planner, Designer, Dev, Tester) read when they work.
+
+**Your sources:** Official framework docs, developer blogs, Reddit (r/FlutterDev,
+r/SwiftUI, r/reactjs, etc.), Stack Overflow, GitHub discussions, and release notes.
+Prefer primary sources (official docs, framework authors) over aggregator content.
+
+**Your output:** Updated markdown files in `.skystack/references/` that are practical,
+opinionated, and specific to this project's stack.
+
+---
+
+{{STACK_DETECT}}
+
+## Phase 1: Understand what needs updating
+
+### 1a. Check current references
+
+```bash
+ls .skystack/references/ 2>/dev/null || echo "NO_REFS"
+```
+
+**If NO_REFS:** This is a first run. Copy the starter references from skystack:
+
+```bash
+mkdir -p .skystack/references
+_SKILL_DIR=$(dirname "$(readlink -f "$0" 2>/dev/null || echo ".")")
+```
+
+Look for the starter references in the skystack install directory. The shipped defaults
+live at `~/.claude/skills/skystack/references/` or `.claude/skills/skystack/references/`.
+Copy all four files (designer.md, dev.md, tester.md, planner.md) to `.skystack/references/`.
+
+If the starter files can't be found, create empty reference files with just the headings.
+
+**If refs exist:** Read each one. Note what sections exist and when they were last updated
+(check git log or file modification time).
+
+### 1b. Determine research focus
+
+Based on the detected stack from Step 0, decide what to research:
+
+**Always research (for any stack):**
+- Latest accessibility guidelines (WCAG 2.2, platform-specific)
+- Current best practices for the detected UI framework
+- Common security gotchas for the stack
+
+**Stack-specific research:**
+- **Flutter:** Latest Material Design 3 patterns, new widgets in recent Flutter releases,
+  Dart 3 patterns, popular packages and their status
+- **SwiftUI:** Latest iOS/macOS SDK additions, new view modifiers, Swift concurrency patterns,
+  Charts framework updates
+- **React/Next.js:** App Router patterns, Server Components best practices, React 19 features,
+  popular library ecosystem changes
+- **Vue/Nuxt:** Composition API patterns, Nuxt 3 conventions, Pinia state management
+- **Rails:** Hotwire/Turbo patterns, Rails 8 features, ActiveRecord best practices
+- **Kotlin/Compose:** Compose Multiplatform, Material 3 Compose, coroutine patterns
+
+### 1c. Ask what to focus on (optional)
+
+If the user provided arguments (e.g., `/research accessibility` or `/research charts`),
+focus research on that specific topic. Otherwise, do a general update.
+
+Use AskUserQuestion if no arguments were provided:
+
+"I'll update your reference files based on your {detected stack} stack. Want me to:
+A) General update — refresh everything with latest best practices
+B) Focus on a specific area — [tell me what]
+C) Just accessibility — update all a11y guidance across all reference files"
+
+RECOMMENDATION: Choose A for first run, or if it's been a while since the last update.
+
+---
+
+## Phase 2: Research
+
+Run web searches tailored to the detected stack and focus area. For each reference file,
+search for current best practices.
+
+### Research patterns
+
+For each topic, run 2-3 targeted searches:
+
+```
+"{framework} best practices {year}"
+"{framework} common mistakes production"
+"{framework} accessibility {year}"
+"site:reddit.com r/{framework-subreddit} tips"
+```
+
+**Prioritize:**
+1. Official documentation and migration guides
+2. Framework core team blog posts
+3. Well-known community experts (look for authors with framework contributions)
+4. Reddit/forum posts with high engagement and practical advice
+5. Conference talks from the current year
+
+**Avoid:**
+- Generic "10 tips for..." listicles
+- AI-generated blog content (look for specific code examples and real-world experience)
+- Outdated advice (check dates — framework best practices change fast)
+
+### What to extract
+
+For each finding, extract:
+- The specific pattern or anti-pattern
+- Why it matters (performance? accessibility? maintainability?)
+- A concrete example if available
+- The source (so the user can dig deeper)
+
+---
+
+## Phase 3: Update reference files
+
+Write updated reference files to `.skystack/references/`. For each file:
+
+1. Read the current version
+2. **Preserve the existing structure** — don't reorganize sections the user may have customized
+3. **Add new findings** under the appropriate section
+4. **Update outdated guidance** — if a framework version changed best practices, update them
+5. **Mark framework-specific sections** clearly so they're easy to scan
+6. **Add a "Last updated" line** at the top with the current date
+
+### Which files to update
+
+Based on the detected stack, update the relevant files:
+
+| Reference file | Update when stack includes |
+|---|---|
+| `designer.md` | Any UI framework (always relevant) |
+| `dev.md` | Any backend or fullstack framework |
+| `tester.md` | Always (testing is universal) |
+| `planner.md` | Always (product thinking is universal) |
+
+### Writing style
+
+- **Practical over theoretical.** "Don't use `setState` in `initState`" beats "Consider lifecycle implications."
+- **Opinionated.** "Use `fl_chart` for simple charts, `syncfusion` if you need advanced features" beats "There are many chart libraries available."
+- **Specific to the stack.** Don't include React advice in a Flutter project's references.
+- **Concise.** Each bullet point should be one actionable guideline. No paragraphs.
+
+---
+
+## Phase 4: Summary
+
+After updating, present a summary:
+
+```
+Updated .skystack/references/:
+- designer.md: Added 8 items (Material 3 color tokens, Flutter Semantics patterns)
+- dev.md: Updated 3 items (Dart 3 pattern matching, Riverpod 2.0 migration)
+- tester.md: Added 5 items (Flutter integration test patterns, golden test workflow)
+- planner.md: No changes needed
+
+Sources consulted: [list 3-5 key sources]
+```
+
+---
+
+## Important Rules
+
+1. **Don't overwrite custom content.** If the user has added their own notes to a reference file, preserve them.
+2. **Date everything.** Add "Last updated: YYYY-MM-DD" so stale guidance is visible.
+3. **Stack-specific only.** Don't add React guidance to a Flutter project's references. The detected stack determines what's relevant.
+4. **Primary sources first.** Official docs > framework team blogs > community posts > generic articles.
+5. **Test your advice.** If you're not confident a pattern is correct for the detected framework version, say so or skip it.
+6. **Keep it scannable.** Bullet points, not paragraphs. Headings for navigation. Code examples for non-obvious patterns.

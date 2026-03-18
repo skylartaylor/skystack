@@ -51,11 +51,11 @@ Expect first useful run in under 5 minutes on any repo with tests already set up
 
 Open Claude Code and paste this. Claude does the rest.
 
-> Install skystack: run **`git clone https://github.com/xr843/skystack.git ~/.claude/skills/skystack && cd ~/.claude/skills/skystack && ./setup`** then add a "skystack" section to CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /pm, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /browse, /qa, /qa-only, /setup-browser-cookies, /retro, /document-release. Then ask the user if they also want to add skystack to the current project so teammates get it.
+> Install skystack: run **`git clone https://github.com/xr843/skystack.git ~/.claude/skills/skystack && cd ~/.claude/skills/skystack && ./setup`** then add a "skystack" section to CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /pm, /research, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /browse, /qa, /qa-only, /setup-browser-cookies, /retro, /document-release. Then ask the user if they also want to add skystack to the current project so teammates get it.
 
 ### Step 2: Add to your repo so teammates get it (optional)
 
-> Add skystack to this project: run **`cp -Rf ~/.claude/skills/skystack .claude/skills/skystack && rm -rf .claude/skills/skystack/.git && cd .claude/skills/skystack && ./setup`** then add a "skystack" section to this project's CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /pm, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /browse, /qa, /qa-only, /setup-browser-cookies, /retro, /document-release, and tells Claude that if skystack skills aren't working, run `cd .claude/skills/skystack && ./setup` to build the binary and register skills.
+> Add skystack to this project: run **`cp -Rf ~/.claude/skills/skystack .claude/skills/skystack && rm -rf .claude/skills/skystack/.git && cd .claude/skills/skystack && ./setup`** then add a "skystack" section to this project's CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /pm, /research, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /browse, /qa, /qa-only, /setup-browser-cookies, /retro, /document-release, and tells Claude that if skystack skills aren't working, run `cd .claude/skills/skystack && ./setup` to build the binary and register skills.
 
 Real files get committed to your repo (not a submodule), so `git clone` just works. Everything lives inside `.claude/`. Nothing touches your PATH or runs in the background.
 
@@ -112,6 +112,7 @@ Plus skills for specific jobs:
 | `/plan-eng-review` | Think through architecture, data flow, edge cases, and tests before building |
 | `/plan-design-review` | 80-item design audit with letter grades and AI slop detection (report only) |
 | `/design-review` | Same design audit, then fixes what it finds with atomic commits |
+| `/research` | Search developer docs and forums, update the crew's reference files for your stack. |
 | `/ship` | Sync main, run tests, push, open PR. One command. |
 | `/browse` | Give the agent a real browser. Chromium, real clicks, real screenshots. ~100ms per command. |
 | `/setup-browser-cookies` | Import cookies from your browser into the headless session for authenticated testing. |
@@ -129,6 +130,8 @@ Plus skills for specific jobs:
 **`/pm` is the orchestrator.** One command takes a feature from idea to shipped code: research, spec, design feedback, architecture check, implementation, QA, ship.
 
 **`/qa` gives the agent eyes.** It opens a real browser, clicks through your app, finds bugs, fixes them with atomic commits, and writes regression tests. That changed how I work.
+
+**`/research` keeps the crew sharp.** Each agent reads from reference files (design patterns, code review heuristics, QA checklists, product thinking). `/research` searches developer docs and forums for your specific stack and updates those references with current best practices.
 
 **Test everything.** `/ship` bootstraps test frameworks from scratch if you don't have one. Every `/qa` bug fix generates a regression test. Tests make vibe coding safe instead of yolo coding.
 
