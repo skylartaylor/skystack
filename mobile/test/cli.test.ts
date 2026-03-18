@@ -75,3 +75,17 @@ describe('findAgentDevice', () => {
     }
   });
 });
+
+describe('binary build', () => {
+  test('mobile binary exists at mobile/dist/mobile', () => {
+    const bin = path.resolve(import.meta.dir, '../../mobile/dist/mobile');
+    expect(fs.existsSync(bin)).toBe(true);
+  });
+
+  test('mobile binary is executable', () => {
+    const bin = path.resolve(import.meta.dir, '../../mobile/dist/mobile');
+    if (!fs.existsSync(bin)) return; // skip if not built yet
+    const stat = fs.statSync(bin);
+    expect(stat.mode & 0o111).toBeGreaterThan(0);
+  });
+});

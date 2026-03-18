@@ -8,7 +8,7 @@
     "browse": "./browse/dist/browse"
   },
   "scripts": {
-    "build": "bun run gen:skill-docs && bun build --compile browse/src/cli.ts --outfile browse/dist/browse && bun build --compile browse/src/find-browse.ts --outfile browse/dist/find-browse && git rev-parse HEAD > browse/dist/.version && rm -f .*.bun-build || true",
+    "build": "bun run gen:skill-docs && bun build --compile browse/src/cli.ts --outfile browse/dist/browse && bun build --compile browse/src/find-browse.ts --outfile browse/dist/find-browse && git rev-parse HEAD > browse/dist/.version && bun build --compile mobile/src/cli.ts --outfile mobile/dist/mobile && rm -f .*.bun-build || true",
     "gen:skill-docs": "bun run scripts/gen-skill-docs.ts",
     "dev": "bun run browse/src/cli.ts",
     "server": "bun run browse/src/server.ts",
@@ -28,7 +28,8 @@
   },
   "dependencies": {
     "playwright": "^1.58.2",
-    "diff": "^7.0.0"
+    "diff": "^7.0.0",
+    "agent-device": "^0.8.6"
   },
   "engines": {
     "bun": ">=1.0.0"

@@ -43,7 +43,23 @@ if [ ! -x "$BROWSE_BIN" ]; then
   exit 1
 fi
 
-# 2. Ensure Playwright's Chromium is available
+# 2. Build mobile binary if needed
+MOBILE_BIN="$GSTACK_DIR/mobile/dist/mobile"
+MOBILE_NEEDS_BUILD=0
+if [ ! -x "$MOBILE_BIN" ]; then
+  MOBILE_NEEDS_BUILD=1
+elif [ -n "$(find "$GSTACK_DIR/mobile/src" -type f -newer "$MOBILE_BIN" -print -quit 2>/dev/null)" ]; then
+  MOBILE_NEEDS_BUILD=1
+fi
+if [ "$MOBILE_NEEDS_BUILD" -eq 1 ]; then
+  echo "Building mobile binary..."
+  (cd "$GSTACK_DIR" && bun build --compile mobile/src/cli.ts --outfile mobile/dist/mobile)
+fi
+if [ ! -x "$MOBILE_BIN" ]; then
+  echo "Warning: mobile binary missing at $MOBILE_BIN" >&2
+fi
+
+# 3. Ensure Playwright's Chromium is available
 if ! ensure_playwright_browser; then
   echo "Installing Playwright Chromium..."
   (
@@ -57,10 +73,10 @@ if ! ensure_playwright_browser; then
   exit 1
 fi
 
-# 3. Ensure ~/.skystack global state directory exists
+# 4. Ensure ~/.skystack global state directory exists
 mkdir -p "$HOME/.skystack/projects"
 
-# 4. Only create skill symlinks if we're inside a .claude/skills directory
+# 5. Only create skill symlinks if we're inside a .claude/skills directory
 SKILLS_BASENAME="$(basename "$SKILLS_DIR")"
 if [ "$SKILLS_BASENAME" = "skills" ]; then
   linked=()
@@ -87,6 +103,25 @@ else
   echo "skystack ready."
   echo "  browse: $BROWSE_BIN"
   echo "  (skipped skill symlinks — not inside .claude/skills/)"
+fi
+
+# 6. Register agents globally so /pm's designer + dev subagents work in any project
+AGENTS_SRC="$GSTACK_DIR/.claude/agents"
+if [ -d "$AGENTS_SRC" ]; then
+  mkdir -p "$HOME/.claude/agents"
+  linked_agents=()
+  for agent_file in "$AGENTS_SRC"/*.md; do
+    [ -f "$agent_file" ] || continue
+    agent_name="$(basename "$agent_file")"
+    target="$HOME/.claude/agents/$agent_name"
+    if [ -L "$target" ] || [ ! -e "$target" ]; then
+      ln -snf "$agent_file" "$target"
+      linked_agents+=("$agent_name")
+    fi
+  done
+  if [ ${#linked_agents[@]} -gt 0 ]; then
+    echo "  linked agents: ${linked_agents[*]}"
+  fi
 fi
 
 # 4. First-time welcome + legacy cleanup

@@ -1,6 +1,7 @@
 .env
 node_modules/
 browse/dist/
+mobile/dist/
 .gstack/
 .skystack/
 .claude/skills/
