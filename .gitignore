@@ -5,6 +5,7 @@ mobile/dist/
 .gstack/
 .skystack/
 .claude/skills/
+.claude/settings.local.json
 /tmp/
 *.log
 bun.lock
@@ -13,3 +14,6 @@ bun.lock
 .env.local
 .env.*
 !.env.example
+# Local dev artifacts
+screenshot-*.png
+docs/superpowers/plans/

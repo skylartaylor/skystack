@@ -27,7 +27,7 @@ skystack strips out the founder-tech-bro framing and refocuses the whole system 
 
 Open Claude Code and paste this. Claude does the rest.
 
-> Install skystack: run **`git clone https://github.com/xr843/skystack.git ~/.claude/skills/skystack && cd ~/.claude/skills/skystack && ./setup`** then add a "skystack" section to CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp__claude-in-chrome__* tools, and lists the available skills: /pm, /design, /review, /qa, /docs, /research, /publish, /browse, /setup-browser-cookies, /retro. Then ask the user if they also want to add skystack to the current project so teammates get it.
+> Install skystack: run **`git clone https://github.com/skylartaylor/skystack.git ~/.claude/skills/skystack && cd ~/.claude/skills/skystack && ./setup`** then add a "skystack" section to CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp__claude-in-chrome__* tools, and lists the available skills: /pm, /design, /review, /qa, /docs, /research, /publish, /browse, /setup-browser-cookies, /retro. Then ask the user if they also want to add skystack to the current project so teammates get it.
 
 ### Step 2: Add to your repo for collaborators (optional)
 
