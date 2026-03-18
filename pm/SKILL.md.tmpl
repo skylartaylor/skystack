@@ -66,9 +66,16 @@ Read the relevant parts of the codebase to understand:
 - What patterns the codebase already uses (state management, routing, data layer)
 - What related features exist that this should be consistent with
 
+Use the detected stack from Step 0 to explore the project structure. For example:
+- **Flutter/Dart:** `find . -path ./build -prune -o -name "*.dart" -print | head -50`
+- **SwiftUI/iOS:** `find . -path ./build -prune -o -name "*.swift" -print | head -50`
+- **React/Next.js:** `find . -path ./node_modules -prune -o -name "*.tsx" -o -name "*.ts" -print | head -50`
+- **Vue/Nuxt:** `find . -path ./node_modules -prune -o -name "*.vue" -o -name "*.ts" -print | head -50`
+- **Rails:** `find app lib -name "*.rb" | head -50`
+
+Also check recent activity:
+
 ```bash
-# Get a sense of the project structure
-find . -type f -name "*.dart" -o -name "*.swift" -o -name "*.kt" -o -name "*.tsx" -o -name "*.vue" | head -50
 git log --oneline -20
 ```
 
