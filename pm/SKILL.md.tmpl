@@ -42,7 +42,24 @@ At checkpoints you check in with the user — but between checkpoints, you execu
 
 Before writing any code, understand what you're building and why. This phase runs autonomously.
 
-### 1a. Understand the codebase context
+### 1a. Check existing plans and TODOs
+
+Before researching externally, check what the project already knows:
+
+1. **Read TODOS.md** (if it exists in the repo root). Look for:
+   - Related features or bugs that this feature should address
+   - Deferred work that this feature could complete
+   - Blocking items that might affect implementation
+   Note any relevant TODOs — reference them in the feature spec (Phase 2).
+
+2. **Check for existing feature specs** in `~/.gstack/projects/$SLUG/pm-specs/`:
+   ```bash
+   eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+   ls -t ~/.gstack/projects/$SLUG/pm-specs/*.md 2>/dev/null | head -5
+   ```
+   If prior specs exist for related features, read them to understand past decisions and avoid contradicting them.
+
+### 1b. Understand the codebase context
 
 Read the relevant parts of the codebase to understand:
 - Where this feature would live (which files, modules, screens)
@@ -57,7 +74,7 @@ git log --oneline -20
 
 Read 3-5 files most relevant to the feature area. Understand the patterns before proposing new ones.
 
-### 1b. Competitive research
+### 1c. Competitive research
 
 Use WebSearch to research how other apps solve this problem:
 
@@ -71,7 +88,7 @@ Structure findings as:
 - **What's clever:** Innovations worth borrowing
 - **What to avoid:** Anti-patterns or overengineering seen in competitors
 
-### 1c. UX pattern research
+### 1d. UX pattern research
 
 Research the right display patterns for this feature:
 
@@ -88,7 +105,7 @@ Use the detected stack to recommend specific libraries or built-in components:
 - React/Next.js → recharts, nivo, visx
 - Vue/Nuxt → vue-chartjs, Apache ECharts
 
-### 1d. Accessibility requirements
+### 1e. Accessibility requirements
 
 Based on the detected stack, define the accessibility requirements:
 
@@ -124,7 +141,7 @@ Write a concise feature spec and present it to the user for approval.
    - Recommended display pattern (with rationale from research)
    - Component/library choices (tailored to detected stack)
    - Key interaction details (animations, transitions, feedback)
-4. **Accessibility plan** — The stack-specific checklist from Phase 1d
+4. **Accessibility plan** — The stack-specific checklist from Phase 1e
 5. **Edge cases** — What happens with 0 data? 1 data point? 10,000? No permission? Offline?
 6. **Non-goals** — What this feature explicitly does NOT do (prevents scope creep)
 
@@ -154,7 +171,7 @@ The plan should cover:
 - Test plan — what tests to write and what they verify
 - Order of implementation (dependencies first)
 
-Keep the plan grounded in the codebase patterns discovered in Phase 1a. Don't introduce
+Keep the plan grounded in the codebase patterns discovered in Phase 1b. Don't introduce
 new architectural patterns unless the existing ones genuinely can't support the feature.
 
 Present the plan for approval, then exit plan mode.
