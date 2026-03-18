@@ -163,6 +163,22 @@ rationale. If you think the scope should be expanded or reduced, say so with rea
 
 **STOP here and wait for user approval before proceeding.**
 
+**After the user approves the spec**, persist it so other skills can reference it:
+
+```bash
+eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+DATETIME=$(date +%Y%m%d-%H%M%S)
+mkdir -p ~/.gstack/projects/$SLUG/pm-specs
+```
+
+Write the approved spec to `~/.gstack/projects/$SLUG/pm-specs/{date}-{feature-slug}.md`.
+Include all six sections (problem statement, proposed solution, design recommendations,
+accessibility plan, edge cases, non-goals). This artifact lets future `/qa` runs verify
+against the spec and `/design-review` runs calibrate against the design recommendations.
+
+If the user chose option B (adjust scope) and deferred items, add those deferred items
+to `TODOS.md` under a `## Deferred` or relevant component heading with priority P3.
+
 ---
 
 ## Phase 3: Plan — architecture and implementation (enters plan mode)
