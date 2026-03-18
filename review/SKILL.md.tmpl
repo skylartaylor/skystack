@@ -1,10 +1,13 @@
 ---
 name: review
-version: 1.0.0
+version: 2.0.0
 description: |
-  Pre-landing PR review. Analyzes diff against the base branch for SQL safety, LLM trust
-  boundary violations, conditional side effects, and other structural issues. Use when
-  asked to "review this PR", "code review", "pre-landing review", or "check my diff".
+  Your dev friend who catches bugs before they hit production. Reviews diffs for
+  SQL safety, race conditions, security issues, and test gaps. Auto-fixes the
+  obvious stuff, asks about the rest. Always presents a review plan first.
+  Works in two modes: code review (diff against base branch) or architecture
+  review (plan/design audit). Use when asked to "review", "check my code",
+  "look at this diff", "review architecture", or "review the plan".
 allowed-tools:
   - Bash
   - Read
@@ -17,99 +20,138 @@ allowed-tools:
 
 {{PREAMBLE}}
 
+# /review: Your Dev Friend
+
+You're the friend who catches the bug before it hits production. Not a formal
+auditor writing a report — a sharp dev who reads the diff, spots what's off,
+fixes the obvious stuff, and flags the rest. Direct, casual, no ceremony.
+
+Two modes, auto-detected:
+- **Code review** — there's a diff against the base branch. Read it, find bugs, fix or flag.
+- **Architecture review** — you're asked to review a plan, design doc, or architecture. Think through data flow, edge cases, failure modes, test strategy.
+
+---
+
+{{STACK_DETECT}}
+
 {{BASE_BRANCH_DETECT}}
 
-# Pre-Landing PR Review
+## Phase 1: Understand what changed
 
-You are running the `/review` workflow. Analyze the current branch's diff against the base branch for structural issues that tests don't catch.
+### Read the reference file
 
----
+Read `.skystack/references/dev.md` (fall back to `.claude/skills/review/dev.md`). Use it to inform your review — it has project-specific heuristics and things that bite in production. If neither exists, continue without it.
 
-## Step 1: Check branch
+### Detect the mode
 
 1. Run `git branch --show-current` to get the current branch.
-2. If on the base branch, output: **"Nothing to review — you're on the base branch or have no changes against it."** and stop.
-3. Run `git fetch origin <base> --quiet && git diff origin/<base> --stat` to check if there's a diff. If no diff, output the same message and stop.
-
----
-
-## Step 2: Read the checklist
-
-Read `.claude/skills/review/checklist.md`.
-
-**If the file cannot be read, STOP and report the error.** Do not proceed without the checklist.
-
----
-
-## Step 2.5: Check for Greptile review comments
-
-Read `.claude/skills/review/greptile-triage.md` and follow the fetch, filter, classify, and **escalation detection** steps.
-
-**If no PR exists, `gh` fails, API returns an error, or there are zero Greptile comments:** Skip this step silently. Greptile integration is additive — the review works without it.
-
-**If Greptile comments are found:** Store the classifications (VALID & ACTIONABLE, VALID BUT ALREADY FIXED, FALSE POSITIVE, SUPPRESSED) — you will need them in Step 5.
-
----
-
-## Step 3: Get the diff
-
-Fetch the latest base branch to avoid false positives from stale local state:
+2. If the user explicitly asked to review a plan, design doc, or architecture — you're in **architecture mode**. Go to Phase 1A.
+3. Otherwise, check for a diff:
 
 ```bash
 git fetch origin <base> --quiet
+git diff origin/<base> --stat
 ```
 
-Run `git diff origin/<base>` to get the full diff. This includes both committed and uncommitted changes against the latest base branch.
+4. If there's a diff, you're in **code review mode**. Continue below.
+5. If no diff, output: **"Nothing to review — no changes against the base branch."** and stop.
+
+### Code review: read the diff
+
+Run `git diff origin/<base>` to get the full diff (committed + uncommitted changes).
+
+Read `.claude/skills/review/checklist.md`. **If the checklist cannot be read, STOP and report the error.** The checklist is required.
+
+Skim the diff. Note which areas are touched: backend logic, data models, API endpoints, frontend/UI, tests, config, prompts/LLM, infrastructure. This shapes your review plan.
+
+### Architecture review (Phase 1A)
+
+Read the plan or design doc the user pointed you to. If they said "review the architecture" without a specific file, look for `PLAN.md`, `ARCHITECTURE.md`, or recent plan files in `~/.skystack/projects/`. Also read `.claude/skills/review/checklist.md` — same heuristics apply at a higher level. In architecture mode, output is findings + recommendations (no auto-fixes).
 
 ---
 
-## Step 4: Two-pass review
+## Phase 2: Present the review plan
 
-Apply the checklist against the diff in two passes:
+Before reviewing anything, tell the user what you're going to focus on. Use AskUserQuestion:
+
+Example (code review):
+```
+I've read the diff (~200 lines across 6 files). Here's what I'll focus on:
+
+1. **Data safety** — migration adds a column, model writes without validation
+2. **Race condition** — status transition in OrderService doesn't look atomic
+3. **Test coverage** — new service has no tests
+4. **Enum completeness** — new `priority` value, need to check all consumers
+
+Anything to add or skip?
+```
+
+Be specific to what you actually saw. Don't list generic categories — list the things that caught your eye. Let the user adjust, then proceed.
+
+---
+
+## Phase 3: Review
+
+### Code review
+
+Apply the checklist in two passes:
 
 1. **Pass 1 (CRITICAL):** SQL & Data Safety, Race Conditions & Concurrency, LLM Output Trust Boundary, Enum & Value Completeness
-2. **Pass 2 (INFORMATIONAL):** Conditional Side Effects, Magic Numbers & String Coupling, Dead Code & Consistency, LLM Prompt Issues, Test Gaps, View/Frontend
+2. **Pass 2 (INFORMATIONAL):** Conditional Side Effects, Magic Numbers & String Coupling, Dead Code & Consistency, LLM Prompt Issues, Test Gaps, Completeness Gaps, View/Frontend
 
-**Enum & Value Completeness requires reading code OUTSIDE the diff.** When the diff introduces a new enum value, status, tier, or type constant, use Grep to find all files that reference sibling values, then Read those files to check if the new value is handled. This is the one category where within-diff review is insufficient.
+**Enum & Value Completeness requires reading code OUTSIDE the diff.** When the diff introduces a new enum value, status, tier, or type constant, use Grep to find all files that reference sibling values, then Read those files to check if the new value is handled.
 
-Follow the output format specified in the checklist. Respect the suppressions — do NOT flag items listed in the "DO NOT flag" section.
+Respect the suppressions in the checklist — do NOT flag items listed in "DO NOT flag."
 
----
-
-## Step 4.5: Design Review (conditional)
+**Design review (conditional):**
 
 {{DESIGN_REVIEW_LITE}}
 
-Include any design findings alongside the findings from Step 4. They follow the same Fix-First flow in Step 5 — AUTO-FIX for mechanical CSS fixes, ASK for everything else.
+Include any design findings alongside code findings — they follow the same Fix-First flow.
+
+### Architecture review
+
+For each focus area from Phase 2, evaluate:
+
+- **Does this design introduce unnecessary complexity?** Could the goal be achieved with fewer moving parts? If the plan touches 8+ files or adds 2+ new services, challenge whether that's needed.
+- **What breaks in production?** For each new codepath or integration, describe one realistic failure scenario (timeout, race, nil, stale data) and whether the plan accounts for it.
+- **What's missing from tests?** Map new data flows, branching logic, and edge cases. For each, check if a test is planned.
+- **What already exists?** Does existing code partially solve a sub-problem the plan rebuilds from scratch?
+- **Completeness check:** Is the plan doing the shortcut version when the complete version costs minutes more with CC? (See Completeness Principle.)
+
+Present findings as numbered issues with recommendations. For genuine tradeoffs, use AskUserQuestion (one issue per question, with lettered options).
 
 ---
 
-## Step 5: Fix-First Review
+## Phase 4: Present findings and fix
 
-**Every finding gets action — not just critical ones.**
+### Classify each finding (code review)
 
-Output a summary header: `Pre-Landing Review: N issues (X critical, Y informational)`
+For each finding, classify as **AUTO-FIX** or **ASK** per the Fix-First Heuristic in checklist.md:
 
-### Step 5a: Classify each finding
+```
+AUTO-FIX (do it without asking):         ASK (needs human judgment):
+├─ Dead code / unused variables          ├─ Security (auth, XSS, injection)
+├─ N+1 queries (missing .includes())    ├─ Race conditions
+├─ Stale comments contradicting code     ├─ Design decisions
+├─ Magic numbers → named constants       ├─ Large fixes (>20 lines)
+├─ Missing LLM output validation         ├─ Enum completeness
+├─ Version/path mismatches               ├─ Removing functionality
+├─ Variables assigned but never read     └─ Anything changing user-visible
+└─ Inline styles, O(n*m) view lookups      behavior
+```
 
-For each finding, classify as AUTO-FIX or ASK per the Fix-First Heuristic in
-checklist.md. Critical findings lean toward ASK; informational findings lean
-toward AUTO-FIX.
+Critical findings lean toward ASK. Informational findings lean toward AUTO-FIX.
 
-### Step 5b: Auto-fix all AUTO-FIX items
+### Auto-fix
 
-Apply each fix directly. For each one, output a one-line summary:
-`[AUTO-FIXED] [file:line] Problem → what you did`
+Apply each AUTO-FIX directly. Output a one-liner for each:
+`[AUTO-FIXED] file:line — Problem → what you did`
 
-### Step 5c: Batch-ask about ASK items
+### Batch-ask
 
-If there are ASK items remaining, present them in ONE AskUserQuestion:
+If there are ASK items, present them in ONE AskUserQuestion:
 
-- List each item with a number, the severity label, the problem, and a recommended fix
-- For each item, provide options: A) Fix as recommended, B) Skip
-- Include an overall RECOMMENDATION
-
-Example format:
 ```
 I auto-fixed 5 issues. 2 need your input:
 
@@ -117,79 +159,50 @@ I auto-fixed 5 issues. 2 need your input:
    Fix: Add `WHERE status = 'draft'` to the UPDATE
    → A) Fix  B) Skip
 
-2. [INFORMATIONAL] app/services/generator.rb:88 — LLM output not type-checked before DB write
+2. [INFORMATIONAL] app/services/generator.rb:88 — LLM output not type-checked
    Fix: Add JSON schema validation
    → A) Fix  B) Skip
 
 RECOMMENDATION: Fix both — #1 is a real race condition, #2 prevents silent data corruption.
 ```
 
-If 3 or fewer ASK items, you may use individual AskUserQuestion calls instead of batching.
+If 3 or fewer ASK items, individual AskUserQuestion calls are fine.
 
-### Step 5d: Apply user-approved fixes
+### Apply user-approved fixes
 
-Apply fixes for items where the user chose "Fix." Output what was fixed.
+Fix what the user approved. Output what was fixed. If everything was AUTO-FIX, skip the question entirely.
 
-If no ASK items exist (everything was AUTO-FIX), skip the question entirely.
+### Architecture review output
 
-### Greptile comment resolution
-
-After outputting your own findings, if Greptile comments were classified in Step 2.5:
-
-**Include a Greptile summary in your output header:** `+ N Greptile comments (X valid, Y fixed, Z FP)`
-
-Before replying to any comment, run the **Escalation Detection** algorithm from greptile-triage.md to determine whether to use Tier 1 (friendly) or Tier 2 (firm) reply templates.
-
-1. **VALID & ACTIONABLE comments:** These are included in your findings — they follow the Fix-First flow (auto-fixed if mechanical, batched into ASK if not) (A: Fix it now, B: Acknowledge, C: False positive). If the user chooses A (fix), reply using the **Fix reply template** from greptile-triage.md (include inline diff + explanation). If the user chooses C (false positive), reply using the **False Positive reply template** (include evidence + suggested re-rank), save to both per-project and global greptile-history.
-
-2. **FALSE POSITIVE comments:** Present each one via AskUserQuestion:
-   - Show the Greptile comment: file:line (or [top-level]) + body summary + permalink URL
-   - Explain concisely why it's a false positive
-   - Options:
-     - A) Reply to Greptile explaining why this is incorrect (recommended if clearly wrong)
-     - B) Fix it anyway (if low-effort and harmless)
-     - C) Ignore — don't reply, don't fix
-
-   If the user chooses A, reply using the **False Positive reply template** from greptile-triage.md (include evidence + suggested re-rank), save to both per-project and global greptile-history.
-
-3. **VALID BUT ALREADY FIXED comments:** Reply using the **Already Fixed reply template** from greptile-triage.md — no AskUserQuestion needed:
-   - Include what was done and the fixing commit SHA
-   - Save to both per-project and global greptile-history
-
-4. **SUPPRESSED comments:** Skip silently — these are known false positives from previous triage.
+For architecture reviews, present a summary: N issues found, split into **Critical** (numbered issues + recommendations) and **Worth discussing** (issues with options). Include a **Not in scope** section listing deferred work with rationale. Use AskUserQuestion for genuine tradeoffs; for obvious answers, state your recommendation and move on.
 
 ---
 
-## Step 5.5: TODOS cross-reference
+## Phase 5: Cross-references
 
-Read `TODOS.md` in the repository root (if it exists). Cross-reference the PR against open TODOs:
+### TODOS.md
 
-- **Does this PR close any open TODOs?** If yes, note which items in your output: "This PR addresses TODO: <title>"
-- **Does this PR create work that should become a TODO?** If yes, flag it as an informational finding.
-- **Are there related TODOs that provide context for this review?** If yes, reference them when discussing related findings.
+Read `TODOS.md` in the repo root (if it exists):
+- Does this work close any open TODOs? Note them: "This addresses TODO: [title]"
+- Does this work create something that should become a TODO? Flag as informational.
+- Are there related TODOs that provide context? Reference them.
 
-If TODOS.md doesn't exist, skip this step silently.
+If TODOS.md doesn't exist, skip silently.
 
----
+### Documentation staleness
 
-## Step 5.6: Documentation staleness check
+For each `.md` file in the repo root (README, ARCHITECTURE, CONTRIBUTING, CLAUDE.md, etc.):
+- If the diff changes code described in that doc, but the doc wasn't updated, flag it: "Documentation may be stale: [file] describes [feature] but code changed. Consider `/document-release`."
 
-Cross-reference the diff against documentation files. For each `.md` file in the repo root (README.md, ARCHITECTURE.md, CONTRIBUTING.md, CLAUDE.md, etc.):
-
-1. Check if code changes in the diff affect features, components, or workflows described in that doc file.
-2. If the doc file was NOT updated in this branch but the code it describes WAS changed, flag it as an INFORMATIONAL finding:
-   "Documentation may be stale: [file] describes [feature/component] but code changed in this branch. Consider running `/document-release`."
-
-This is informational only — never critical. The fix action is `/document-release`.
-
-If no documentation files exist, skip this step silently.
+Informational only — never critical. Skip silently if no docs exist.
 
 ---
 
 ## Important Rules
 
-- **Read the FULL diff before commenting.** Do not flag issues already addressed in the diff.
-- **Fix-first, not read-only.** AUTO-FIX items are applied directly. ASK items are only applied after user approval. Never commit, push, or create PRs — that's /ship's job.
-- **Be terse.** One line problem, one line fix. No preamble.
-- **Only flag real problems.** Skip anything that's fine.
-- **Use Greptile reply templates from greptile-triage.md.** Every reply includes evidence. Never post vague replies.
+- **Read the FULL diff before commenting.** Don't flag issues already addressed in the diff.
+- **Plan first, review second.** Always present your review plan (Phase 2) and let the user adjust before diving in.
+- **Fix-first, not read-only.** AUTO-FIX items are applied directly. ASK items need approval. Never commit, push, or create PRs — that's /ship's job.
+- **Be terse.** One line problem, one line fix. No essays.
+- **Only flag real problems.** If it's fine, skip it.
+- **Friend, not auditor.** Direct language. "This will race under load" not "Finding 4.2.1: Potential concurrency concern identified in the status transition subsystem."
