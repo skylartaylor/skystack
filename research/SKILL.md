@@ -82,53 +82,14 @@ Detect the project's technology stack so all research, recommendations, and impl
 are tailored to the right ecosystem. Check for a cached result first.
 
 ```bash
-if [ -f .skystack/stack.json ]; then
-  echo "CACHED"
-  cat .skystack/stack.json
-else
-  echo "DETECTING"
-  # Mobile / cross-platform
-  [ -f pubspec.yaml ] && echo "STACK:flutter"
-  [ -f ios/Runner.xcodeproj/project.pbxproj ] && echo "PLATFORM:ios"
-  [ -f android/app/build.gradle ] || [ -f android/app/build.gradle.kts ] && echo "PLATFORM:android"
-  ls *.xcodeproj/project.pbxproj 2>/dev/null | head -1 && echo "STACK:xcode"
-  [ -f Package.swift ] && echo "STACK:swiftui"
-  grep -q "SwiftUI" Package.swift 2>/dev/null && echo "UI:swiftui"
-  grep -q "UIKit" Package.swift 2>/dev/null && echo "UI:uikit"
-  ls *.xcodeproj/project.pbxproj 2>/dev/null | head -1 | xargs grep -l "SwiftUI" 2>/dev/null && echo "UI:swiftui"
-  [ -f android/app/build.gradle.kts ] && grep -q "compose" android/app/build.gradle.kts 2>/dev/null && echo "UI:jetpack-compose"
-  [ -f app/build.gradle.kts ] && grep -q "compose" app/build.gradle.kts 2>/dev/null && echo "UI:jetpack-compose"
-  # Web frameworks
-  [ -f package.json ] && grep -q '"next"' package.json 2>/dev/null && echo "STACK:nextjs"
-  [ -f package.json ] && grep -q '"nuxt"' package.json 2>/dev/null && echo "STACK:nuxt"
-  [ -f package.json ] && grep -q '"remix"' package.json 2>/dev/null && echo "STACK:remix"
-  [ -f package.json ] && grep -q '"svelte"' package.json 2>/dev/null && echo "STACK:svelte"
-  [ -f package.json ] && grep -q '"react"' package.json 2>/dev/null && echo "UI:react"
-  [ -f package.json ] && grep -q '"vue"' package.json 2>/dev/null && echo "UI:vue"
-  [ -f package.json ] && grep -q '"angular"' package.json 2>/dev/null && echo "UI:angular"
-  [ -f package.json ] && grep -q '"react-native"' package.json 2>/dev/null && echo "STACK:react-native"
-  [ -f package.json ] && grep -q '"expo"' package.json 2>/dev/null && echo "STACK:expo"
-  # Backend
-  [ -f Gemfile ] && echo "RUNTIME:ruby"
-  [ -f Gemfile ] && grep -q "rails" Gemfile 2>/dev/null && echo "STACK:rails"
-  [ -f requirements.txt ] || [ -f pyproject.toml ] && echo "RUNTIME:python"
-  [ -f requirements.txt ] && grep -q -i "django" requirements.txt 2>/dev/null && echo "STACK:django"
-  [ -f requirements.txt ] && grep -q -i "flask" requirements.txt 2>/dev/null && echo "STACK:flask"
-  [ -f requirements.txt ] && grep -q -i "fastapi" requirements.txt 2>/dev/null && echo "STACK:fastapi"
-  [ -f go.mod ] && echo "RUNTIME:go"
-  [ -f Cargo.toml ] && echo "RUNTIME:rust"
-  [ -f mix.exs ] && echo "RUNTIME:elixir"
-  [ -f composer.json ] && echo "RUNTIME:php"
-  [ -f composer.json ] && grep -q "laravel" composer.json 2>/dev/null && echo "STACK:laravel"
-  # Language detection
-  [ -f tsconfig.json ] && echo "LANG:typescript"
-  [ -f package.json ] && ! [ -f tsconfig.json ] && echo "LANG:javascript"
-  [ -f pubspec.yaml ] && echo "LANG:dart"
-  # Design system
-  [ -f DESIGN.md ] && echo "HAS_DESIGN_SYSTEM:true"
-  [ -f tailwind.config.js ] || [ -f tailwind.config.ts ] && echo "CSS:tailwind"
-fi
+_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+_SD=""
+[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/skystack/bin/skystack-stack-detect" ] && _SD="$_ROOT/.claude/skills/skystack/bin/skystack-stack-detect"
+[ -z "$_SD" ] && [ -x ~/.claude/skills/skystack/bin/skystack-stack-detect ] && _SD=~/.claude/skills/skystack/bin/skystack-stack-detect
+[ -n "$_SD" ] && "$_SD" || echo "NEEDS_SETUP"
 ```
+
+**If NEEDS_SETUP:** Tell the user: "skystack needs a one-time build. Run `./setup` in the skystack directory." and stop.
 
 **If CACHED:** Read the JSON and use it. Print "Stack: {summary from cache}" and continue.
 
