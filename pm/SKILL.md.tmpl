@@ -280,6 +280,16 @@ has a web-testable component.
 If the user picks A, create an atomic commit with a descriptive message, push, and
 offer to create a PR.
 
+**Log the completion** for project history:
+
+```bash
+eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+mkdir -p ~/.gstack/projects/$SLUG
+echo '{"skill":"pm","timestamp":"TIMESTAMP","status":"STATUS","feature":"FEATURE_SLUG","files_changed":N,"tests_added":M}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
+```
+
+Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "shipped" if user chose A, "pending" if user chose B/C/D, FEATURE_SLUG = kebab-case feature name, N = files changed count, M = tests added count.
+
 ---
 
 ## Important Rules
