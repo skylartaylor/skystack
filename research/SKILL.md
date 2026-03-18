@@ -89,7 +89,7 @@ _SD=""
 [ -n "$_SD" ] && "$_SD" || echo "NEEDS_SETUP"
 ```
 
-**If NEEDS_SETUP:** Tell the user: "skystack needs a one-time build. Run `./setup` in the skystack directory." and stop.
+**If NEEDS_SETUP:** Tell the user: "skystack needs a one-time build. Run: `cd ~/.claude/skills/skystack && ./setup`" and stop.
 
 **If CACHED:** Read the JSON and use it. Print "Stack: {summary from cache}" and continue.
 
