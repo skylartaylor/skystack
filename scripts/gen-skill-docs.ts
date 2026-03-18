@@ -219,6 +219,27 @@ If \`NEEDS_SETUP\`:
 3. If \`bun\` is not installed: \`curl -fsSL https://bun.sh/install | bash\``;
 }
 
+function generateMobileSetup(): string {
+  return `## Mobile Setup (run BEFORE any \`$M\` command)
+
+\`\`\`bash
+_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+M=""
+[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/skystack/mobile/dist/mobile" ] && M="$_ROOT/.claude/skills/skystack/mobile/dist/mobile"
+[ -z "$M" ] && [ -x ~/.claude/skills/skystack/mobile/dist/mobile ] && M=~/.claude/skills/skystack/mobile/dist/mobile
+if [ -x "$M" ]; then
+  echo "MOBILE_READY: $M"
+else
+  echo "MOBILE_NEEDS_SETUP"
+fi
+\`\`\`
+
+If \`MOBILE_NEEDS_SETUP\`:
+1. Tell the user: "skystack mobile needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
+2. Run: \`cd ~/.claude/skills/skystack && ./setup\`
+3. If \`bun\` is not installed: \`curl -fsSL https://bun.sh/install | bash\``;
+}
+
 function generateBaseBranchDetect(): string {
   return `## Step 0: Detect base branch
 
@@ -902,7 +923,7 @@ echo "---CONFIG---"
 ~/.claude/skills/skystack/bin/skystack-config get skip_eng_review 2>/dev/null || echo "false"
 \`\`\`
 
-Parse the output. Find the most recent entry for each skill (plan-ceo-review, plan-eng-review, plan-design-review, design-review-lite). Ignore entries with timestamps older than 7 days. For Design Review, show whichever is more recent between \`plan-design-review\` (full visual audit) and \`design-review-lite\` (code-level check). Append "(FULL)" or "(LITE)" to the status to distinguish. Display:
+Parse the output. Find the most recent entry for each skill (review, pm, design, design-review-lite). Ignore entries with timestamps older than 7 days. For Design Review, show whichever is more recent between \`design\` (full visual audit) and \`design-review-lite\` (inline check). Append "(FULL)" or "(LITE)" to the status to distinguish. Display:
 
 \`\`\`
 +====================================================================+
@@ -910,24 +931,24 @@ Parse the output. Find the most recent entry for each skill (plan-ceo-review, pl
 +====================================================================+
 | Review          | Runs | Last Run            | Status    | Required |
 |-----------------|------|---------------------|-----------|----------|
-| Eng Review      |  1   | 2026-03-16 15:00    | CLEAR     | YES      |
-| CEO Review      |  0   | —                   | —         | no       |
+| Dev Review      |  1   | 2026-03-16 15:00    | CLEAR     | YES      |
+| PM Review       |  0   | —                   | —         | no       |
 | Design Review   |  0   | —                   | —         | no       |
 +--------------------------------------------------------------------+
-| VERDICT: CLEARED — Eng Review passed                                |
+| VERDICT: CLEARED — Dev Review passed                                |
 +====================================================================+
 \`\`\`
 
 **Review tiers:**
-- **Eng Review (required by default):** The only review that gates shipping. Covers architecture, code quality, tests, performance. Can be disabled globally with \\\`skystack-config set skip_eng_review true\\\` (the "don't bother me" setting).
-- **CEO Review (optional):** Use your judgment. Recommend it for big product/business changes, new user-facing features, or scope decisions. Skip for bug fixes, refactors, infra, and cleanup.
-- **Design Review (optional):** Use your judgment. Recommend it for UI/UX changes. Skip for backend-only, infra, or prompt-only changes.
+- **Dev Review (required by default):** The only review that gates shipping. Covers architecture, code quality, tests, security. Run with \`/review\`. Can be disabled globally with \\\`skystack-config set skip_eng_review true\\\` (the "don't bother me" setting).
+- **PM Review (optional):** Use your judgment. Recommend for new features where a product spec was written with \`/pm\`. Skip for bug fixes, refactors, and cleanup.
+- **Design Review (optional):** Use your judgment. Recommend for UI/UX changes. Run with \`/design\`. Skip for backend-only or infra changes.
 
 **Verdict logic:**
-- **CLEARED**: Eng Review has >= 1 entry within 7 days with status "clean" (or \\\`skip_eng_review\\\` is \\\`true\\\`)
-- **NOT CLEARED**: Eng Review missing, stale (>7 days), or has open issues
-- CEO and Design reviews are shown for context but never block shipping
-- If \\\`skip_eng_review\\\` config is \\\`true\\\`, Eng Review shows "SKIPPED (global)" and verdict is CLEARED`;
+- **CLEARED**: Dev Review has >= 1 entry within 7 days with status "clean" (or \\\`skip_eng_review\\\` is \\\`true\\\`)
+- **NOT CLEARED**: Dev Review missing, stale (>7 days), or has open issues
+- PM and Design reviews are shown for context but never block shipping
+- If \\\`skip_eng_review\\\` config is \\\`true\\\`, Dev Review shows "SKIPPED (global)" and verdict is CLEARED`;
 }
 
 function generateTestBootstrap(): string {
@@ -968,13 +989,9 @@ If user picks H → write \`.skystack/no-test-bootstrap\` and continue without t
 
 **If runtime detected but no test framework — bootstrap:**
 
-### B2. Research best practices
+### B2. Select best practices
 
-Use WebSearch to find current best practices for the detected runtime:
-- \`"[runtime] best test framework 2025 2026"\`
-- \`"[framework A] vs [framework B] comparison"\`
-
-If WebSearch is unavailable, use this built-in knowledge table:
+Use this knowledge table to choose the right framework for the detected runtime:
 
 | Runtime | Primary recommendation | Alternative |
 |---------|----------------------|-------------|
@@ -1179,6 +1196,7 @@ const RESOLVERS: Record<string, () => string> = {
   SNAPSHOT_FLAGS: generateSnapshotFlags,
   PREAMBLE: generatePreamble,
   BROWSE_SETUP: generateBrowseSetup,
+  MOBILE_SETUP: generateMobileSetup,
   BASE_BRANCH_DETECT: generateBaseBranchDetect,
   QA_METHODOLOGY: generateQAMethodology,
   DESIGN_METHODOLOGY: generateDesignMethodology,
@@ -1232,7 +1250,7 @@ function findTemplates(): string[] {
     path.join(ROOT, 'browse', 'SKILL.md.tmpl'),
     path.join(ROOT, 'qa', 'SKILL.md.tmpl'),
     path.join(ROOT, 'setup-browser-cookies', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'ship', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'publish', 'SKILL.md.tmpl'),
     path.join(ROOT, 'review', 'SKILL.md.tmpl'),
     path.join(ROOT, 'retro', 'SKILL.md.tmpl'),
     path.join(ROOT, 'skystack-upgrade', 'SKILL.md.tmpl'),
