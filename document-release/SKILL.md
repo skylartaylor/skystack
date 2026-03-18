@@ -174,15 +174,18 @@ If unclear, ask which mode with A/B/C/D options.
 
 ```bash
 git diff <base>...HEAD --stat
-```
-
-```bash
 git log <base>..HEAD --oneline
-```
-
-```bash
 git diff <base>...HEAD --name-only
 ```
+
+If the above returns nothing (you're on the base branch and there's no divergence from origin), fall back to recent commit history:
+
+```bash
+git log -20 --oneline
+git diff HEAD~5..HEAD --stat
+```
+
+Use the most recent commits to understand what was recently shipped and which docs may need updating.
 
 Classify changes (new features, changed behavior, removed functionality,
 infrastructure) and map each to the doc files it might affect.
