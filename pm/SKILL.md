@@ -445,7 +445,7 @@ its batch assignment and note parallelism within the batch:
 ```
 ### Task N: [Name] [BATCH 1, INDEPENDENT]
 ### Task N: [Name] [BATCH 1, DEPENDS ON: Task M]
-### Task N: [Name] [BATCH 2, solo]
+### Task N: [Name] [BATCH 2, SOLO]
 ```
 
 Add a one-line rationale per batch at the top of the plan:
@@ -667,11 +667,13 @@ Dispatch implementer subagents for all tasks in the batch:
 
 After all implementer subagents in the batch have committed:
 
+The base SHA for this batch's reviews is always the SHA recorded before Step 1 began — even when tasks within the batch ran sequentially.
+
 1. Read `pm/spec-reviewer-prompt.md`
 2. Dispatch a `general-purpose` subagent with the prompt filled in:
    - `[FULL TEXT of task requirements]` → full text of every task in this batch
    - `[SPEC_FILE_PATH]` → path to approved spec at `~/.skystack/projects/$SLUG/pm-specs/`
-   - `[SPEC_SECTION]` → paste the relevant spec section for this batch
+   - `[DISPATCHER: paste the relevant spec section for this batch]` → paste the spec section covering this batch's requirements (from the saved pm-spec)
    - `[BASE_SHA]` → the SHA recorded before this batch started
    - `[CURRENT_HEAD]` → output of `git rev-parse HEAD`
 3. If ❌ Issues found: dispatch a fix subagent with the specific issue list, then re-dispatch spec reviewer (max 3 iterations, then surface to human)
@@ -709,20 +711,6 @@ Never paste your whole session history. Subagents work best with focused, minima
 - Include accessibility attributes during implementation, not after.
 - Follow existing codebase patterns exactly — no new architectural patterns.
 - End with a commit. Don't batch multiple tasks into one commit.
-
-### After all tasks complete
-
-Run the full test suite yourself (in the main session):
-
-```bash
-[ -f pubspec.yaml ] && flutter test
-[ -f package.json ] && (npm test || bun test || yarn test) 2>/dev/null
-[ -f Gemfile ] && bundle exec rake test 2>/dev/null
-[ -f go.mod ] && go test ./... 2>/dev/null
-```
-
-If any tests fail, dispatch a fix subagent with the failure output and the relevant task context.
-If a test you didn't write breaks, investigate before fixing — it may signal a real conflict.
 
 ---
 
