@@ -20,8 +20,10 @@ You are reviewing whether a batch of implementation commits matches the approved
 
 ## Relevant Spec Section
 
-[The section of the approved pm-spec that covers this batch's requirements.
-Spec is at: ~/.skystack/projects/$SLUG/pm-specs/]
+Spec file: [SPEC_FILE_PATH]
+
+[Paste the section of the approved pm-spec that covers this batch's requirements.
+The spec lives at ~/.skystack/projects/$SLUG/pm-specs/ if you need to find it.]
 
 ## What Was Implemented
 
