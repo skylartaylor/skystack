@@ -436,6 +436,50 @@ UI components and their tests are usually independent of data layer tasks.
 Keep the plan grounded in codebase patterns from Phase 1b. Don't introduce new
 architectural patterns unless existing ones genuinely can't support the feature.
 
+### 3c. Annotate review batches
+
+After writing all tasks, group them into **review batches** — each batch gets one spec compliance
+check + one code quality check after all tasks in it complete. Annotate each task header with
+its batch assignment and note parallelism within the batch:
+
+```
+### Task N: [Name] [BATCH 1, INDEPENDENT]
+### Task N: [Name] [BATCH 1, DEPENDS ON: Task M]
+### Task N: [Name] [BATCH 2, solo]
+```
+
+Add a one-line rationale per batch at the top of the plan:
+```
+**BATCH 1** (grouped — 3 independent small files, same module, no overlap)
+**BATCH 2** (solo — touches shared auth state, other tasks depend on output)
+**BATCH 3** (solo — large complex change, 5+ files)
+```
+
+**Batch sizing signals:**
+
+| Signal | Batch size |
+|--------|-----------|
+| Touches auth, payments, security, or data migrations | Solo |
+| 4+ files or complex branching logic | Solo |
+| Other tasks depend on this task's output | Solo |
+| Related changes, same module, independent files | Small (2–4) |
+| Sequential steps toward one feature | Small (2–4) |
+| Cosmetic, copy, config tweaks | Large (end) |
+| Test additions for existing behavior | Large (end) |
+| Boilerplate / scaffolding | Large (end) |
+
+### 3d. Plan review loop
+
+After writing all tasks and batch annotations:
+
+1. Read `pm/plan-reviewer-prompt.md`
+2. Dispatch a `general-purpose` subagent with the prompt filled in:
+   - `[PLAN_FILE_PATH]` → path to the plan document you just wrote
+   - `[SPEC_FILE_PATH]` → path to the approved spec at `~/.skystack/projects/$SLUG/pm-specs/`
+3. If ❌ Issues Found: fix the plan, re-dispatch the reviewer
+4. If ✅ Approved: proceed to execution handoff
+5. If loop exceeds 3 iterations: surface to human for guidance
+
 Output the full implementation plan as chat text (still in plan mode). Then use AskUserQuestion:
 - Question: "Ready to implement?"
 - A) Yes, build it
@@ -601,13 +645,51 @@ Only commit if there are changes. Stage all bootstrap files (config, test direct
 Each task gets a fresh subagent via the Agent tool. Fresh context per task means no
 accumulated noise, no confusion between tasks, and independent tasks can run in parallel.
 
-### Dispatch pattern
+### Batch loop
 
-**For independent tasks** (marked `[INDEPENDENT]` in the plan): dispatch in parallel —
-send multiple Agent tool calls in a single message.
+Before starting: record the current git SHA as the **batch base SHA**.
 
-**For dependent tasks** (marked `[DEPENDS ON: Task N]`): wait for the dependency to commit,
-then dispatch.
+```bash
+git rev-parse HEAD
+```
+
+Loop over batches in order:
+
+**For each batch:**
+
+**Step 1 — Implement**
+
+Dispatch implementer subagents for all tasks in the batch:
+- Tasks marked `[INDEPENDENT]` within the batch: dispatch in parallel (single message, multiple Agent calls)
+- Tasks marked `[DEPENDS ON: Task N]` within the batch: dispatch sequentially after dependency commits
+
+**Step 2 — Spec compliance review**
+
+After all implementer subagents in the batch have committed:
+
+1. Read `pm/spec-reviewer-prompt.md`
+2. Dispatch a `general-purpose` subagent with the prompt filled in:
+   - `[FULL TEXT of task requirements]` → full text of every task in this batch
+   - `[SPEC_FILE_PATH]` → path to approved spec at `~/.skystack/projects/$SLUG/pm-specs/`
+   - `[SPEC_SECTION]` → paste the relevant spec section for this batch
+   - `[BASE_SHA]` → the SHA recorded before this batch started
+   - `[CURRENT_HEAD]` → output of `git rev-parse HEAD`
+3. If ❌ Issues found: dispatch a fix subagent with the specific issue list, then re-dispatch spec reviewer (max 3 iterations, then surface to human)
+4. If ✅ Spec compliant: proceed to code quality review
+
+**Step 3 — Code quality review**
+
+Only after spec compliance returns ✅:
+
+1. Read `pm/code-quality-reviewer-prompt.md`
+2. Dispatch a `general-purpose` subagent with the prompt filled in:
+   - `[Summary from implementers]` → what the implementers reported building
+   - `[BASE_SHA]` → same SHA used for spec review
+   - `[CURRENT_HEAD]` → output of `git rev-parse HEAD`
+3. If ❌ Changes Required: dispatch a fix subagent with the specific issue list, then re-dispatch code quality reviewer (max 3 iterations, then surface to human)
+4. If ✅ Approved: mark batch complete
+
+**Before next batch:** Record new base SHA: `git rev-parse HEAD`
 
 ### What to include in each subagent prompt
 
@@ -644,33 +726,40 @@ If a test you didn't write breaks, investigate before fixing — it may signal a
 
 ---
 
-## Self-Review — quality check (runs autonomously)
+## Verification — confirm it works
 
-Before presenting to the user, review your own work critically:
+Each batch was reviewed for spec compliance and code quality. Phase 5 confirms integration:
 
-### 5a. Code review
+### 5a. Run the full test suite
 
-Read every file you changed. Check for:
-- **Correctness:** Does the code do what the spec says?
-- **Consistency:** Does it follow existing codebase patterns?
-- **Edge cases:** Are all spec'd edge cases handled?
-- **Security:** No injection, no exposed secrets, no unsafe operations
-- **Performance:** No N+1 queries, no unnecessary re-renders, no blocking operations on main thread
+```bash
+[ -f pubspec.yaml ] && flutter test
+[ -f package.json ] && (npm test || bun test || yarn test) 2>/dev/null
+[ -f Gemfile ] && bundle exec rake test 2>/dev/null
+[ -f go.mod ] && go test ./... 2>/dev/null
+```
 
-### 5b. Accessibility verification
+Run the command. Read the full output. Count the failures. **Do not claim "tests pass"
+without having seen the output.** If tests fail, dispatch a fix subagent with the
+failure output and relevant task context.
 
-Walk through the stack-specific checklist from the spec:
-- Read the code and verify every interactive element has appropriate accessibility attributes
-- Verify touch target sizes meet minimums
-- Verify color is never the only indicator of state
+### 5b. Accessibility spot-check
 
-### 5c. Test coverage
+For any tasks that touched UI: read the code and verify interactive elements have
+appropriate accessibility attributes. Don't skip this — accessibility was supposed to
+be built in, not bolted on.
 
-- Verify tests exist for the happy path
-- Verify tests exist for at least 2 edge cases from the spec
-- Run the test suite and confirm all tests pass
+### 5c. Broken imports check
 
-Fix any issues found during self-review before proceeding.
+Verify no task left dangling references — especially if batch ordering meant some
+commits depended on types or exports from a later batch.
+
+```bash
+[ -f pubspec.yaml ] && flutter analyze --no-fatal-infos 2>&1 | grep -E "error|Error" | head -20
+[ -f tsconfig.json ] && npx tsc --noEmit 2>&1 | head -20
+```
+
+Fix any failures before proceeding to Phase 6.
 
 ---
 
