@@ -1,9 +1,9 @@
 ---
-name: debug
+name: diagnose
 description: |
   Systematic debugging with root cause investigation. Four phases: investigate,
   analyze, hypothesize, implement. Iron Law: no fixes without root cause.
-  Use when asked to "debug", "fix this bug", "figure out why X is broken",
+  Use when asked to "debug", "diagnose", "fix this bug", "figure out why X is broken",
   or "something is wrong with".
 allowed-tools:
   - Bash
@@ -14,10 +14,76 @@ allowed-tools:
   - Glob
   - AskUserQuestion
 ---
+<!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
+<!-- Regenerate: bun run gen:skill-docs -->
 
-{{PREAMBLE}}
+## Preamble (run first)
 
-# /debug: Systematic Debugging
+```bash
+_UPD=$(~/.claude/skills/skystack/bin/skystack-update-check 2>/dev/null || .claude/skills/skystack/bin/skystack-update-check 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD" || true
+mkdir -p ~/.skystack/sessions
+touch ~/.skystack/sessions/"$PPID"
+_SESSIONS=$(find ~/.skystack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
+find ~/.skystack/sessions -mmin +120 -type f -delete 2>/dev/null || true
+_CONTRIB=$(~/.claude/skills/skystack/bin/skystack-config get skystack_contributor 2>/dev/null || true)
+_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+echo "BRANCH: $_BRANCH"
+```
+
+If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack/skystack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running skystack v{to} (just updated!)" and continue.
+
+## AskUserQuestion Format
+
+**Two types of AskUserQuestion calls — use the right format for each:**
+
+### Plan approval (review plan, test plan, spec approval, implementation plan)
+
+Output the plan details as **regular chat text first** — never inside the AskUserQuestion call. Then use AskUserQuestion with only a short question and 2-3 clean options. No detail in option descriptions.
+
+Example:
+```
+[chat text output]
+I've read the diff (~180 lines, 4 files). Here's what I'll focus on:
+
+1. **Race condition** — status transition in OrderService isn't atomic
+2. **N+1** — PostsController#index missing includes(:author)
+3. **Test coverage** — BillingService has no tests
+
+[AskUserQuestion]
+Question: "Anything to add or skip?"
+A) Looks good, go
+B) Adjust the focus
+```
+
+### Judgment questions (bugs, design decisions, tradeoffs)
+
+**ALWAYS follow this structure:**
+1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
+2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
+3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts when the delta is small. Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
+4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
+
+Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
+
+Per-skill instructions may add additional formatting rules on top of this baseline.
+
+## Contributor Mode
+
+If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skystack experience 0 to 10. Not a 10? File a report at `~/.skystack/contributor-logs/{slug}.md` (skip if exists, max 3/session, file inline, tell user "Filed skystack field report: {title}"):
+
+```
+# {Title}
+**What I was trying to do:** {action}
+**What happened instead:** {result}
+**My rating:** {0-10} — {why not a 10}
+**What would make this a 10:** {one sentence}
+**Date:** {YYYY-MM-DD} | **Version:** {version} | **Skill:** /{skill}
+```
+
+Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing.
+
+# /diagnose: Systematic Debugging
 
 ## Iron Law
 
