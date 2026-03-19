@@ -22,8 +22,8 @@ You are reviewing whether a batch of implementation commits matches the approved
 
 Spec file: [SPEC_FILE_PATH]
 
-[Paste the section of the approved pm-spec that covers this batch's requirements.
-The spec lives at ~/.skystack/projects/$SLUG/pm-specs/ if you need to find it.]
+[DISPATCHER: paste the relevant section from the approved spec here before sending this prompt.
+The spec lives at ~/.skystack/projects/$SLUG/pm-specs/]
 
 ## What Was Implemented
 
@@ -50,6 +50,9 @@ Read the actual code. Do not accept implementer claims about completeness.
 **Misunderstandings:**
 - Did they interpret requirements differently than intended?
 - Did they solve the right problem the wrong way?
+
+Note: this reviewer uses Missing/Extra/Wrong labels (not severity levels) — it's checking
+whether requirements were met, not how well the code is written.
 
 **Output:**
 

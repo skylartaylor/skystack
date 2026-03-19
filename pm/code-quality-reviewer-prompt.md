@@ -34,6 +34,7 @@ git diff [BASE_SHA]..[CURRENT_HEAD]
 Read the review checklist from skystack's /review skill:
 - Check: ~/.claude/skills/skystack/review/checklist.md
 - Fallback: .claude/skills/skystack/review/checklist.md
+- If neither path exists: apply general clean-code judgment (YAGNI, DRY, single responsibility)
 
 Apply the checklist to the batch diff. Also check:
 - Does each file have one clear responsibility?
@@ -41,6 +42,9 @@ Apply the checklist to the batch diff. Also check:
 - Is the implementation following the file structure from the plan?
 - Did this batch create files that are already large, or significantly grow existing files?
   (Don't flag pre-existing file sizes — focus on what this batch contributed.)
+
+Note: this reviewer uses CRITICAL/IMPORTANT/MINOR severity labels (not Missing/Extra/Wrong)
+— it's checking code quality, not spec compliance.
 
 ## Output
 
