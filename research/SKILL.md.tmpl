@@ -14,6 +14,7 @@ allowed-tools:
   - AskUserQuestion
   - WebSearch
   - WebFetch
+  - Agent
 ---
 
 {{PREAMBLE}}
@@ -95,72 +96,81 @@ RECOMMENDATION: Choose A for first run, or if it's been a while since the last u
 
 ---
 
-## Phase 2: Research
+## Phase 2: Research (parallel subagents)
 
-Run web searches tailored to the detected stack and focus area. For each reference file,
-search for current best practices.
+Read all four current reference files from `.skystack/references/` before dispatching.
 
-### Research patterns
+Dispatch 4 parallel `general-purpose` subagents — one per reference file. Run all four
+in a single message (multiple Agent tool calls).
 
-For each topic, run 2-3 targeted searches:
+Each subagent prompt should include:
+- The reference file it is responsible for (e.g. "designer.md")
+- The full content of the current reference file
+- The detected stack from Step 0 (stack summary, lang, platforms)
+- The focus area from Phase 1c (general, specific topic, or accessibility)
+- These search instructions:
 
-```
-"{framework} best practices {year}"
-"{framework} common mistakes production"
-"{framework} accessibility {year}"
-"site:reddit.com r/{framework-subreddit} tips"
-```
+  Search for current best practices for {file-topic} in the detected stack. Run 2–3
+  targeted searches:
+    - "{framework} best practices {year}"
+    - "{framework} {file-topic} {year}"
+    - "site:reddit.com r/{subreddit} {file-topic} tips"
 
-**Prioritize:**
-1. Official documentation and migration guides
-2. Framework core team blog posts
-3. Well-known community experts (look for authors with framework contributions)
-4. Reddit/forum posts with high engagement and practical advice
-5. Conference talks from the current year
+  Prioritize: official docs > core team blogs > community experts > forum posts.
+  Avoid generic listicles, AI-generated content, outdated advice (check dates).
 
-**Avoid:**
-- Generic "10 tips for..." listicles
-- AI-generated blog content (look for specific code examples and real-world experience)
-- Outdated advice (check dates — framework best practices change fast)
+  Writing style for all content you produce:
+  - Practical over theoretical: "Don't use X in Y" beats "Consider Z implications."
+  - Opinionated: "Use fl_chart for simple charts, syncfusion for advanced" beats "many options exist."
+  - Stack-specific only: don't include guidance for frameworks not in the detected stack.
+  - Concise: one actionable bullet per guideline. No paragraphs.
+  - Cite your source inline: end each bullet with `— [Source Name](url)` so it's traceable.
 
-### What to extract
+  Return your findings as a structured section diff — NOT a full file rewrite.
+  Format:
 
-For each finding, extract:
-- The specific pattern or anti-pattern
-- Why it matters (performance? accessibility? maintainability?)
-- A concrete example if available
-- The source (so the user can dig deeper)
+  ## SECTION: [exact section heading from the current file]
+  CHANGE: ADD | UPDATE | SKIP
+  SOURCES: [comma-separated list of URLs consulted for this section]
+  CONTENT:
+  [bullet points to add or replace under this section]
+
+  ## SECTION: [next section]
+  CHANGE: ADD | UPDATE | SKIP
+  SOURCES: [URLs]
+  CONTENT:
+  [...]
+
+  Only include sections with actual changes. SKIP sections that don't need updating.
+  Never restructure the file — only add/update within existing sections.
+  Add a "Last updated: YYYY-MM-DD" section at the top with CHANGE: UPDATE.
+
+Subagent scope per file:
+- designer.md: visual design, typography, color, spacing, UI patterns, a11y for the detected UI framework
+- dev.md: backend patterns, data safety, race conditions, performance, error handling for the detected runtime
+- tester.md: testing patterns, test quality, coverage approaches for the detected stack
+- planner.md: product thinking, estimation, prioritization — universal, not stack-specific
 
 ---
 
-## Phase 3: Update reference files
+## Phase 3: Apply Updates
 
-Write updated reference files to `.skystack/references/`. For each file:
+Read each subagent's structured diff. For each reference file:
 
-1. Read the current version
-2. **Preserve the existing structure** — don't reorganize sections the user may have customized
-3. **Add new findings** under the appropriate section
-4. **Update outdated guidance** — if a framework version changed best practices, update them
-5. **Mark framework-specific sections** clearly so they're easy to scan
-6. **Add a "Last updated" line** at the top with the current date
+1. Read the current file from `.skystack/references/`
+2. Parse the SECTION blocks from the subagent output
+3. For each SECTION with CHANGE: ADD → append the content under that heading
+4. For each SECTION with CHANGE: UPDATE → replace the existing content under that heading
+5. Skip SECTION blocks with CHANGE: SKIP
+6. Write the updated file
 
-### Which files to update
+Collect all SOURCES lines from the subagent output — aggregate them into a deduplicated
+list for the Phase 4 summary.
 
-Based on the detected stack, update the relevant files:
+If a subagent returned empty or malformed output (no SECTION blocks), skip that file and
+note it in Phase 4 summary: "designer.md — subagent returned no findings."
 
-| Reference file | Update when stack includes |
-|---|---|
-| `designer.md` | Any UI framework (always relevant) |
-| `dev.md` | Any backend or fullstack framework |
-| `tester.md` | Always (testing is universal) |
-| `planner.md` | Always (product thinking is universal) |
-
-### Writing style
-
-- **Practical over theoretical.** "Don't use `setState` in `initState`" beats "Consider lifecycle implications."
-- **Opinionated.** "Use `fl_chart` for simple charts, `syncfusion` if you need advanced features" beats "There are many chart libraries available."
-- **Specific to the stack.** Don't include React advice in a Flutter project's references.
-- **Concise.** Each bullet point should be one actionable guideline. No paragraphs.
+Write all four files before moving to Phase 4.
 
 ---
 
