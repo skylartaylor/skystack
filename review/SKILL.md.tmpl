@@ -16,6 +16,7 @@ allowed-tools:
   - Glob
   - LSP
   - AskUserQuestion
+  - Agent
 ---
 
 {{PREAMBLE}}
@@ -73,6 +74,14 @@ git diff --cached --stat # staged changes
 Read `.claude/skills/review/checklist.md`. **If the checklist cannot be read, STOP and report the error.** The checklist is required.
 
 Skim the diff. Note which areas are touched: backend logic, data models, API endpoints, frontend/UI, tests, config, prompts/LLM, infrastructure. This shapes your review plan.
+
+Write the full diff to a tempfile for subagent access:
+
+```bash
+DIFF_FILE=$(mktemp /tmp/skystack-review-XXXXXX.diff)
+git diff origin/<base> > "$DIFF_FILE" 2>/dev/null || git diff HEAD > "$DIFF_FILE"
+echo "DIFF_FILE: $DIFF_FILE"
+```
 
 ### Static analysis (if semgrep is available)
 
@@ -133,9 +142,73 @@ Be specific to what you actually saw. Don't list generic categories — list the
 
 ---
 
+## Phase 2b: Parallel Specialist Review
+
+Dispatch 3 parallel `general-purpose` subagents in a single message.
+
+All three subagents receive:
+- The diff file path (DIFF_FILE from Phase 1)
+- The checklist.md path (`.claude/skills/review/checklist.md` or the found path)
+- The detected stack
+- A strict output schema (below)
+
+**Security specialist prompt:**
+Read the diff at [DIFF_FILE]. Focus exclusively on security issues:
+SQL injection, XSS, CSRF, auth bypass, insecure random, timing attacks,
+LLM output used without validation, token/secret mishandling, data exposure.
+Also read [CHECKLIST_PATH] for project-specific suppressions — do NOT flag
+anything listed under "DO NOT flag".
+
+Return findings in this exact format (no prose, only this structure):
+
+FINDINGS:
+- SEVERITY: CRITICAL|IMPORTANT|MINOR
+  CATEGORY: security
+  LOCATION: path/to/file.ts:42
+  ISSUE: [what's wrong]
+  FIX: [specific fix]
+
+If no issues found, return: FINDINGS: none
+
+**Performance specialist prompt:**
+Read the diff at [DIFF_FILE]. Focus exclusively on performance issues:
+N+1 queries, missing DB indexes, expensive operations in hot paths, unpreloaded
+associations, Array#find inside loops, inline styles re-parsed on render,
+missing caching where clearly needed.
+Also read [CHECKLIST_PATH] for suppressions.
+
+Return findings in the same FINDINGS: format above.
+CATEGORY value: performance
+
+**Test coverage specialist prompt:**
+Read the diff at [DIFF_FILE]. Focus exclusively on test coverage gaps:
+uncovered conditionals (if/else both paths needed), missing edge case tests,
+missing regression tests for bug fixes, missing negative-path assertions,
+new error handlers with no test that triggers the error.
+Also read [CHECKLIST_PATH] for suppressions.
+
+Return findings in the same FINDINGS: format above.
+CATEGORY value: test-coverage
+
+After all three return, synthesize:
+1. Collect all FINDINGS blocks
+2. Deduplicate by LOCATION — if two specialists flag the same file:line, keep the
+   higher severity entry and merge the ISSUE text if they differ
+3. Sort: CRITICAL first, then IMPORTANT, then MINOR
+4. This synthesized list is the input to Phase 3 (AUTO-FIX vs ASK classification)
+
+If any specialist returned empty or malformed output, note it:
+"Performance review returned no output — applying general judgment for that category."
+Then apply your own judgment for that category from the checklist.
+
+---
+
 ## Phase 3: Review
 
 ### Code review
+
+The findings list comes from Phase 2b (synthesized specialist output). Use the checklist
+for any categories a specialist did not cover (e.g. if a specialist returned no output).
 
 Apply the checklist in two passes:
 
