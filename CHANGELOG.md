@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.5.0] - 2026-03-19
+
+### Added
+
+- **`/research` now runs 4 parallel subagents — one per reference file.** Instead of doing all research sequentially in the main conversation, it dispatches designer, dev, tester, and planner specialists simultaneously. Each subagent returns structured diffs (section-by-section ADD/UPDATE/SKIP) rather than rewriting files wholesale, preserving any customizations you've made. Subagents cite their sources inline so guidance is traceable.
+- **`/review` now runs 3 parallel specialist reviewers before the main pass.** A security specialist, a performance specialist, and a test-coverage specialist each read the diff independently and return structured FINDINGS blocks. Their output is synthesized and deduplicated before Phase 3 classification — catching more issues with higher signal-to-noise than a single-pass review.
+- **`/qa` now dispatches a verification subagent after all fixes are committed.** Instead of trusting that a fix worked based on a single re-test, a fresh subagent re-navigates each affected page, reproduces the original repro steps, takes a screenshot, and returns CONFIRMED_FIXED / STILL_BROKEN / COULD_NOT_VERIFY per issue. Broken fixes are flagged prominently in the Phase 5 report.
+
 ## [0.6.4.1] - 2026-03-18
 
 ### Added
