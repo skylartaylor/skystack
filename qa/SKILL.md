@@ -15,6 +15,7 @@ allowed-tools:
   - Glob
   - Grep
   - AskUserQuestion
+  - Agent
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
@@ -499,6 +500,45 @@ WTF-LIKELIHOOD:
 
 If WTF > 20%: STOP. Show what you've done so far and ask whether to continue.
 Hard cap: 50 fixes.
+
+### 4g. Post-fix verification
+
+After all fixes are committed, dispatch a single `general-purpose` verification subagent.
+
+**Subagent prompt:**
+
+You are verifying that a set of QA fixes actually resolved the issues reported.
+
+Target URL: [TARGET_URL]
+Browse binary: [full path to browse binary, e.g. /path/to/browse/dist/browse]
+Screenshot dir: .skystack/qa-reports/screenshots/
+Note: subagents run in fresh context — pass the resolved binary path, not $B/$M shorthand.
+
+Fixed issues to verify:
+[For each verified/best-effort fix: ISSUE-NNN, description, commit SHA, the original
+ repro steps from Phase 3]
+
+For each issue:
+1. Navigate to the affected page: `[browse-binary] goto [URL]`
+2. Reproduce the original issue steps
+3. Take a screenshot: `[browse-binary] screenshot ".skystack/qa-reports/screenshots/ISSUE-NNN-verify.png"`
+4. Check console: `[browse-binary] console --errors`
+
+Return a verification report in this exact format:
+
+VERIFICATION:
+- ISSUE: ISSUE-NNN
+  STATUS: CONFIRMED_FIXED | STILL_BROKEN | COULD_NOT_VERIFY
+  EVIDENCE: [what you saw / screenshot path]
+  NOTES: [optional — regressions observed, related issues]
+
+After all issues verified, write a one-line summary:
+"X/N confirmed fixed, Y still broken, Z could not verify."
+
+After the subagent returns:
+- Any STILL_BROKEN issues: flag them prominently in Phase 5 report under "⚠️ Fix verification failed"
+- Any COULD_NOT_VERIFY: include in report with note "verification inconclusive"
+- CONFIRMED_FIXED: normal reporting in Phase 5
 
 ---
 
