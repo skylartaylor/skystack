@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.6.6.0] - 2026-03-23 — Codex CLI, Security Audits, and Performance Benchmarks
+
+### Added
+
+- **`/codex` — get an independent second opinion from OpenAI's Codex CLI.** Three modes: `/codex review` runs a code review with pass/fail gate, `/codex challenge` goes adversarial (tries to break your code), and `/codex` opens a conversation with session continuity. Cross-model comparison shows where Claude and Codex agree and disagree. Results persist to the review dashboard so `/publish` knows a second opinion ran.
+- **`/security` — infrastructure-first security audit.** 14-phase scan covering secrets archaeology (git history), dependency supply chain, CI/CD pipeline security, LLM/AI security, skill supply chain, OWASP Top 10, and STRIDE threat modeling. Two modes: daily (8/10 confidence gate, zero noise) and comprehensive (2/10 bar, surfaces everything). Every finding includes a concrete exploit scenario and gets independently verified by a subagent. Trend tracking across audit runs.
+- **`/benchmark` — performance regression detection.** Uses the browse daemon to collect real Core Web Vitals, resource timing, and bundle sizes from running pages. Captures baselines, compares before/after with regression thresholds, grades against industry performance budgets, and tracks trends over time.
+- **`/review` now detects scope drift before reviewing code quality.** Phase 1.5 compares the files changed against the stated intent (from commit messages, PR description, TODOS.md). Catches "while I was in there" scope creep and flags missing requirements. Informational — doesn't block the review.
+- **`/publish` now has a Verification Gate (Step 6.5).** Before pushing, if any code changed after the test run (review fixes, generated coverage tests), tests must be re-run. No more "should work now" — confidence is not evidence.
+
+### Changed
+
+- **`/review` now verifies its own claims.** New rules: if you claim "this is safe" → cite the line. If you claim "this is handled elsewhere" → read and cite the code. Never say "likely handled" — verify or flag as unknown. Also searches for current best practices before recommending fix patterns.
+- **`/diagnose` now searches the web when stuck.** WebSearch added to allowed tools. When a bug doesn't match known patterns, the skill searches for the error (sanitized — no hostnames, IPs, or customer data). On hypothesis failure, searches again before forming the next guess. Also adds a Scope Advisory after forming the root cause hypothesis to keep edits focused.
+
 ## [0.6.5.0] - 2026-03-19
 
 ### Added
