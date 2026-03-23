@@ -13,6 +13,7 @@ allowed-tools:
   - Grep
   - Glob
   - AskUserQuestion
+  - WebSearch
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
@@ -130,6 +131,21 @@ Also check:
 - `TODOS.md` for related known issues
 - `git log` for prior fixes in the same area — **recurring bugs in the same files are an architectural smell**, not a coincidence
 
+**External pattern search:** If the bug doesn't match a known pattern above, use WebSearch for:
+- "{framework} {generic error type}" — **sanitize first:** strip hostnames, IPs, file paths, SQL, customer data. Search the error category, not the raw message.
+- "{library} {component} known issues"
+
+If WebSearch is unavailable, skip this search and proceed with hypothesis testing. If a
+documented solution or known dependency bug surfaces, present it as a candidate hypothesis
+in Phase 3.
+
+### Scope Advisory
+
+After forming your root cause hypothesis, identify the narrowest directory containing the
+affected files. Tell the user: "Focusing edits on `<dir>/` — this prevents fixing the
+wrong thing." Avoid modifying files outside this scope unless the root cause genuinely
+spans multiple modules.
+
 ---
 
 ## Phase 3: Hypothesis Testing
@@ -138,7 +154,7 @@ Before writing ANY fix, verify your hypothesis.
 
 1. **Confirm the hypothesis:** Add a temporary log statement, assertion, or debug output at the suspected root cause. Run the reproduction. Does the evidence match?
 
-2. **If the hypothesis is wrong:** Return to Phase 1. Gather more evidence. Do not guess.
+2. **If the hypothesis is wrong:** Before forming the next hypothesis, consider searching for the error. **Sanitize first** — strip hostnames, IPs, file paths, SQL fragments, and customer data. Search only the generic error type and framework context. If the error is too specific to sanitize safely, skip the search. If WebSearch is unavailable, skip and proceed. Then return to Phase 1. Gather more evidence. Do not guess.
 
 3. **3-strike rule:** If 3 hypotheses fail, **STOP** and use AskUserQuestion:
 

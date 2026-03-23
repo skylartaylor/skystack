@@ -449,6 +449,28 @@ EOF
 
 ---
 
+## Step 6.5: Verification Gate
+
+**IRON LAW: NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE.**
+
+Before pushing, re-verify if code changed during Steps 3.5-6:
+
+1. **Test verification:** If ANY code changed after Step 3's test run (fixes from review, generated coverage tests — CHANGELOG/VERSION edits don't count), re-run the test suite. Paste fresh output. Stale output from Step 3 is NOT acceptable.
+
+2. **Build verification:** If the project has a build step, run it. Paste output.
+
+3. **Rationalization prevention:**
+   - "Should work now" → RUN IT.
+   - "I'm confident" → Confidence is not evidence.
+   - "I already tested earlier" → Code changed since then. Test again.
+   - "It's a trivial change" → Trivial changes break production.
+
+**If tests fail here:** STOP. Do not push. Fix the issue and return to Step 3.
+
+Claiming work is complete without verification is dishonesty, not efficiency.
+
+---
+
 ## Step 7: Push
 
 Push to the remote:
