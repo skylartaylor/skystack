@@ -73,6 +73,8 @@ Assume the user hasn't looked at this window in 20 minutes and doesn't have the 
 
 Per-skill instructions may add additional formatting rules on top of this baseline.
 
+5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and preferred. Exception: batch-ask patterns where multiple related findings are presented with per-item options (e.g., review findings) are fine as a single call.
+
 ## Contributor Mode
 
 If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skystack experience 0 to 10. Not a 10? File a report at `~/.skystack/contributor-logs/{slug}.md` (skip if exists, max 3/session, file inline, tell user "Filed skystack field report: {title}"):
@@ -645,6 +647,14 @@ Only commit if there are changes. Stage all bootstrap files (config, test direct
 Each task gets a fresh subagent via the Agent tool. Fresh context per task means no
 accumulated noise, no confusion between tasks, and independent tasks can run in parallel.
 
+**Worktree isolation:** When dispatching independent implementer subagents in parallel,
+use `isolation: "worktree"` on each Agent call so each subagent gets an isolated copy
+of the repo. This prevents parallel subagents from conflicting on shared files (e.g.,
+both adding imports to the same barrel file, or both running tests simultaneously).
+The Agent tool handles worktree lifecycle automatically — if the subagent makes no
+changes, the worktree is discarded; if changes are made, the worktree path and branch
+are returned in the result.
+
 ### Batch loop
 
 Before starting: record the current git SHA as the **batch base SHA**.
@@ -660,8 +670,11 @@ Loop over batches in order:
 **Step 1 — Implement**
 
 Dispatch implementer subagents for all tasks in the batch:
-- Tasks marked `[INDEPENDENT]` within the batch: dispatch in parallel (single message, multiple Agent calls)
-- Tasks marked `[DEPENDS ON: Task N]` within the batch: dispatch sequentially after dependency commits
+- Tasks marked `[INDEPENDENT]` within the batch: dispatch in parallel (single message,
+  multiple Agent calls) with `isolation: "worktree"` so each subagent gets an isolated
+  copy of the repo and can't conflict with parallel work
+- Tasks marked `[DEPENDS ON: Task N]` within the batch: dispatch sequentially after
+  dependency commits (no worktree needed — sequential execution is safe)
 
 **Step 2 — Spec compliance review**
 
