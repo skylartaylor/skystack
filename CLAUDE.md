@@ -136,6 +136,36 @@ Examples of good bisection:
 When the user says "bisect commit" or "bisect and push," split staged/unstaged
 changes into logical commits and push.
 
+## Subagent & worktree patterns
+
+Skills should leverage Claude Code's Agent tool for parallel work. Two key parameters:
+
+**When to use subagents:**
+- Independent parallel work (e.g., /review dispatches 3 specialist reviewers simultaneously)
+- Protecting the main context from noise (e.g., /pm dispatches implementers per task)
+- Structured output (subagent returns findings in a specific format, main skill synthesizes)
+
+**When to use `isolation: "worktree"`:**
+- Subagent needs to **write files** AND runs in parallel with other writers
+- Example: /pm dispatches parallel implementers that each write to different files
+- The Agent tool handles worktree lifecycle automatically (cleanup on no changes, branch on changes)
+
+**When NOT to use worktrees:**
+- Read-only subagents (research, analysis, review without fixes)
+- Sequential subagents (each waits for the previous to finish)
+- Subagents sharing a browse daemon (`$B`) — they'd clobber each other's navigation state
+
+**When NOT to use subagents:**
+- Interactive work (browse sessions, cookie setup)
+- Small sequential tasks where subagent overhead exceeds the work
+- Tasks where accumulated context matters (debugging hypotheses)
+
+**Existing patterns to follow:**
+- `/pm`: parallel implementers with worktree isolation, sequential review gates
+- `/review`: 3 parallel read-only specialist subagents (security, performance, coverage)
+- `/research`: 4 parallel read-only subagents (one per reference file)
+- `/qa`: single verification subagent after fixes
+
 ## CHANGELOG style
 
 CHANGELOG.md is **for users**, not contributors. Write it like product release notes:
