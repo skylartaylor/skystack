@@ -65,6 +65,8 @@ Assume the user hasn't looked at this window in 20 minutes and doesn't have the 
 
 Per-skill instructions may add additional formatting rules on top of this baseline.
 
+5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and preferred. Exception: batch-ask patterns where multiple related findings are presented with per-item options (e.g., review findings) are fine as a single call.
+
 ## Contributor Mode
 
 If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skystack experience 0 to 10. Not a 10? File a report at `~/.skystack/contributor-logs/{slug}.md` (skip if exists, max 3/session, file inline, tell user "Filed skystack field report: {title}"):
@@ -393,6 +395,20 @@ Run the discovered command and capture output:
 **If all pass:** Continue silently — note the count briefly (e.g., "42 tests passed").
 
 **If no test command found:** Skip and note in the PR body: "No test command detected."
+
+**Parallel execution:** Steps 3 and 3.4 can run simultaneously using the Agent tool.
+Dispatch both as subagents in a single message with two parallel Agent calls:
+
+1. **Test runner subagent:** Run the discovered test command and report pass/fail with
+   output. If tests fail, report the failures.
+2. **Coverage audit subagent:** Perform the full coverage analysis from Step 3.4
+   (trace codepaths, diagram coverage, identify gaps). Do NOT generate tests yet —
+   just produce the coverage diagram and gap list.
+
+Wait for both to complete. If tests passed AND coverage gaps exist, generate tests
+for the gaps (Step 3.4 item 5). If tests failed, STOP.
+
+If only one subagent is practical (small diff, simple project), run sequentially instead.
 
 ---
 

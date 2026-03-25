@@ -128,6 +128,20 @@ Run the discovered command and capture output:
 
 **If no test command found:** Skip and note in the PR body: "No test command detected."
 
+**Parallel execution:** Steps 3 and 3.4 can run simultaneously using the Agent tool.
+Dispatch both as subagents in a single message with two parallel Agent calls:
+
+1. **Test runner subagent:** Run the discovered test command and report pass/fail with
+   output. If tests fail, report the failures.
+2. **Coverage audit subagent:** Perform the full coverage analysis from Step 3.4
+   (trace codepaths, diagram coverage, identify gaps). Do NOT generate tests yet —
+   just produce the coverage diagram and gap list.
+
+Wait for both to complete. If tests passed AND coverage gaps exist, generate tests
+for the gaps (Step 3.4 item 5). If tests failed, STOP.
+
+If only one subagent is practical (small diff, simple project), run sequentially instead.
+
 ---
 
 ## Step 3.4: Test Coverage Audit
