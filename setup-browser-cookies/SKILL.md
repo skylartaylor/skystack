@@ -64,6 +64,8 @@ Assume the user hasn't looked at this window in 20 minutes and doesn't have the 
 
 Per-skill instructions may add additional formatting rules on top of this baseline.
 
+5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and preferred. Exception: batch-ask patterns where multiple related findings are presented with per-item options (e.g., review findings) are fine as a single call.
+
 ## Contributor Mode
 
 If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skystack experience 0 to 10. Not a 10? File a report at `~/.skystack/contributor-logs/{slug}.md` (skip if exists, max 3/session, file inline, tell user "Filed skystack field report: {title}"):

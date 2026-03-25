@@ -1,6 +1,5 @@
 ---
 name: codex
-version: 1.0.0
 description: |
   OpenAI Codex CLI wrapper — three modes. Code review: independent diff review via
   codex review with pass/fail gate. Challenge: adversarial mode that tries to break
@@ -68,6 +67,8 @@ B) Adjust the focus
 Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
 
 Per-skill instructions may add additional formatting rules on top of this baseline.
+
+5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and preferred. Exception: batch-ask patterns where multiple related findings are presented with per-item options (e.g., review findings) are fine as a single call.
 
 ## Contributor Mode
 
