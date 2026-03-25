@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.7.0] - 2026-03-24 — Worktree Isolation and Subagent Patterns
+
+### Added
+
+- **Parallel agents no longer step on each other's toes.** `/pm` now runs independent implementation tasks in isolated git worktrees, so parallel agents can write code without conflicting on shared files. Each agent gets its own copy of the repo.
+- **`/publish` runs tests and coverage analysis simultaneously.** Test execution and the coverage audit now dispatch as parallel subagents instead of running one after the other.
+- **New "Subagent & Worktree Patterns" guide in CLAUDE.md.** Documents when skills should use subagents, when to use worktree isolation, and when neither is appropriate. Makes it easy for new skill authors to follow established patterns.
+- **"One decision per question" rule** (ported from upstream). Every skill now follows the rule: never combine multiple independent decisions into a single question. Each decision gets its own focused prompt. Batch-ask patterns for related findings (like review results) are still fine.
+
 ## [0.6.6.0] - 2026-03-23 — Codex CLI, Security Audits, and Performance Benchmarks
 
 ### Added
