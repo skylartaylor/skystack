@@ -504,6 +504,45 @@ Minimum 0 per category.
 11. **Show screenshots to the user.** After every \`$B screenshot\`, \`$B snapshot -a -o\`, or \`$B responsive\` command, use the Read tool on the output file(s) so the user can see them inline. For \`responsive\` (3 files), Read all three. This is critical — without it, screenshots are invisible to the user.`;
 }
 
+function generateTasteMemory(): string {
+  return `## Taste Memory
+
+Load the user's persistent taste preferences for this project.
+
+\`\`\`bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+TASTE_FILE=~/.skystack/projects/$SLUG/taste.json
+[ -f "$TASTE_FILE" ] && cat "$TASTE_FILE" || echo "{}"
+\`\`\`
+
+**Interpreting the taste profile:**
+
+The JSON may contain these sections — use whichever are relevant to your skill:
+
+- **design** — \`aesthetic\` (approved visual keywords), \`rejected\` (vetoed styles), \`notes\`. Bias visual recommendations toward the approved aesthetic. Avoid rejected styles unless the user explicitly requests them.
+- **review** — \`severity_calibration\` (strict/moderate/lenient), \`focus_areas\` (prioritize these categories), \`deprioritized\` (lower severity for these), \`notes\`. Adjust finding severity and specialist dispatch accordingly.
+- **codex** — \`challenge_style\` (adversarial/balanced/gentle), \`review_depth\` (thorough/standard/quick), \`notes\`. Remember preferred modes and depth settings.
+- **voice** — \`preferred_tone\` (direct/conversational/formal), \`notes\`. Adjust communication style.
+
+If the JSON is not empty, tell the user: "Using your saved preferences for [relevant sections]."
+
+**Staleness check:** If the \`updated\` timestamp is present and older than 90 days, add: "Note: These preferences are from [date]. They may be stale — let me know if they still apply."
+
+**Updating taste after user choices:**
+
+When a user makes a choice that reveals a preference (approves a design direction, overrides a finding severity, picks a mode repeatedly), update taste.json:
+
+\`\`\`bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+TASTE_FILE=~/.skystack/projects/$SLUG/taste.json
+mkdir -p ~/.skystack/projects/$SLUG
+\`\`\`
+
+Read the existing file (or start from \`{}\`), merge the new preference into the relevant section, set \`updated\` to the current ISO 8601 timestamp, and write it back. Always tell the user: "Noted your preference for [X]. Future sessions will start from this baseline."
+
+---`;
+}
+
 function generateDesignReviewLite(): string {
   return `## Design Review (conditional, diff-scoped)
 
@@ -783,6 +822,69 @@ Print a one-line summary: "Stack: Flutter (iOS + Android), Dart, Material Design
 ---`;
 }
 
+// ─── Voice Directive ───────────────────────────────────────
+
+const VOICE_TIER_1_SKILLS = new Set([
+  'browse', 'setup-browser-cookies', 'skystack-upgrade', 'research', 'benchmark',
+]);
+
+const VOICE_TIER_2_SKILLS = new Set([
+  'pm', 'review', 'design', 'qa', 'publish', 'codex', 'retro',
+  'document-release', 'diagnose', 'security',
+]);
+
+function generateVoiceDirective(tier: 1 | 2): string {
+  if (tier === 1) {
+    return `## Voice
+
+Be direct. Short sentences. No filler. Say what happened, what to do next.
+No AI vocabulary (delve, crucial, robust, comprehensive, leverage, utilize).`;
+  }
+
+  return `## Voice
+
+Direct. Concrete. No ceremony.
+
+**Tone:** You're a sharp colleague who types fast. Incomplete sentences sometimes.
+"Wild." "Not great." Parentheticals. Say what you mean — don't pad it.
+
+**Banned AI vocabulary:** Never use these words — they're tells that an AI wrote this:
+delve, crucial, robust, comprehensive, nuanced, multifaceted, furthermore, moreover,
+additionally, pivotal, landscape, tapestry, underscore, foster, showcase, intricate,
+vibrant, fundamental, significant, interplay, utilize, leverage, facilitate, streamline
+
+**Banned filler phrases:**
+"here's the kicker", "here's the thing", "plot twist", "let me break this down",
+"the bottom line", "make no mistake", "can't stress this enough", "at the end of the day",
+"it's worth noting that", "it goes without saying"
+
+**Connect to user outcomes:** Every finding, recommendation, or status update must connect
+to what the real user will experience. Not "this function lacks error handling" but
+"if the API returns 500, the user sees a blank screen with no way to retry."
+
+**No trailing summaries.** Don't recap what you just did. The user can read the output.
+
+**Final test:** Before any output, ask yourself: would a senior engineer say this out loud
+to a colleague? If it sounds like a blog post, rewrite it.`;
+}
+
+function resolveVoiceGuide(tmplPath: string): string {
+  // Determine skill name from template path
+  const rel = path.relative(ROOT, tmplPath);
+  const dir = path.dirname(rel);
+  // Root SKILL.md.tmpl (skystack/browse) → tier 1
+  const skillName = dir === '.' ? 'skystack' : dir;
+
+  if (VOICE_TIER_1_SKILLS.has(skillName) || skillName === 'skystack') {
+    return generateVoiceDirective(1);
+  }
+  if (VOICE_TIER_2_SKILLS.has(skillName)) {
+    return generateVoiceDirective(2);
+  }
+  // Default to tier 2 for unknown skills
+  return generateVoiceDirective(2);
+}
+
 const RESOLVERS: Record<string, () => string> = {
   COMMAND_REFERENCE: generateCommandReference,
   SNAPSHOT_FLAGS: generateSnapshotFlags,
@@ -791,6 +893,7 @@ const RESOLVERS: Record<string, () => string> = {
   MOBILE_SETUP: generateMobileSetup,
   BASE_BRANCH_DETECT: generateBaseBranchDetect,
   QA_METHODOLOGY: generateQAMethodology,
+  TASTE_MEMORY: generateTasteMemory,
   DESIGN_REVIEW_LITE: generateDesignReviewLite,
   REVIEW_DASHBOARD: generateReviewDashboard,
   TEST_BOOTSTRAP: generateTestBootstrap,
@@ -808,6 +911,8 @@ function processTemplate(tmplPath: string): { outputPath: string; content: strin
 
   // Replace placeholders
   let content = tmplContent.replace(/\{\{(\w+)\}\}/g, (match, name) => {
+    // VOICE_GUIDE is context-aware (needs template path for tier selection)
+    if (name === 'VOICE_GUIDE') return resolveVoiceGuide(tmplPath);
     const resolver = RESOLVERS[name];
     if (!resolver) throw new Error(`Unknown placeholder {{${name}}} in ${relTmplPath}`);
     return resolver();

@@ -512,6 +512,20 @@ Shipped as `/design-consultation` on the design branch. Renamed from `/setup-des
 **Priority:** P3
 **Depends on:** None
 
+## Process
+
+### Harness simplification audit
+
+**What:** Periodically test whether skystack's multi-agent components are still
+necessary. Remove components that current models handle natively.
+
+**Why:** Complexity accumulates. Every subagent dispatch, review gate, and process
+step has overhead. If the model can do it in one pass, the extra machinery is waste.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None — run after each major model release
+
 ## Completed
 
 ### Phase 1: Foundations (v0.2.0)

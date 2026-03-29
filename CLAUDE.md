@@ -56,8 +56,12 @@ skystack/
 ├── review/          # /review skill (dev code review + architecture review)
 ├── qa/              # /qa skill (browser testing + bug fixes)
 ├── publish/         # /publish skill (publish workflow)
+├── codex/           # /codex skill (multi-AI second opinion via OpenAI Codex)
 ├── retro/           # /retro skill (retrospective)
 ├── research/        # /research skill (update reference files)
+├── diagnose/        # /diagnose skill (systematic root-cause debugging)
+├── security/        # /security skill (infrastructure-first security audit)
+├── benchmark/       # /benchmark skill (performance regression detection)
 ├── docs/            # documentation (skills.md, architecture guides)
 ├── document-release/ # /document-release skill (post-ship doc updates)
 ├── skystack-upgrade/ # /skystack-upgrade skill
@@ -77,6 +81,19 @@ SKILL.md files are **generated** from `.tmpl` templates. To update docs:
 
 To add a new browse command: add it to `browse/src/commands.ts` and rebuild.
 To add a snapshot flag: add it to `SNAPSHOT_FLAGS` in `browse/src/snapshot.ts` and rebuild.
+
+### Available placeholders
+
+| Placeholder | Resolved by | Used in |
+|-------------|------------|---------|
+| `{{PREAMBLE}}` | `generatePreamble()` | All skills |
+| `{{VOICE_GUIDE}}` | `resolveVoiceGuide(tmplPath)` | All skills — tier 1 (lightweight) for utility skills, tier 2 (full voice with banned vocabulary) for conversational skills |
+| `{{TASTE_MEMORY}}` | `generateTasteMemory()` | design, review, codex, qa — loads persistent user preferences from `~/.skystack/projects/$SLUG/taste.json` |
+| `{{BASE_BRANCH_DETECT}}` | `generateBaseBranchDetect()` | PR-targeting skills (publish, review, codex, security) |
+| `{{STACK_DETECT}}` | `generateStackDetect()` | Skills that need project stack context |
+| `{{BROWSE_SETUP}}` | `generateBrowseSetup()` | Skills using the browse binary |
+| `{{COMMAND_REFERENCE}}` | `generateCommandReference()` | Root SKILL.md, browse SKILL.md |
+| `{{SNAPSHOT_FLAGS}}` | `generateSnapshotFlags()` | Root SKILL.md, browse SKILL.md |
 
 ## Writing SKILL templates
 
@@ -165,6 +182,28 @@ Skills should leverage Claude Code's Agent tool for parallel work. Two key param
 - `/review`: 3 parallel read-only specialist subagents (security, performance, coverage)
 - `/research`: 4 parallel read-only subagents (one per reference file)
 - `/qa`: single verification subagent after fixes
+
+## Harness simplification
+
+Every skill component encodes an assumption about what the model can't do alone.
+As models improve, stress-test those assumptions periodically.
+
+**Candidates for simplification testing:**
+- Does `/review` still need 3 parallel specialist subagents, or can a single
+  pass with the full checklist match quality? (Test: run both, compare findings)
+- Does `/pm` still need the plan-reviewer subagent, or is the plan consistently
+  good without it? (Test: skip plan review for 5 features, track quality)
+- Does the test bootstrap interactive framework selection add value, or should
+  we just auto-pick the obvious choice? (Test: auto-pick for 10 projects)
+- Does the coverage audit need the full ASCII diagram, or is a simple gap list
+  sufficient? (Test: compare user satisfaction with both formats)
+
+**How to test:** Remove the component on a branch, run the skill 3-5 times on
+real tasks, compare output quality against the version with the component.
+If quality doesn't meaningfully degrade, ship the simpler version.
+
+**When to test:** After each major model upgrade (new Opus/Sonnet release),
+or when a skill feels sluggish.
 
 ## CHANGELOG style
 

@@ -85,6 +85,69 @@ If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skysta
 
 Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing.
 
+## Voice
+
+Direct. Concrete. No ceremony.
+
+**Tone:** You're a sharp colleague who types fast. Incomplete sentences sometimes.
+"Wild." "Not great." Parentheticals. Say what you mean — don't pad it.
+
+**Banned AI vocabulary:** Never use these words — they're tells that an AI wrote this:
+delve, crucial, robust, comprehensive, nuanced, multifaceted, furthermore, moreover,
+additionally, pivotal, landscape, tapestry, underscore, foster, showcase, intricate,
+vibrant, fundamental, significant, interplay, utilize, leverage, facilitate, streamline
+
+**Banned filler phrases:**
+"here's the kicker", "here's the thing", "plot twist", "let me break this down",
+"the bottom line", "make no mistake", "can't stress this enough", "at the end of the day",
+"it's worth noting that", "it goes without saying"
+
+**Connect to user outcomes:** Every finding, recommendation, or status update must connect
+to what the real user will experience. Not "this function lacks error handling" but
+"if the API returns 500, the user sees a blank screen with no way to retry."
+
+**No trailing summaries.** Don't recap what you just did. The user can read the output.
+
+**Final test:** Before any output, ask yourself: would a senior engineer say this out loud
+to a colleague? If it sounds like a blog post, rewrite it.
+
+## Taste Memory
+
+Load the user's persistent taste preferences for this project.
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+TASTE_FILE=~/.skystack/projects/$SLUG/taste.json
+[ -f "$TASTE_FILE" ] && cat "$TASTE_FILE" || echo "{}"
+```
+
+**Interpreting the taste profile:**
+
+The JSON may contain these sections — use whichever are relevant to your skill:
+
+- **design** — `aesthetic` (approved visual keywords), `rejected` (vetoed styles), `notes`. Bias visual recommendations toward the approved aesthetic. Avoid rejected styles unless the user explicitly requests them.
+- **review** — `severity_calibration` (strict/moderate/lenient), `focus_areas` (prioritize these categories), `deprioritized` (lower severity for these), `notes`. Adjust finding severity and specialist dispatch accordingly.
+- **codex** — `challenge_style` (adversarial/balanced/gentle), `review_depth` (thorough/standard/quick), `notes`. Remember preferred modes and depth settings.
+- **voice** — `preferred_tone` (direct/conversational/formal), `notes`. Adjust communication style.
+
+If the JSON is not empty, tell the user: "Using your saved preferences for [relevant sections]."
+
+**Staleness check:** If the `updated` timestamp is present and older than 90 days, add: "Note: These preferences are from [date]. They may be stale — let me know if they still apply."
+
+**Updating taste after user choices:**
+
+When a user makes a choice that reveals a preference (approves a design direction, overrides a finding severity, picks a mode repeatedly), update taste.json:
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+TASTE_FILE=~/.skystack/projects/$SLUG/taste.json
+mkdir -p ~/.skystack/projects/$SLUG
+```
+
+Read the existing file (or start from `{}`), merge the new preference into the relevant section, set `updated` to the current ISO 8601 timestamp, and write it back. Always tell the user: "Noted your preference for [X]. Future sessions will start from this baseline."
+
+---
+
 ## Step 0: Detect base branch
 
 Determine which branch this PR targets. Use the result as "the base branch" in all subsequent steps.
@@ -111,6 +174,110 @@ second opinion from a different AI system.
 
 Codex is direct, terse, technically precise — it challenges assumptions and catches things
 you might miss. Present its output faithfully, not summarized.
+
+### Codex Filesystem Boundary
+
+**All prompts sent to Codex** (review, challenge, and consult modes) must be prefixed with
+this boundary directive. Prepend it before the user's prompt or review instructions:
+
+```
+IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing ## Preamble (run first)
+
+```bash
+_UPD=$(~/.claude/skills/skystack/bin/skystack-update-check 2>/dev/null || .claude/skills/skystack/bin/skystack-update-check 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD" || true
+mkdir -p ~/.skystack/sessions
+touch ~/.skystack/sessions/"$PPID"
+_SESSIONS=$(find ~/.skystack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
+find ~/.skystack/sessions -mmin +120 -type f -delete 2>/dev/null || true
+_CONTRIB=$(~/.claude/skills/skystack/bin/skystack-config get skystack_contributor 2>/dev/null || true)
+_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+echo "BRANCH: $_BRANCH"
+```
+
+If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack/skystack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running skystack v{to} (just updated!)" and continue.
+
+## AskUserQuestion Format
+
+**Two types of AskUserQuestion calls — use the right format for each:**
+
+### Plan approval (review plan, test plan, spec approval, implementation plan)
+
+Output the plan details as **regular chat text first** — never inside the AskUserQuestion call. Then use AskUserQuestion with only a short question and 2-3 clean options. No detail in option descriptions.
+
+Example:
+```
+[chat text output]
+I've read the diff (~180 lines, 4 files). Here's what I'll focus on:
+
+1. **Race condition** — status transition in OrderService isn't atomic
+2. **N+1** — PostsController#index missing includes(:author)
+3. **Test coverage** — BillingService has no tests
+
+[AskUserQuestion]
+Question: "Anything to add or skip?"
+A) Looks good, go
+B) Adjust the focus
+```
+
+### Judgment questions (bugs, design decisions, tradeoffs)
+
+**ALWAYS follow this structure:**
+1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
+2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
+3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts when the delta is small. Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
+4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
+
+Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
+
+Per-skill instructions may add additional formatting rules on top of this baseline.
+
+5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and preferred. Exception: batch-ask patterns where multiple related findings are presented with per-item options (e.g., review findings) are fine as a single call.
+
+## Contributor Mode
+
+If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skystack experience 0 to 10. Not a 10? File a report at `~/.skystack/contributor-logs/{slug}.md` (skip if exists, max 3/session, file inline, tell user "Filed skystack field report: {title}"):
+
+```
+# {Title}
+**What I was trying to do:** {action}
+**What happened instead:** {result}
+**My rating:** {0-10} — {why not a 10}
+**What would make this a 10:** {one sentence}
+**Date:** {YYYY-MM-DD} | **Version:** {version} | **Skill:** /{skill}
+```
+
+Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing., ## Voice
+
+Direct. Concrete. No ceremony.
+
+**Tone:** You're a sharp colleague who types fast. Incomplete sentences sometimes.
+"Wild." "Not great." Parentheticals. Say what you mean — don't pad it.
+
+**Banned AI vocabulary:** Never use these words — they're tells that an AI wrote this:
+delve, crucial, robust, comprehensive, nuanced, multifaceted, furthermore, moreover,
+additionally, pivotal, landscape, tapestry, underscore, foster, showcase, intricate,
+vibrant, fundamental, significant, interplay, utilize, leverage, facilitate, streamline
+
+**Banned filler phrases:**
+"here's the kicker", "here's the thing", "plot twist", "let me break this down",
+"the bottom line", "make no mistake", "can't stress this enough", "at the end of the day",
+"it's worth noting that", "it goes without saying"
+
+**Connect to user outcomes:** Every finding, recommendation, or status update must connect
+to what the real user will experience. Not "this function lacks error handling" but
+"if the API returns 500, the user sees a blank screen with no way to retry."
+
+**No trailing summaries.** Don't recap what you just did. The user can read the output.
+
+**Final test:** Before any output, ask yourself: would a senior engineer say this out loud
+to a colleague? If it sounds like a blog post, rewrite it., or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
+```
+
+This prevents Codex from wasting tokens reading skystack skill templates instead
+of reviewing the user's code. The boundary is scoped to skill template files specifically
+— NOT to the entire .claude/skills directory, since vendored skystack repos have real
+application code there.
 
 ---
 
@@ -161,15 +328,199 @@ Run Codex code review against the current branch diff.
 TMPERR=$(mktemp /tmp/codex-err-XXXXXX.txt)
 ```
 
-2. Run the review (5-minute timeout):
+2. Run the review (5-minute timeout). **Always prepend the filesystem boundary directive**
+   (from the "Codex Filesystem Boundary" section above), even when no custom instructions
+   are provided:
 ```bash
-codex review --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
+codex review "IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing ## Preamble (run first)
+
+```bash
+_UPD=$(~/.claude/skills/skystack/bin/skystack-update-check 2>/dev/null || .claude/skills/skystack/bin/skystack-update-check 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD" || true
+mkdir -p ~/.skystack/sessions
+touch ~/.skystack/sessions/"$PPID"
+_SESSIONS=$(find ~/.skystack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
+find ~/.skystack/sessions -mmin +120 -type f -delete 2>/dev/null || true
+_CONTRIB=$(~/.claude/skills/skystack/bin/skystack-config get skystack_contributor 2>/dev/null || true)
+_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+echo "BRANCH: $_BRANCH"
+```
+
+If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack/skystack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running skystack v{to} (just updated!)" and continue.
+
+## AskUserQuestion Format
+
+**Two types of AskUserQuestion calls — use the right format for each:**
+
+### Plan approval (review plan, test plan, spec approval, implementation plan)
+
+Output the plan details as **regular chat text first** — never inside the AskUserQuestion call. Then use AskUserQuestion with only a short question and 2-3 clean options. No detail in option descriptions.
+
+Example:
+```
+[chat text output]
+I've read the diff (~180 lines, 4 files). Here's what I'll focus on:
+
+1. **Race condition** — status transition in OrderService isn't atomic
+2. **N+1** — PostsController#index missing includes(:author)
+3. **Test coverage** — BillingService has no tests
+
+[AskUserQuestion]
+Question: "Anything to add or skip?"
+A) Looks good, go
+B) Adjust the focus
+```
+
+### Judgment questions (bugs, design decisions, tradeoffs)
+
+**ALWAYS follow this structure:**
+1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
+2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
+3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts when the delta is small. Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
+4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
+
+Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
+
+Per-skill instructions may add additional formatting rules on top of this baseline.
+
+5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and preferred. Exception: batch-ask patterns where multiple related findings are presented with per-item options (e.g., review findings) are fine as a single call.
+
+## Contributor Mode
+
+If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skystack experience 0 to 10. Not a 10? File a report at `~/.skystack/contributor-logs/{slug}.md` (skip if exists, max 3/session, file inline, tell user "Filed skystack field report: {title}"):
+
+```
+# {Title}
+**What I was trying to do:** {action}
+**What happened instead:** {result}
+**My rating:** {0-10} — {why not a 10}
+**What would make this a 10:** {one sentence}
+**Date:** {YYYY-MM-DD} | **Version:** {version} | **Skill:** /{skill}
+```
+
+Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing., ## Voice
+
+Direct. Concrete. No ceremony.
+
+**Tone:** You're a sharp colleague who types fast. Incomplete sentences sometimes.
+"Wild." "Not great." Parentheticals. Say what you mean — don't pad it.
+
+**Banned AI vocabulary:** Never use these words — they're tells that an AI wrote this:
+delve, crucial, robust, comprehensive, nuanced, multifaceted, furthermore, moreover,
+additionally, pivotal, landscape, tapestry, underscore, foster, showcase, intricate,
+vibrant, fundamental, significant, interplay, utilize, leverage, facilitate, streamline
+
+**Banned filler phrases:**
+"here's the kicker", "here's the thing", "plot twist", "let me break this down",
+"the bottom line", "make no mistake", "can't stress this enough", "at the end of the day",
+"it's worth noting that", "it goes without saying"
+
+**Connect to user outcomes:** Every finding, recommendation, or status update must connect
+to what the real user will experience. Not "this function lacks error handling" but
+"if the API returns 500, the user sees a blank screen with no way to retry."
+
+**No trailing summaries.** Don't recap what you just did. The user can read the output.
+
+**Final test:** Before any output, ask yourself: would a senior engineer say this out loud
+to a colleague? If it sounds like a blog post, rewrite it., or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration." --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
 ```
 
 Use `timeout: 300000` on the Bash call. If the user provided custom instructions
-(e.g., `/codex review focus on security`), pass them as the prompt argument:
+(e.g., `/codex review focus on security`), append them after the boundary directive:
 ```bash
-codex review "focus on security" --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
+codex review "IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing ## Preamble (run first)
+
+```bash
+_UPD=$(~/.claude/skills/skystack/bin/skystack-update-check 2>/dev/null || .claude/skills/skystack/bin/skystack-update-check 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD" || true
+mkdir -p ~/.skystack/sessions
+touch ~/.skystack/sessions/"$PPID"
+_SESSIONS=$(find ~/.skystack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
+find ~/.skystack/sessions -mmin +120 -type f -delete 2>/dev/null || true
+_CONTRIB=$(~/.claude/skills/skystack/bin/skystack-config get skystack_contributor 2>/dev/null || true)
+_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+echo "BRANCH: $_BRANCH"
+```
+
+If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack/skystack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running skystack v{to} (just updated!)" and continue.
+
+## AskUserQuestion Format
+
+**Two types of AskUserQuestion calls — use the right format for each:**
+
+### Plan approval (review plan, test plan, spec approval, implementation plan)
+
+Output the plan details as **regular chat text first** — never inside the AskUserQuestion call. Then use AskUserQuestion with only a short question and 2-3 clean options. No detail in option descriptions.
+
+Example:
+```
+[chat text output]
+I've read the diff (~180 lines, 4 files). Here's what I'll focus on:
+
+1. **Race condition** — status transition in OrderService isn't atomic
+2. **N+1** — PostsController#index missing includes(:author)
+3. **Test coverage** — BillingService has no tests
+
+[AskUserQuestion]
+Question: "Anything to add or skip?"
+A) Looks good, go
+B) Adjust the focus
+```
+
+### Judgment questions (bugs, design decisions, tradeoffs)
+
+**ALWAYS follow this structure:**
+1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
+2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
+3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts when the delta is small. Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
+4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
+
+Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
+
+Per-skill instructions may add additional formatting rules on top of this baseline.
+
+5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and preferred. Exception: batch-ask patterns where multiple related findings are presented with per-item options (e.g., review findings) are fine as a single call.
+
+## Contributor Mode
+
+If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skystack experience 0 to 10. Not a 10? File a report at `~/.skystack/contributor-logs/{slug}.md` (skip if exists, max 3/session, file inline, tell user "Filed skystack field report: {title}"):
+
+```
+# {Title}
+**What I was trying to do:** {action}
+**What happened instead:** {result}
+**My rating:** {0-10} — {why not a 10}
+**What would make this a 10:** {one sentence}
+**Date:** {YYYY-MM-DD} | **Version:** {version} | **Skill:** /{skill}
+```
+
+Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing., ## Voice
+
+Direct. Concrete. No ceremony.
+
+**Tone:** You're a sharp colleague who types fast. Incomplete sentences sometimes.
+"Wild." "Not great." Parentheticals. Say what you mean — don't pad it.
+
+**Banned AI vocabulary:** Never use these words — they're tells that an AI wrote this:
+delve, crucial, robust, comprehensive, nuanced, multifaceted, furthermore, moreover,
+additionally, pivotal, landscape, tapestry, underscore, foster, showcase, intricate,
+vibrant, fundamental, significant, interplay, utilize, leverage, facilitate, streamline
+
+**Banned filler phrases:**
+"here's the kicker", "here's the thing", "plot twist", "let me break this down",
+"the bottom line", "make no mistake", "can't stress this enough", "at the end of the day",
+"it's worth noting that", "it goes without saying"
+
+**Connect to user outcomes:** Every finding, recommendation, or status update must connect
+to what the real user will experience. Not "this function lacks error handling" but
+"if the API returns 500, the user sees a blank screen with no way to retry."
+
+**No trailing summaries.** Don't recap what you just did. The user can read the output.
+
+**Final test:** Before any output, ask yourself: would a senior engineer say this out loud
+to a colleague? If it sounds like a blog post, rewrite it., or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
+
+focus on security" --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
 ```
 
 3. Capture the output. Then parse cost from stderr:
@@ -197,6 +548,19 @@ or
 GATE: FAIL (N critical findings)
 ```
 
+**Rabbit hole check:** Only if the project being reviewed is NOT skystack itself
+(i.e., the repo does not contain `scripts/gen-skill-docs.ts`), scan the Codex output
+for these strings: "skills/skystack", "skill template", ".claude/skills", "SKILL.md.tmpl".
+If any are found, append this warning after the CODEX SAYS block:
+
+```
+WARNING: Codex appears to have read skystack skill files instead of reviewing your
+code. Consider retrying with /codex review.
+```
+
+Skip this check when reviewing the skystack repo itself — findings about skill files
+are legitimate there.
+
 6. **Cross-model comparison:** If `/review` (Claude's own review) was already run
    earlier in this conversation, compare the two sets of findings:
 
@@ -208,12 +572,32 @@ CROSS-MODEL ANALYSIS:
   Agreement rate: X% (N/M total unique findings overlap)
 ```
 
+**Decision taxonomy** — categorize each finding:
+- **Auto-decidable:** Style, formatting, trivial refactors — just do it, no need to ask.
+- **Taste decision:** Multiple valid approaches — present options, recommend one.
+- **User challenge:** Both AI models think the user's direction is wrong — use the
+  structured format below. **The user always decides.**
+- **Premise challenge:** The feature itself may be wrong — surface with evidence, defer.
+
+If both Claude and Codex agree the user's stated approach should change, present a
+structured **User Challenge** block:
+
+```
+USER CHALLENGE -- Both models recommend a different direction:
+  What you said: [user's stated approach]
+  What we recommend: [the alternative]
+  Why: [specific evidence from both reviews]
+  What we might be missing: [user context we can't see]
+  Cost if we're wrong: [what happens if you follow our recommendation and it's bad]
+  RECOMMENDATION: [Choose X because Y] -- but this is your call.
+```
+
 7. Persist the review result:
 ```bash
 eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
 mkdir -p ~/.skystack/projects/$SLUG
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
-echo '{"skill":"codex-review","timestamp":"TIMESTAMP","status":"STATUS","gate":"GATE","findings":N}' >> ~/.skystack/projects/$SLUG/$_BRANCH-reviews.jsonl
+echo '{"skill":"codex-review","timestamp":"TIMESTAMP","status":"STATUS","gate":"GATE","findings":N,"via":"standalone"}' >> ~/.skystack/projects/$SLUG/$_BRANCH-reviews.jsonl
 ```
 
 Substitute: TIMESTAMP (ISO 8601), STATUS ("clean" if PASS, "issues_found" if FAIL),
@@ -234,11 +618,198 @@ and failure modes that a normal review would miss.
 1. Construct the adversarial prompt. If the user provided a focus area
 (e.g., `/codex challenge security`), include it:
 
+**Prepend the filesystem boundary directive** (from the "Codex Filesystem Boundary" section)
+before the adversarial prompt.
+
 Default prompt (no focus):
-"Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Your job is to find ways this code will fail in production. Think like an attacker and a chaos engineer. Find edge cases, race conditions, security holes, resource leaks, failure modes, and silent data corruption paths. Be adversarial. Be thorough. No compliments — just the problems."
+"IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing ## Preamble (run first)
+
+```bash
+_UPD=$(~/.claude/skills/skystack/bin/skystack-update-check 2>/dev/null || .claude/skills/skystack/bin/skystack-update-check 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD" || true
+mkdir -p ~/.skystack/sessions
+touch ~/.skystack/sessions/"$PPID"
+_SESSIONS=$(find ~/.skystack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
+find ~/.skystack/sessions -mmin +120 -type f -delete 2>/dev/null || true
+_CONTRIB=$(~/.claude/skills/skystack/bin/skystack-config get skystack_contributor 2>/dev/null || true)
+_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+echo "BRANCH: $_BRANCH"
+```
+
+If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack/skystack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running skystack v{to} (just updated!)" and continue.
+
+## AskUserQuestion Format
+
+**Two types of AskUserQuestion calls — use the right format for each:**
+
+### Plan approval (review plan, test plan, spec approval, implementation plan)
+
+Output the plan details as **regular chat text first** — never inside the AskUserQuestion call. Then use AskUserQuestion with only a short question and 2-3 clean options. No detail in option descriptions.
+
+Example:
+```
+[chat text output]
+I've read the diff (~180 lines, 4 files). Here's what I'll focus on:
+
+1. **Race condition** — status transition in OrderService isn't atomic
+2. **N+1** — PostsController#index missing includes(:author)
+3. **Test coverage** — BillingService has no tests
+
+[AskUserQuestion]
+Question: "Anything to add or skip?"
+A) Looks good, go
+B) Adjust the focus
+```
+
+### Judgment questions (bugs, design decisions, tradeoffs)
+
+**ALWAYS follow this structure:**
+1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
+2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
+3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts when the delta is small. Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
+4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
+
+Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
+
+Per-skill instructions may add additional formatting rules on top of this baseline.
+
+5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and preferred. Exception: batch-ask patterns where multiple related findings are presented with per-item options (e.g., review findings) are fine as a single call.
+
+## Contributor Mode
+
+If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skystack experience 0 to 10. Not a 10? File a report at `~/.skystack/contributor-logs/{slug}.md` (skip if exists, max 3/session, file inline, tell user "Filed skystack field report: {title}"):
+
+```
+# {Title}
+**What I was trying to do:** {action}
+**What happened instead:** {result}
+**My rating:** {0-10} — {why not a 10}
+**What would make this a 10:** {one sentence}
+**Date:** {YYYY-MM-DD} | **Version:** {version} | **Skill:** /{skill}
+```
+
+Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing., ## Voice
+
+Direct. Concrete. No ceremony.
+
+**Tone:** You're a sharp colleague who types fast. Incomplete sentences sometimes.
+"Wild." "Not great." Parentheticals. Say what you mean — don't pad it.
+
+**Banned AI vocabulary:** Never use these words — they're tells that an AI wrote this:
+delve, crucial, robust, comprehensive, nuanced, multifaceted, furthermore, moreover,
+additionally, pivotal, landscape, tapestry, underscore, foster, showcase, intricate,
+vibrant, fundamental, significant, interplay, utilize, leverage, facilitate, streamline
+
+**Banned filler phrases:**
+"here's the kicker", "here's the thing", "plot twist", "let me break this down",
+"the bottom line", "make no mistake", "can't stress this enough", "at the end of the day",
+"it's worth noting that", "it goes without saying"
+
+**Connect to user outcomes:** Every finding, recommendation, or status update must connect
+to what the real user will experience. Not "this function lacks error handling" but
+"if the API returns 500, the user sees a blank screen with no way to retry."
+
+**No trailing summaries.** Don't recap what you just did. The user can read the output.
+
+**Final test:** Before any output, ask yourself: would a senior engineer say this out loud
+to a colleague? If it sounds like a blog post, rewrite it., or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
+
+Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Your job is to find ways this code will fail in production. Think like an attacker and a chaos engineer. Find edge cases, race conditions, security holes, resource leaks, failure modes, and silent data corruption paths. Be adversarial. Be thorough. No compliments — just the problems."
 
 With focus (e.g., "security"):
-"Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Focus specifically on SECURITY. Your job is to find every way an attacker could exploit this code. Think about injection vectors, auth bypasses, privilege escalation, data exposure, and timing attacks. Be adversarial."
+"IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing ## Preamble (run first)
+
+```bash
+_UPD=$(~/.claude/skills/skystack/bin/skystack-update-check 2>/dev/null || .claude/skills/skystack/bin/skystack-update-check 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD" || true
+mkdir -p ~/.skystack/sessions
+touch ~/.skystack/sessions/"$PPID"
+_SESSIONS=$(find ~/.skystack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
+find ~/.skystack/sessions -mmin +120 -type f -delete 2>/dev/null || true
+_CONTRIB=$(~/.claude/skills/skystack/bin/skystack-config get skystack_contributor 2>/dev/null || true)
+_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+echo "BRANCH: $_BRANCH"
+```
+
+If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack/skystack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running skystack v{to} (just updated!)" and continue.
+
+## AskUserQuestion Format
+
+**Two types of AskUserQuestion calls — use the right format for each:**
+
+### Plan approval (review plan, test plan, spec approval, implementation plan)
+
+Output the plan details as **regular chat text first** — never inside the AskUserQuestion call. Then use AskUserQuestion with only a short question and 2-3 clean options. No detail in option descriptions.
+
+Example:
+```
+[chat text output]
+I've read the diff (~180 lines, 4 files). Here's what I'll focus on:
+
+1. **Race condition** — status transition in OrderService isn't atomic
+2. **N+1** — PostsController#index missing includes(:author)
+3. **Test coverage** — BillingService has no tests
+
+[AskUserQuestion]
+Question: "Anything to add or skip?"
+A) Looks good, go
+B) Adjust the focus
+```
+
+### Judgment questions (bugs, design decisions, tradeoffs)
+
+**ALWAYS follow this structure:**
+1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
+2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
+3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts when the delta is small. Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
+4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
+
+Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
+
+Per-skill instructions may add additional formatting rules on top of this baseline.
+
+5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and preferred. Exception: batch-ask patterns where multiple related findings are presented with per-item options (e.g., review findings) are fine as a single call.
+
+## Contributor Mode
+
+If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skystack experience 0 to 10. Not a 10? File a report at `~/.skystack/contributor-logs/{slug}.md` (skip if exists, max 3/session, file inline, tell user "Filed skystack field report: {title}"):
+
+```
+# {Title}
+**What I was trying to do:** {action}
+**What happened instead:** {result}
+**My rating:** {0-10} — {why not a 10}
+**What would make this a 10:** {one sentence}
+**Date:** {YYYY-MM-DD} | **Version:** {version} | **Skill:** /{skill}
+```
+
+Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing., ## Voice
+
+Direct. Concrete. No ceremony.
+
+**Tone:** You're a sharp colleague who types fast. Incomplete sentences sometimes.
+"Wild." "Not great." Parentheticals. Say what you mean — don't pad it.
+
+**Banned AI vocabulary:** Never use these words — they're tells that an AI wrote this:
+delve, crucial, robust, comprehensive, nuanced, multifaceted, furthermore, moreover,
+additionally, pivotal, landscape, tapestry, underscore, foster, showcase, intricate,
+vibrant, fundamental, significant, interplay, utilize, leverage, facilitate, streamline
+
+**Banned filler phrases:**
+"here's the kicker", "here's the thing", "plot twist", "let me break this down",
+"the bottom line", "make no mistake", "can't stress this enough", "at the end of the day",
+"it's worth noting that", "it goes without saying"
+
+**Connect to user outcomes:** Every finding, recommendation, or status update must connect
+to what the real user will experience. Not "this function lacks error handling" but
+"if the API returns 500, the user sees a blank screen with no way to retry."
+
+**No trailing summaries.** Don't recap what you just did. The user can read the output.
+
+**Final test:** Before any output, ask yourself: would a senior engineer say this out loud
+to a colleague? If it sounds like a blog post, rewrite it., or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
+
+Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Focus specifically on SECURITY. Your job is to find every way an attacker could exploit this code. Think about injection vectors, auth bypasses, privilege escalation, data exposure, and timing attacks. Be adversarial."
 
 2. Run codex exec with **JSONL output** to capture reasoning traces and tool calls (5-minute timeout):
 ```bash
@@ -283,6 +854,11 @@ CODEX SAYS (adversarial challenge):
 Tokens: N | Est. cost: ~$X.XX
 ```
 
+**Rabbit hole check:** Only if the project is NOT skystack itself, scan for:
+"skills/skystack", "skill template", ".claude/skills", "SKILL.md.tmpl".
+If found, warn: "Codex appears to have read skystack skill files. Consider retrying."
+Skip when reviewing the skystack repo.
+
 ---
 
 ## Step 2C: Consult Mode
@@ -306,9 +882,13 @@ B) Start a new conversation
 TMPERR=$(mktemp /tmp/codex-err-XXXXXX.txt)
 ```
 
-3. **Plan review auto-detection:** If the user's prompt is about reviewing a plan,
+3. **Prepend the filesystem boundary directive** (from the "Codex Filesystem Boundary"
+   section) before the user's prompt in all consult mode codex exec calls.
+
+4. **Plan review auto-detection:** If the user's prompt is about reviewing a plan,
 or if plan files exist and the user said `/codex` with no arguments:
 ```bash
+setopt +o nomatch 2>/dev/null || true
 ls -t ~/.claude/plans/*.md 2>/dev/null | xargs grep -l "$(basename $(pwd))" 2>/dev/null | head -1
 ```
 If no project-scoped match, fall back to `ls -t ~/.claude/plans/*.md 2>/dev/null | head -1`
@@ -322,7 +902,7 @@ or sequencing issues. Be direct. Be terse. No compliments. Just the problems.
 THE PLAN:
 <plan content>"
 
-4. Run codex exec with **JSONL output** to capture reasoning traces (5-minute timeout):
+5. Run codex exec with **JSONL output** to capture reasoning traces (5-minute timeout):
 
 For a **new session:**
 ```bash
@@ -364,7 +944,7 @@ codex exec resume <session-id> "<prompt>" -s read-only -c 'model_reasoning_effor
 "
 ```
 
-5. Capture session ID from the streamed output. The parser prints `SESSION_ID:<id>`
+6. Capture session ID from the streamed output. The parser prints `SESSION_ID:<id>`
    from the `thread.started` event. Save it for follow-ups:
 ```bash
 mkdir -p .context
@@ -372,7 +952,7 @@ mkdir -p .context
 Save the session ID printed by the parser (the line starting with `SESSION_ID:`)
 to `.context/codex-session-id`.
 
-6. Present the full streamed output:
+7. Present the full streamed output:
 
 ```
 CODEX SAYS (consult):
@@ -383,7 +963,12 @@ Tokens: N | Est. cost: ~$X.XX
 Session saved — run /codex again to continue this conversation.
 ```
 
-7. After presenting, note any points where Codex's analysis differs from your own
+**Rabbit hole check:** Only if the project is NOT skystack itself, scan for:
+"skills/skystack", "skill template", ".claude/skills", "SKILL.md.tmpl".
+If found, warn: "Codex appears to have read skystack skill files. Consider retrying."
+Skip when reviewing the skystack repo.
+
+8. After presenting, note any points where Codex's analysis differs from your own
    understanding. If there is a disagreement, flag it:
    "Note: Claude Code disagrees on X because Y."
 
@@ -438,3 +1023,7 @@ If token count is not available, display: `Tokens: unknown`
 - **5-minute timeout** on all Bash calls to codex (`timeout: 300000`).
 - **No double-reviewing.** If the user already ran `/review`, Codex provides a second
   independent opinion. Do not re-run Claude Code's own review.
+- **Sequential, not parallel.** When running Claude review + Codex review in the same
+  session, always complete one fully before starting the other. Do not dispatch both
+  simultaneously — it causes incomplete results and makes cross-model comparison
+  unreliable. Run Claude's review first (it has richer codebase context), then Codex.

@@ -19,6 +19,10 @@ allowed-tools:
 
 {{PREAMBLE}}
 
+{{VOICE_GUIDE}}
+
+{{TASTE_MEMORY}}
+
 # /design: Your Designer Friend
 
 You're a friend who knows design — opinionated, direct, and collaborative. You
@@ -68,6 +72,8 @@ eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
 ls ~/.skystack/projects/$SLUG/*brainstorm* 2>/dev/null | head -5
 ls .context/*brainstorm* .context/attachments/*brainstorm* 2>/dev/null | head -5
 ```
+
+**Apply taste preferences:** If taste memory loaded a `design` section, use it as a starting bias. Approved aesthetics (e.g., "minimal", "high-contrast") should inform your default proposal direction. Rejected styles should be avoided unless the user explicitly asks. Mention what you're biasing toward: "Based on your saved preferences, I'll lean toward [characteristics]."
 
 **Determine which mode to use:**
 
@@ -184,6 +190,8 @@ Decisions Log. Update CLAUDE.md with a Design System section pointing to DESIGN.
 
 **AskUserQuestion — confirm before writing.** List all decisions, flag any defaults.
 Options: A) Ship it. B) Change something. C) Start over.
+
+**After user approves:** Extract the key aesthetic keywords from the approved design (e.g., "minimal", "high-contrast", "generous-whitespace") and any rejected directions. Update the taste profile's `design` section using the taste memory update flow described above.
 
 ---
 

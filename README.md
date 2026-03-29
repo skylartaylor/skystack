@@ -22,11 +22,11 @@ skystack strips out the founder-tech-bro framing from gstack and makes it work f
 
 Open Claude Code and paste this. Claude does the rest.
 
-> Install skystack: run **`git clone https://github.com/skylartaylor/skystack.git ~/.claude/skills/skystack && cd ~/.claude/skills/skystack && ./setup`** then add a "skystack" section to CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp__claude-in-chrome__* tools, and lists the available skills: /pm, /design, /review, /qa, /diagnose, /docs, /research, /publish, /browse, /setup-browser-cookies, /retro. Then ask the user if they also want to add skystack to the current project so teammates get it.
+> Install skystack: run **`git clone https://github.com/skylartaylor/skystack.git ~/.claude/skills/skystack && cd ~/.claude/skills/skystack && ./setup`** then add a "skystack" section to CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp__claude-in-chrome__* tools, and lists the available skills: /pm, /design, /review, /qa, /diagnose, /docs, /research, /publish, /browse, /setup-browser-cookies, /retro, /codex, /security, /benchmark. Then ask the user if they also want to add skystack to the current project so teammates get it.
 
 ### step 2: add to your repo for collaborators (optional)
 
-> Add skystack to this project: run **`cp -Rf ~/.claude/skills/skystack .claude/skills/skystack && rm -rf .claude/skills/skystack/.git && cd .claude/skills/skystack && ./setup`** then add a "skystack" section to this project's CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp__claude-in-chrome__* tools, lists the available skills: /pm, /design, /review, /qa, /diagnose, /docs, /research, /publish, /browse, /setup-browser-cookies, /retro, and tells Claude that if skystack skills aren't working, run `cd .claude/skills/skystack && ./setup` to build the binary and register skills.
+> Add skystack to this project: run **`cp -Rf ~/.claude/skills/skystack .claude/skills/skystack && rm -rf .claude/skills/skystack/.git && cd .claude/skills/skystack && ./setup`** then add a "skystack" section to this project's CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp__claude-in-chrome__* tools, lists the available skills: /pm, /design, /review, /qa, /diagnose, /docs, /research, /publish, /browse, /setup-browser-cookies, /retro, /codex, /security, /benchmark, and tells Claude that if skystack skills aren't working, run `cd .claude/skills/skystack && ./setup` to build the binary and register skills.
 
 Real files get committed to your repo, not a submodule, so `git clone` just works. Everything lives inside `.claude/`. Nothing touches your PATH or runs in the background.
 
@@ -45,9 +45,11 @@ tools:
 
 | Skill | What it does |
 |-------|-------------|
+| `/codex` | Get a second opinion from OpenAI's Codex CLI. Code review, adversarial challenge, or open-ended consult. |
+| `/security` | Infrastructure-first security audit. Secrets archaeology, supply chain, CI/CD, OWASP, STRIDE. |
 | `/docs` | Writes new docs, updates existing ones after shipping, audits for staleness. |
 | `/research` | Searches developer docs and forums, updates reference files for your stack. |
-| `/publish` | Sync main, run tests, push, open PR. One command. |
+| `/publish` | Sync main, run tests, audit coverage, bump version, push, open PR. One command. |
 | `/browse` | Give the agent a real browser. Chromium, real clicks, real screenshots. ~100ms per command. |
 | `/setup-browser-cookies` | Import cookies from your browser into the headless session for authenticated testing. |
 | `/retro` | Weekly retro. Shipping streaks, test health trends. |

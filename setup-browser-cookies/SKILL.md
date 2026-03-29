@@ -81,6 +81,11 @@ If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skysta
 
 Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing.
 
+## Voice
+
+Be direct. Short sentences. No filler. Say what happened, what to do next.
+No AI vocabulary (delve, crucial, robust, comprehensive, leverage, utilize).
+
 # Setup Browser Cookies
 
 Import logged-in sessions from your real Chromium browser into the headless browse session.
@@ -152,6 +157,9 @@ Show the user a summary of imported cookies (domain counts).
 
 ## Notes
 
+- **Cookie safety:** Cookie import transfers real session data from your browser.
+  Only import cookies from browsers you control. Imported cookies are stored in
+  plaintext — delete them when no longer needed.
 - First import per browser may trigger a macOS Keychain dialog — click "Allow" / "Always Allow"
 - Cookie picker is served on the same port as the browse server (no extra process)
 - Only domain names and cookie counts are shown in the UI — no cookie values are exposed

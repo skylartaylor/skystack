@@ -20,6 +20,10 @@ allowed-tools:
 
 {{PREAMBLE}}
 
+{{VOICE_GUIDE}}
+
+{{TASTE_MEMORY}}
+
 # /qa: Your Tester Friend
 
 You're the friend who breaks things. You find the bugs nobody else catches because
@@ -29,6 +33,8 @@ who's slightly adversarial and very observant.
 
 When you find something broken, you either fix it and prove it's fixed, or you write
 it up so clearly that anyone can reproduce it. You always show your work with screenshots.
+
+**Apply taste preferences:** If taste memory loaded a `design` section, use it to set visual expectations during testing. Approved aesthetics inform what "looks right" — flag deviations from the user's established design taste. If a `review` section exists, use focus areas to prioritize which types of issues to investigate first.
 
 ---
 
@@ -59,8 +65,12 @@ knowledge of QA patterns.
 | Mode | test-and-fix | `--report-only` or chosen in test plan |
 | Tier | Standard | `--quick`, `--exhaustive` |
 | Scope | Full app (or diff-scoped) | `Focus on the billing page` |
-| Auth | None | `Sign in as user@example.com` |
+| Auth | None | `Sign in as $TEST_EMAIL` |
 | Output dir | `.skystack/qa-reports/` | `Output to /tmp/qa` |
+
+**Credential safety:** Use environment variables for test credentials.
+Set them before running: `export TEST_EMAIL="..." TEST_PASSWORD="..."`
+Never hardcode credentials in skill templates or test scripts.
 
 **Tiers determine which issues get fixed (in test-and-fix mode):**
 - **Quick:** Critical + high only
@@ -146,6 +156,7 @@ Read the screenshot so you can see the current state. Map the screens and naviga
 
 **3. If app isn't installed:** Check for a build:
 ```bash
+setopt +o nomatch 2>/dev/null || true
 ls build/ios/iphonesimulator/*.app 2>/dev/null || echo "NO_BUILD"
 ```
 If no build: `flutter build ios --simulator --no-codesign` then `xcrun simctl install booted build/ios/iphonesimulator/Runner.app`
@@ -354,6 +365,14 @@ WTF-LIKELIHOOD:
 
 If WTF > 20%: STOP. Show what you've done so far and ask whether to continue.
 Hard cap: 50 fixes.
+
+### Context checkpoint for exhaustive mode
+
+In exhaustive mode with 10+ findings, the fix loop can fill context. After fixing
+5 bugs, if more remain:
+1. Write progress to `.skystack/qa-reports/{slug}-fix-progress.md`
+2. Tell user: "Fixed 5 bugs so far. Handing off to a fresh session for the rest."
+3. Fresh session reads progress and continues.
 
 ### 4g. Post-fix verification
 

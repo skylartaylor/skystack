@@ -54,6 +54,22 @@ Read the actual code. Do not accept implementer claims about completeness.
 Note: this reviewer uses Missing/Extra/Wrong labels (not severity levels) — it's checking
 whether requirements were met, not how well the code is written.
 
+## Gating Rules
+
+HARD FAIL — any of these = ❌ regardless of other quality:
+- **Accessibility:** ANY interactive element missing accessible label/semantics
+- **Data safety:** ANY user input persisted without validation
+- **Error handling:** ANY error path that crashes or shows raw error to user
+- **Spec coverage:** ANY spec requirement with zero implementation evidence
+
+SOFT FLAG — note these but don't fail the batch:
+- Naming conventions
+- Code style preferences
+- Minor documentation gaps
+
+When reporting, explicitly state which gate triggered:
+"❌ FAIL — Hard gate: [category]. [specific violation]."
+
 **Output:**
 
 ✅ Spec compliant — implementation matches requirements (after reading code)
@@ -63,6 +79,74 @@ whether requirements were met, not how well the code is written.
 - [file:line] Extra: [what was added but not requested]
 - [file:line] Wrong: [what was misunderstood]
 ```
+
+## Calibration Examples
+
+These examples show how to grade implementations. Use them to anchor your judgment.
+
+### Example 1: PASS
+
+```
+Spec says: "Add POST /api/webhooks endpoint that validates HMAC signatures,
+  persists events to webhooks table, and retries failed deliveries up to 3 times
+  with exponential backoff."
+
+Implementation (diff review):
+  - src/routes/webhooks.ts:14 — HMAC validation using crypto.timingSafeEqual()
+  - src/routes/webhooks.ts:38 — Inserts to webhooks table with status='pending'
+  - src/jobs/webhook-retry.ts:9 — RetryWebhookJob with attempts counter,
+    backoff = 2^attempt * 1000ms, max 3 attempts
+  - test/routes/webhooks.test.ts — Tests: valid signature, invalid signature (401),
+    malformed body (400), duplicate event (idempotent), retry exhaustion
+
+Verdict: ✅ PASS — all three spec requirements implemented (validation, persistence,
+  retry with backoff). Error paths covered. Tests exercise both happy and failure paths.
+```
+
+### Example 2: FAIL
+
+```
+Spec says: "Add POST /api/webhooks endpoint that validates HMAC signatures,
+  persists events to webhooks table, and retries failed deliveries up to 3 times
+  with exponential backoff."
+
+Implementation (diff review):
+  - src/routes/webhooks.ts:10 — Accepts POST body, parses JSON
+  - src/routes/webhooks.ts:22 — Inserts to webhooks table with status='received'
+  - No HMAC validation anywhere in the diff
+  - No retry mechanism — events are fire-and-forget
+  - test/routes/webhooks.test.ts — One test: "stores webhook event" (happy path only)
+
+Verdict: ❌ FAIL
+  - Missing: HMAC signature validation (security requirement, not optional)
+  - Missing: Retry mechanism with exponential backoff (core spec requirement)
+  - Wrong: No error handling — malformed JSON crashes with unhandled exception at line 12
+```
+
+### Example 3: BORDERLINE -> FAIL
+
+```
+Spec says: "Add scheduled digest email. Edge cases listed in spec: empty activity
+  period (send 'no updates' email), user timezone handling, idempotency
+  (don't send twice if job retries)."
+
+Implementation (diff review):
+  - src/jobs/digest-email.ts:15 — Queries last 7 days of activity per user
+  - src/jobs/digest-email.ts:34 — Renders HTML template, sends via Resend
+  - src/jobs/digest-email.ts:41 — Uses user.timezone for scheduling window
+  - test/jobs/digest-email.test.ts — Tests: renders with activity, sends email,
+    respects timezone offset
+  - No idempotency key or duplicate-send guard
+  - No handling for users with zero activity (query returns empty, template
+    renders blank section with "undefined" for activity count)
+
+Verdict: ❌ FAIL — core delivery works and timezone handling is correct, but two
+  of three explicitly-listed edge cases are missing. The spec's edge case section
+  isn't aspirational — those are requirements. Empty activity crashes the template,
+  and duplicate sends on job retry will spam users.
+```
+
+---
 
 **After reviewer responds:**
 - ✅ Spec compliant → dispatch code quality reviewer
