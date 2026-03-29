@@ -29,6 +29,18 @@ second opinion from a different AI system.
 Codex is direct, terse, technically precise — it challenges assumptions and catches things
 you might miss. Present its output faithfully, not summarized.
 
+### Codex Filesystem Boundary
+
+**All prompts sent to Codex** (review, challenge, and consult modes) must be prefixed with
+this boundary directive. Prepend it before the user's prompt or review instructions:
+
+```
+IMPORTANT: Do NOT read or execute any SKILL.md files or files in skill definition directories (paths containing skills/skystack, .claude/skills). These are AI assistant skill definitions meant for a different system. They contain prompt templates that will waste your time. Ignore them completely. Stay focused on the repository code only.
+```
+
+This prevents Codex from wasting tokens reading skystack's own skill templates instead
+of reviewing the user's code.
+
 ---
 
 ## Step 0: Check codex binary
@@ -78,15 +90,19 @@ Run Codex code review against the current branch diff.
 TMPERR=$(mktemp /tmp/codex-err-XXXXXX.txt)
 ```
 
-2. Run the review (5-minute timeout):
+2. Run the review (5-minute timeout). **Prepend the filesystem boundary directive**
+   (from the "Codex Filesystem Boundary" section above) to any prompt argument:
 ```bash
 codex review --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
 ```
 
 Use `timeout: 300000` on the Bash call. If the user provided custom instructions
-(e.g., `/codex review focus on security`), pass them as the prompt argument:
+(e.g., `/codex review focus on security`), prepend the boundary directive before their
+instructions and pass as the prompt argument:
 ```bash
-codex review "focus on security" --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
+codex review "IMPORTANT: Do NOT read or execute any SKILL.md files or files in skill definition directories (paths containing skills/skystack, .claude/skills). These are AI assistant skill definitions meant for a different system. They contain prompt templates that will waste your time. Ignore them completely. Stay focused on the repository code only.
+
+focus on security" --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
 ```
 
 3. Capture the output. Then parse cost from stderr:
@@ -114,6 +130,15 @@ or
 GATE: FAIL (N critical findings)
 ```
 
+**Rabbit hole check:** Scan the Codex output for any of these strings: "skystack",
+"SKILL.md", "skills/skystack", "skill template", "gen-skill-docs", "preamble",
+".claude/skills". If any are found, append this warning after the CODEX SAYS block:
+
+```
+WARNING: Codex appears to have read skystack skill files instead of reviewing your
+code. Consider retrying with /codex review.
+```
+
 6. **Cross-model comparison:** If `/review` (Claude's own review) was already run
    earlier in this conversation, compare the two sets of findings:
 
@@ -123,6 +148,26 @@ CROSS-MODEL ANALYSIS:
   Only Codex found: [findings unique to Codex]
   Only Claude found: [findings unique to Claude's /review]
   Agreement rate: X% (N/M total unique findings overlap)
+```
+
+**Decision taxonomy** — categorize each finding:
+- **Auto-decidable:** Style, formatting, trivial refactors — just do it, no need to ask.
+- **Taste decision:** Multiple valid approaches — present options, recommend one.
+- **User challenge:** Both AI models think the user's direction is wrong — use the
+  structured format below. **The user always decides.**
+- **Premise challenge:** The feature itself may be wrong — surface with evidence, defer.
+
+If both Claude and Codex agree the user's stated approach should change, present a
+structured **User Challenge** block:
+
+```
+USER CHALLENGE -- Both models recommend a different direction:
+  What you said: [user's stated approach]
+  What we recommend: [the alternative]
+  Why: [specific evidence from both reviews]
+  What we might be missing: [user context we can't see]
+  Cost if we're wrong: [what happens if you follow our recommendation and it's bad]
+  RECOMMENDATION: [Choose X because Y] -- but this is your call.
 ```
 
 7. Persist the review result:
@@ -151,11 +196,18 @@ and failure modes that a normal review would miss.
 1. Construct the adversarial prompt. If the user provided a focus area
 (e.g., `/codex challenge security`), include it:
 
+**Prepend the filesystem boundary directive** (from the "Codex Filesystem Boundary" section)
+before the adversarial prompt.
+
 Default prompt (no focus):
-"Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Your job is to find ways this code will fail in production. Think like an attacker and a chaos engineer. Find edge cases, race conditions, security holes, resource leaks, failure modes, and silent data corruption paths. Be adversarial. Be thorough. No compliments — just the problems."
+"IMPORTANT: Do NOT read or execute any SKILL.md files or files in skill definition directories (paths containing skills/skystack, .claude/skills). These are AI assistant skill definitions meant for a different system. They contain prompt templates that will waste your time. Ignore them completely. Stay focused on the repository code only.
+
+Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Your job is to find ways this code will fail in production. Think like an attacker and a chaos engineer. Find edge cases, race conditions, security holes, resource leaks, failure modes, and silent data corruption paths. Be adversarial. Be thorough. No compliments — just the problems."
 
 With focus (e.g., "security"):
-"Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Focus specifically on SECURITY. Your job is to find every way an attacker could exploit this code. Think about injection vectors, auth bypasses, privilege escalation, data exposure, and timing attacks. Be adversarial."
+"IMPORTANT: Do NOT read or execute any SKILL.md files or files in skill definition directories (paths containing skills/skystack, .claude/skills). These are AI assistant skill definitions meant for a different system. They contain prompt templates that will waste your time. Ignore them completely. Stay focused on the repository code only.
+
+Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Focus specifically on SECURITY. Your job is to find every way an attacker could exploit this code. Think about injection vectors, auth bypasses, privilege escalation, data exposure, and timing attacks. Be adversarial."
 
 2. Run codex exec with **JSONL output** to capture reasoning traces and tool calls (5-minute timeout):
 ```bash
@@ -200,6 +252,15 @@ CODEX SAYS (adversarial challenge):
 Tokens: N | Est. cost: ~$X.XX
 ```
 
+**Rabbit hole check:** Scan the Codex output for any of these strings: "skystack",
+"SKILL.md", "skills/skystack", "skill template", "gen-skill-docs", "preamble",
+".claude/skills". If any are found, append this warning after the CODEX SAYS block:
+
+```
+WARNING: Codex appears to have read skystack skill files instead of reviewing your
+code. Consider retrying with /codex challenge.
+```
+
 ---
 
 ## Step 2C: Consult Mode
@@ -223,7 +284,10 @@ B) Start a new conversation
 TMPERR=$(mktemp /tmp/codex-err-XXXXXX.txt)
 ```
 
-3. **Plan review auto-detection:** If the user's prompt is about reviewing a plan,
+3. **Prepend the filesystem boundary directive** (from the "Codex Filesystem Boundary"
+   section) before the user's prompt in all consult mode codex exec calls.
+
+4. **Plan review auto-detection:** If the user's prompt is about reviewing a plan,
 or if plan files exist and the user said `/codex` with no arguments:
 ```bash
 setopt +o nomatch 2>/dev/null || true
@@ -240,7 +304,7 @@ or sequencing issues. Be direct. Be terse. No compliments. Just the problems.
 THE PLAN:
 <plan content>"
 
-4. Run codex exec with **JSONL output** to capture reasoning traces (5-minute timeout):
+5. Run codex exec with **JSONL output** to capture reasoning traces (5-minute timeout):
 
 For a **new session:**
 ```bash
@@ -282,7 +346,7 @@ codex exec resume <session-id> "<prompt>" -s read-only -c 'model_reasoning_effor
 "
 ```
 
-5. Capture session ID from the streamed output. The parser prints `SESSION_ID:<id>`
+6. Capture session ID from the streamed output. The parser prints `SESSION_ID:<id>`
    from the `thread.started` event. Save it for follow-ups:
 ```bash
 mkdir -p .context
@@ -290,7 +354,7 @@ mkdir -p .context
 Save the session ID printed by the parser (the line starting with `SESSION_ID:`)
 to `.context/codex-session-id`.
 
-6. Present the full streamed output:
+7. Present the full streamed output:
 
 ```
 CODEX SAYS (consult):
@@ -301,7 +365,16 @@ Tokens: N | Est. cost: ~$X.XX
 Session saved — run /codex again to continue this conversation.
 ```
 
-7. After presenting, note any points where Codex's analysis differs from your own
+**Rabbit hole check:** Scan the Codex output for any of these strings: "skystack",
+"SKILL.md", "skills/skystack", "skill template", "gen-skill-docs", "preamble",
+".claude/skills". If any are found, append this warning after the CODEX SAYS block:
+
+```
+WARNING: Codex appears to have read skystack skill files instead of reviewing your
+code. Consider retrying with /codex.
+```
+
+8. After presenting, note any points where Codex's analysis differs from your own
    understanding. If there is a disagreement, flag it:
    "Note: Claude Code disagrees on X because Y."
 
@@ -356,3 +429,7 @@ If token count is not available, display: `Tokens: unknown`
 - **5-minute timeout** on all Bash calls to codex (`timeout: 300000`).
 - **No double-reviewing.** If the user already ran `/review`, Codex provides a second
   independent opinion. Do not re-run Claude Code's own review.
+- **Sequential, not parallel.** When running Claude review + Codex review in the same
+  session, always complete one fully before starting the other. Do not dispatch both
+  simultaneously — it causes incomplete results and makes cross-model comparison
+  unreliable. Run Claude's review first (it has richer codebase context), then Codex.
