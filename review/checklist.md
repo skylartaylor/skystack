@@ -170,3 +170,59 @@ the fix, it's ASK.
 - Eval threshold changes (max_actionable, min scores) — these are tuned empirically and change constantly
 - Harmless no-ops (e.g., `.reject` on an element that's never in the array)
 - ANYTHING already addressed in the diff you're reviewing — read the FULL diff before commenting
+
+---
+
+## Calibration
+
+These examples show how to apply the Fix-First Heuristic. Use them to anchor your judgment on AUTO-FIX vs ASK.
+
+### AUTO-FIX example
+
+```
+Finding: src/models/user.rb:47 — N+1 query. `users.each { |u| u.avatar.url }`
+  loads avatar association inside a loop. Missing `.includes(:avatar)`.
+
+Classification: AUTO-FIX
+
+Reasoning:
+  - The fix is mechanical: add `.includes(:avatar)` to the query on line 43.
+  - No ambiguity about the correct fix — there's exactly one right answer.
+  - No behavioral change — same results, fewer queries.
+  - A senior engineer would apply this without discussion.
+  - Category is "N+1 queries" which is explicitly listed under AUTO-FIX.
+
+Action taken:
+  - src/models/user.rb:43 — Changed `User.where(active: true)` to
+    `User.where(active: true).includes(:avatar)`
+```
+
+### ASK example
+
+```
+Finding: src/services/payment_processor.rb:89 — Race condition. Two concurrent
+  requests can both read balance=100, both deduct 75, resulting in balance=-50.
+  The check (`if balance >= amount`) and update (`update!(balance: balance - amount)`)
+  are not atomic.
+
+Classification: ASK
+
+Reasoning:
+  - This is a race condition — explicitly listed under ASK.
+  - Multiple valid fixes exist with different tradeoffs:
+    (a) Pessimistic lock: `with_lock { ... }` — simple but blocks concurrent reads
+    (b) Optimistic lock: `where("balance >= ?", amount).update_all("balance = balance - ?", amount)`
+        — no blocking but caller must handle 0-rows-updated case
+    (c) Database constraint: `CHECK (balance >= 0)` — catches it at DB level but
+        changes error handling throughout the app
+  - The right choice depends on traffic patterns and error UX — that's a design
+    decision, not a mechanical fix.
+  - Category is "Race conditions" which is explicitly listed under ASK.
+  - This is a CRITICAL finding, which defaults toward ASK.
+
+Presented to user as:
+  NEEDS INPUT:
+  - src/services/payment_processor.rb:89 — Race condition: concurrent balance
+    deductions can overdraw. Check-then-update is not atomic.
+    Recommended fix: Use optimistic locking with atomic UPDATE WHERE balance >= amount
+```
