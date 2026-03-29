@@ -820,7 +820,7 @@ PR creation, and everything else. Don't do it manually.
 eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 mkdir -p ~/.skystack/projects/$SLUG
-echo '{"skill":"pm","timestamp":"TIMESTAMP","status":"STATUS","feature":"FEATURE_SLUG","files_changed":N,"tests_added":M}' >> ~/.skystack/projects/$SLUG/$_BRANCH-reviews.jsonl
+echo '{"skill":"pm","timestamp":"TIMESTAMP","status":"STATUS","feature":"FEATURE_SLUG","files_changed":N,"tests_added":M,"via":"pm"}' >> ~/.skystack/projects/$SLUG/$_BRANCH-reviews.jsonl
 ```
 
 Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "published" if user chose A, "pending" if user chose B/C/D, FEATURE_SLUG = kebab-case feature name, N = files changed count, M = tests added count.

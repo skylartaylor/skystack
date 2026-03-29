@@ -544,10 +544,10 @@ After all fixes are applied (or no issues found), log the review result so `/pub
 eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 mkdir -p ~/.skystack/projects/$SLUG
-echo '{"skill":"review","timestamp":"TIMESTAMP","status":"STATUS","findings":N,"auto_fixed":M}' >> ~/.skystack/projects/$SLUG/$_BRANCH-reviews.jsonl
+echo '{"skill":"review","timestamp":"TIMESTAMP","status":"STATUS","findings":N,"auto_fixed":M,"via":"standalone"}' >> ~/.skystack/projects/$SLUG/$_BRANCH-reviews.jsonl
 ```
 
-Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "clean" if 0 findings or all auto-fixed with no skipped, "issues_found" otherwise, N = total findings, M = auto-fixed count.
+Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "clean" if 0 findings or all auto-fixed with no skipped, "issues_found" otherwise, N = total findings, M = auto-fixed count. The `via` field indicates the invocation context: use `"standalone"` when /review is run directly by the user. When /review is invoked as part of another skill (e.g., /publish calls the pre-landing review), that skill should write its own log entry with the appropriate `via` value (e.g., `"publish"`).
 
 ---
 
