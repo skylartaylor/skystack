@@ -34,6 +34,7 @@ cat ~/.skystack/projects/$SLUG/publish-trust.json 2>/dev/null || echo "NO_TRUST_
 
 ```bash
 {
+  echo "$SLUG"
   sed -n '/## Commands/,/^## [^C]/p' CLAUDE.md 2>/dev/null || true
   cat .github/workflows/*.yml 2>/dev/null || true
   cat Makefile 2>/dev/null || true

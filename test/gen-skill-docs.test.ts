@@ -6,6 +6,26 @@ import * as path from 'path';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 
+// All skills that must have templates — single source of truth
+const ALL_SKILLS = [
+  { dir: '.', name: 'root skystack' },
+  { dir: 'benchmark', name: 'benchmark' },
+  { dir: 'browse', name: 'browse' },
+  { dir: 'codex', name: 'codex' },
+  { dir: 'design', name: 'design' },
+  { dir: 'diagnose', name: 'diagnose' },
+  { dir: 'document-release', name: 'document-release' },
+  { dir: 'pm', name: 'pm' },
+  { dir: 'publish', name: 'publish' },
+  { dir: 'qa', name: 'qa' },
+  { dir: 'research', name: 'research' },
+  { dir: 'retro', name: 'retro' },
+  { dir: 'review', name: 'review' },
+  { dir: 'security', name: 'security' },
+  { dir: 'setup-browser-cookies', name: 'setup-browser-cookies' },
+  { dir: 'skystack-upgrade', name: 'skystack-upgrade' },
+];
+
 describe('gen-skill-docs', () => {
   test('generated SKILL.md contains all command categories', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
@@ -55,22 +75,6 @@ describe('gen-skill-docs', () => {
       expect(content).toContain(flag.description);
     }
   });
-
-  // All skills that must have templates — single source of truth
-  const ALL_SKILLS = [
-    { dir: '.', name: 'root skystack' },
-    { dir: 'browse', name: 'browse' },
-    { dir: 'qa', name: 'qa' },
-    { dir: 'review', name: 'review' },
-    { dir: 'publish', name: 'publish' },
-    { dir: 'retro', name: 'retro' },
-    { dir: 'setup-browser-cookies', name: 'setup-browser-cookies' },
-    { dir: 'skystack-upgrade', name: 'skystack-upgrade' },
-    { dir: 'design', name: 'design' },
-    { dir: 'document-release', name: 'document-release' },
-    { dir: 'pm', name: 'pm' },
-    { dir: 'research', name: 'research' },
-  ];
 
   test('every skill has a SKILL.md.tmpl template', () => {
     for (const skill of ALL_SKILLS) {
@@ -314,5 +318,74 @@ describe('REVIEW_DASHBOARD resolver', () => {
     const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
     expect(content).toContain('reviews.jsonl');
     expect(content).toContain('REVIEW READINESS DASHBOARD');
+  });
+});
+
+describe('VOICE_GUIDE resolver', () => {
+  test('tier 1 skills get lightweight voice directive', () => {
+    const tier1Skills = ['browse', 'setup-browser-cookies', 'research', 'benchmark'];
+    for (const skill of tier1Skills) {
+      const mdPath = path.join(ROOT, skill, 'SKILL.md');
+      if (!fs.existsSync(mdPath)) continue;
+      const content = fs.readFileSync(mdPath, 'utf-8');
+      expect(content).toContain('Be direct. Short sentences. No filler.');
+      expect(content).not.toContain('Banned filler phrases');
+    }
+  });
+
+  test('tier 2 skills get full voice directive with banned vocabulary', () => {
+    const tier2Skills = ['review', 'design', 'codex', 'qa', 'publish', 'pm', 'retro'];
+    for (const skill of tier2Skills) {
+      const mdPath = path.join(ROOT, skill, 'SKILL.md');
+      if (!fs.existsSync(mdPath)) continue;
+      const content = fs.readFileSync(mdPath, 'utf-8');
+      expect(content).toContain('Banned AI vocabulary');
+      expect(content).toContain('Banned filler phrases');
+      expect(content).toContain('Connect to user outcomes');
+    }
+  });
+
+  test('root SKILL.md gets tier 1 (lightweight) voice', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Be direct. Short sentences. No filler.');
+    expect(content).not.toContain('Banned filler phrases');
+  });
+
+  test('every skill with {{VOICE_GUIDE}} is in a tier set', () => {
+    const VOICE_TIER_1 = new Set(['browse', 'setup-browser-cookies', 'skystack-upgrade', 'research', 'benchmark']);
+    const VOICE_TIER_2 = new Set(['pm', 'review', 'design', 'qa', 'publish', 'codex', 'retro', 'document-release', 'diagnose', 'security']);
+    const allTiered = new Set([...VOICE_TIER_1, ...VOICE_TIER_2, 'skystack']);
+
+    for (const skill of ALL_SKILLS) {
+      const tmplPath = path.join(ROOT, skill.dir, 'SKILL.md.tmpl');
+      const tmpl = fs.readFileSync(tmplPath, 'utf-8');
+      if (tmpl.includes('{{VOICE_GUIDE}}')) {
+        const skillName = skill.dir === '.' ? 'skystack' : skill.dir;
+        expect(allTiered.has(skillName)).toBe(true);
+      }
+    }
+  });
+});
+
+describe('TASTE_MEMORY resolver', () => {
+  test('taste memory section appears in skills that use it', () => {
+    const tasteSkills = ['design', 'review', 'codex', 'qa'];
+    for (const skill of tasteSkills) {
+      const content = fs.readFileSync(path.join(ROOT, skill, 'SKILL.md'), 'utf-8');
+      expect(content).toContain('Taste Memory');
+      expect(content).toContain('taste.json');
+      expect(content).toContain('Staleness check');
+      expect(content).toContain('Updating taste after user choices');
+    }
+  });
+
+  test('skills without {{TASTE_MEMORY}} do not contain taste section', () => {
+    const noTasteSkills = ['browse', 'publish', 'retro', 'research'];
+    for (const skill of noTasteSkills) {
+      const mdPath = path.join(ROOT, skill, 'SKILL.md');
+      if (!fs.existsSync(mdPath)) continue;
+      const content = fs.readFileSync(mdPath, 'utf-8');
+      expect(content).not.toContain('## Taste Memory');
+    }
   });
 });
