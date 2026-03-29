@@ -177,6 +177,7 @@ Before researching externally, check what the project already knows:
 
 2. **Check for existing feature specs** in `~/.skystack/projects/$SLUG/pm-specs/`:
    ```bash
+   setopt +o nomatch 2>/dev/null || true
    eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
    ls -t ~/.skystack/projects/$SLUG/pm-specs/*.md 2>/dev/null | head -5
    ```

@@ -275,6 +275,7 @@ Count backward from today — how many consecutive days have at least one commit
 Before saving the new snapshot, check for prior retro history:
 
 ```bash
+setopt +o nomatch 2>/dev/null || true
 ls -t .context/retros/*.json 2>/dev/null
 ```
 
@@ -301,6 +302,7 @@ mkdir -p .context/retros
 
 Determine the next sequence number for today (substitute the actual date for `$(date +%Y-%m-%d)`):
 ```bash
+setopt +o nomatch 2>/dev/null || true
 # Count existing retros for today to get next sequence number
 today=$(TZ=America/Los_Angeles date +%Y-%m-%d)
 existing=$(ls .context/retros/${today}-*.json 2>/dev/null | wc -l | tr -d ' ')

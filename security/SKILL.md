@@ -161,6 +161,7 @@ codebase. This phase changes HOW you think for the rest of the audit.
 
 **Stack detection:**
 ```bash
+setopt +o nomatch 2>/dev/null || true
 ls package.json tsconfig.json 2>/dev/null && echo "STACK: Node/TypeScript"
 ls Gemfile 2>/dev/null && echo "STACK: Ruby"
 ls requirements.txt pyproject.toml setup.py 2>/dev/null && echo "STACK: Python"
@@ -213,6 +214,7 @@ Scope file extensions to detected stacks from Phase 0. Count each category.
 
 **Infrastructure surface:**
 ```bash
+setopt +o nomatch 2>/dev/null || true
 ls .github/workflows/*.yml .github/workflows/*.yaml .gitlab-ci.yml 2>/dev/null | wc -l
 find . -maxdepth 4 -name "Dockerfile*" -o -name "docker-compose*.yml" 2>/dev/null
 find . -maxdepth 4 -name "*.tf" -o -name "*.tfvars" -o -name "kustomization.yaml" 2>/dev/null
@@ -264,6 +266,7 @@ grep -q "^\.env$\|^\.env\.\*" .gitignore 2>/dev/null && echo ".env IS gitignored
 
 **CI configs with inline secrets (not using secret stores):**
 ```bash
+setopt +o nomatch 2>/dev/null || true
 for f in .github/workflows/*.yml .github/workflows/*.yaml .gitlab-ci.yml .circleci/config.yml; do
   [ -f "$f" ] && grep -n "password:\|token:\|secret:\|api_key:" "$f" | grep -v '\${{' | grep -v 'secrets\.'
 done 2>/dev/null

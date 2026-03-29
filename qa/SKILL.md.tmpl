@@ -59,8 +59,12 @@ knowledge of QA patterns.
 | Mode | test-and-fix | `--report-only` or chosen in test plan |
 | Tier | Standard | `--quick`, `--exhaustive` |
 | Scope | Full app (or diff-scoped) | `Focus on the billing page` |
-| Auth | None | `Sign in as user@example.com` |
+| Auth | None | `Sign in as $TEST_EMAIL` |
 | Output dir | `.skystack/qa-reports/` | `Output to /tmp/qa` |
+
+**Credential safety:** Use environment variables for test credentials.
+Set them before running: `export TEST_EMAIL="..." TEST_PASSWORD="..."`
+Never hardcode credentials in skill templates or test scripts.
 
 **Tiers determine which issues get fixed (in test-and-fix mode):**
 - **Quick:** Critical + high only
@@ -146,6 +150,7 @@ Read the screenshot so you can see the current state. Map the screens and naviga
 
 **3. If app isn't installed:** Check for a build:
 ```bash
+setopt +o nomatch 2>/dev/null || true
 ls build/ios/iphonesimulator/*.app 2>/dev/null || echo "NO_BUILD"
 ```
 If no build: `flutter build ios --simulator --no-codesign` then `xcrun simctl install booted build/ios/iphonesimulator/Runner.app`
