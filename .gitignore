@@ -17,3 +17,4 @@ bun.lock
 # Local dev artifacts
 screenshot-*.png
 docs/superpowers/plans/
+.claude/worktrees/
