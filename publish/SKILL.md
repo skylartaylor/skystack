@@ -142,9 +142,11 @@ cat ~/.skystack/projects/$SLUG/publish-trust.json 2>/dev/null || echo "NO_TRUST_
 2. **Compute config fingerprint.** Hash the publish-relevant sections of CLAUDE.md and any workflow config files:
 
 ```bash
+setopt +o nomatch 2>/dev/null || true
 {
   echo "$SLUG"
   sed -n '/## Commands/,/^## [^C]/p' CLAUDE.md 2>/dev/null || true
+  sed -n '/## Test Coverage/,/^## [^T]/p' CLAUDE.md 2>/dev/null || true
   cat .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null || true
   cat Makefile 2>/dev/null || true
   cat package.json 2>/dev/null || true

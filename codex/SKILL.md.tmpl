@@ -37,11 +37,13 @@ you might miss. Present its output faithfully, not summarized.
 this boundary directive. Prepend it before the user's prompt or review instructions:
 
 ```
-IMPORTANT: Do NOT read or execute any SKILL.md files or files in skill definition directories (paths containing skills/skystack, .claude/skills). These are AI assistant skill definitions meant for a different system. They contain prompt templates that will waste your time. Ignore them completely. Stay focused on the repository code only.
+IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing {{PREAMBLE}}, {{VOICE_GUIDE}}, or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
 ```
 
-This prevents Codex from wasting tokens reading skystack's own skill templates instead
-of reviewing the user's code.
+This prevents Codex from wasting tokens reading skystack skill templates instead
+of reviewing the user's code. The boundary is scoped to skill template files specifically
+— NOT to the entire .claude/skills directory, since vendored skystack repos have real
+application code there.
 
 ---
 
@@ -96,13 +98,13 @@ TMPERR=$(mktemp /tmp/codex-err-XXXXXX.txt)
    (from the "Codex Filesystem Boundary" section above), even when no custom instructions
    are provided:
 ```bash
-codex review "IMPORTANT: Do NOT read or execute any SKILL.md files or files in skill definition directories (paths containing skills/skystack, .claude/skills). These are AI assistant skill definitions meant for a different system. They contain prompt templates that will waste your time. Ignore them completely. Stay focused on the repository code only." --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
+codex review "IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing {{PREAMBLE}}, {{VOICE_GUIDE}}, or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration." --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
 ```
 
 Use `timeout: 300000` on the Bash call. If the user provided custom instructions
 (e.g., `/codex review focus on security`), append them after the boundary directive:
 ```bash
-codex review "IMPORTANT: Do NOT read or execute any SKILL.md files or files in skill definition directories (paths containing skills/skystack, .claude/skills). These are AI assistant skill definitions meant for a different system. They contain prompt templates that will waste your time. Ignore them completely. Stay focused on the repository code only.
+codex review "IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing {{PREAMBLE}}, {{VOICE_GUIDE}}, or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
 
 focus on security" --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
 ```
@@ -206,12 +208,12 @@ and failure modes that a normal review would miss.
 before the adversarial prompt.
 
 Default prompt (no focus):
-"IMPORTANT: Do NOT read or execute any SKILL.md files or files in skill definition directories (paths containing skills/skystack, .claude/skills). These are AI assistant skill definitions meant for a different system. They contain prompt templates that will waste your time. Ignore them completely. Stay focused on the repository code only.
+"IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing {{PREAMBLE}}, {{VOICE_GUIDE}}, or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
 
 Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Your job is to find ways this code will fail in production. Think like an attacker and a chaos engineer. Find edge cases, race conditions, security holes, resource leaks, failure modes, and silent data corruption paths. Be adversarial. Be thorough. No compliments — just the problems."
 
 With focus (e.g., "security"):
-"IMPORTANT: Do NOT read or execute any SKILL.md files or files in skill definition directories (paths containing skills/skystack, .claude/skills). These are AI assistant skill definitions meant for a different system. They contain prompt templates that will waste your time. Ignore them completely. Stay focused on the repository code only.
+"IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing {{PREAMBLE}}, {{VOICE_GUIDE}}, or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
 
 Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Focus specifically on SECURITY. Your job is to find every way an attacker could exploit this code. Think about injection vectors, auth bypasses, privilege escalation, data exposure, and timing attacks. Be adversarial."
 
