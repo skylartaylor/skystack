@@ -73,6 +73,22 @@ check for these AI slop patterns:
 
 Skip this check entirely if the batch is backend-only (no UI files).
 
+## Gating Rules
+
+HARD FAIL — any of these = ❌ regardless of other quality:
+- **Test coverage:** ANY new conditional with only happy-path test
+- **Pattern consistency:** New architectural pattern introduced without justification
+- **Security:** ANY OWASP top 5 finding (injection, broken auth, XSS, SSRF, misconfig)
+- **Build health:** Code doesn't compile/type-check clean
+
+SOFT FLAG — note these but don't fail the batch:
+- Naming conventions
+- Performance optimizations not in hot paths
+- Documentation completeness
+
+When reporting, explicitly state which gate triggered:
+"❌ FAIL — Hard gate: [category]. [specific violation]."
+
 ## Output
 
 **Strengths:** [What's done well]

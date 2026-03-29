@@ -54,6 +54,22 @@ Read the actual code. Do not accept implementer claims about completeness.
 Note: this reviewer uses Missing/Extra/Wrong labels (not severity levels) — it's checking
 whether requirements were met, not how well the code is written.
 
+## Gating Rules
+
+HARD FAIL — any of these = ❌ regardless of other quality:
+- **Accessibility:** ANY interactive element missing accessible label/semantics
+- **Data safety:** ANY user input persisted without validation
+- **Error handling:** ANY error path that crashes or shows raw error to user
+- **Spec coverage:** ANY spec requirement with zero implementation evidence
+
+SOFT FLAG — note these but don't fail the batch:
+- Naming conventions
+- Code style preferences
+- Minor documentation gaps
+
+When reporting, explicitly state which gate triggered:
+"❌ FAIL — Hard gate: [category]. [specific violation]."
+
 **Output:**
 
 ✅ Spec compliant — implementation matches requirements (after reading code)
