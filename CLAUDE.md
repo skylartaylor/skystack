@@ -56,8 +56,12 @@ skystack/
 ├── review/          # /review skill (dev code review + architecture review)
 ├── qa/              # /qa skill (browser testing + bug fixes)
 ├── publish/         # /publish skill (publish workflow)
+├── codex/           # /codex skill (multi-AI second opinion via OpenAI Codex)
 ├── retro/           # /retro skill (retrospective)
 ├── research/        # /research skill (update reference files)
+├── diagnose/        # /diagnose skill (systematic root-cause debugging)
+├── security/        # /security skill (infrastructure-first security audit)
+├── benchmark/       # /benchmark skill (performance regression detection)
 ├── docs/            # documentation (skills.md, architecture guides)
 ├── document-release/ # /document-release skill (post-ship doc updates)
 ├── skystack-upgrade/ # /skystack-upgrade skill
@@ -77,6 +81,19 @@ SKILL.md files are **generated** from `.tmpl` templates. To update docs:
 
 To add a new browse command: add it to `browse/src/commands.ts` and rebuild.
 To add a snapshot flag: add it to `SNAPSHOT_FLAGS` in `browse/src/snapshot.ts` and rebuild.
+
+### Available placeholders
+
+| Placeholder | Resolved by | Used in |
+|-------------|------------|---------|
+| `{{PREAMBLE}}` | `generatePreamble()` | All skills |
+| `{{VOICE_GUIDE}}` | `resolveVoiceGuide(tmplPath)` | All skills — tier 1 (lightweight) for utility skills, tier 2 (full voice with banned vocabulary) for conversational skills |
+| `{{TASTE_MEMORY}}` | `generateTasteMemory()` | design, review, codex, qa — loads persistent user preferences from `~/.skystack/projects/$SLUG/taste.json` |
+| `{{BASE_BRANCH_DETECT}}` | `generateBaseBranchDetect()` | PR-targeting skills (publish, review, codex, security) |
+| `{{STACK_DETECT}}` | `generateStackDetect()` | Skills that need project stack context |
+| `{{BROWSE_SETUP}}` | `generateBrowseSetup()` | Skills using the browse binary |
+| `{{COMMAND_REFERENCE}}` | `generateCommandReference()` | Root SKILL.md, browse SKILL.md |
+| `{{SNAPSHOT_FLAGS}}` | `generateSnapshotFlags()` | Root SKILL.md, browse SKILL.md |
 
 ## Writing SKILL templates
 
