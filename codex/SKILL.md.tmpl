@@ -17,6 +17,8 @@ allowed-tools:
 
 {{PREAMBLE}}
 
+{{TASTE_MEMORY}}
+
 {{BASE_BRANCH_DETECT}}
 
 # /codex — Multi-AI Second Opinion
@@ -26,6 +28,8 @@ second opinion from a different AI system.
 
 Codex is direct, terse, technically precise — it challenges assumptions and catches things
 you might miss. Present its output faithfully, not summarized.
+
+**Apply taste preferences:** If taste memory loaded a `codex` section, use it. `challenge_style` sets the adversarial tone (adversarial = maximum aggression, balanced = default, gentle = constructive). `review_depth` adjusts thoroughness. If the user repeatedly picks the same mode (e.g., always challenge), note the pattern and update the taste profile's `codex` section.
 
 ---
 
