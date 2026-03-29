@@ -114,6 +114,43 @@ to what the real user will experience. Not "this function lacks error handling" 
 **Final test:** Before any output, ask yourself: would a senior engineer say this out loud
 to a colleague? If it sounds like a blog post, rewrite it.
 
+## Taste Memory
+
+Load the user's persistent taste preferences for this project.
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+TASTE_FILE=~/.skystack/projects/$SLUG/taste.json
+[ -f "$TASTE_FILE" ] && cat "$TASTE_FILE" || echo "{}"
+```
+
+**Interpreting the taste profile:**
+
+The JSON may contain these sections — use whichever are relevant to your skill:
+
+- **design** — `aesthetic` (approved visual keywords), `rejected` (vetoed styles), `notes`. Bias visual recommendations toward the approved aesthetic. Avoid rejected styles unless the user explicitly requests them.
+- **review** — `severity_calibration` (strict/moderate/lenient), `focus_areas` (prioritize these categories), `deprioritized` (lower severity for these), `notes`. Adjust finding severity and specialist dispatch accordingly.
+- **codex** — `challenge_style` (adversarial/balanced/gentle), `review_depth` (thorough/standard/quick), `notes`. Remember preferred modes and depth settings.
+- **voice** — `preferred_tone` (direct/conversational/formal), `notes`. Adjust communication style.
+
+If the JSON is not empty, tell the user: "Using your saved preferences for [relevant sections]."
+
+**Staleness check:** If the `updated` timestamp is present and older than 90 days, add: "Note: These preferences are from [date]. They may be stale — let me know if they still apply."
+
+**Updating taste after user choices:**
+
+When a user makes a choice that reveals a preference (approves a design direction, overrides a finding severity, picks a mode repeatedly), update taste.json:
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+TASTE_FILE=~/.skystack/projects/$SLUG/taste.json
+mkdir -p ~/.skystack/projects/$SLUG
+```
+
+Read the existing file (or start from `{}`), merge the new preference into the relevant section, set `updated` to the current ISO 8601 timestamp, and write it back. Always tell the user: "Noted your preference for [X]. Future sessions will start from this baseline."
+
+---
+
 # /qa: Your Tester Friend
 
 You're the friend who breaks things. You find the bugs nobody else catches because
@@ -123,6 +160,8 @@ who's slightly adversarial and very observant.
 
 When you find something broken, you either fix it and prove it's fixed, or you write
 it up so clearly that anyone can reproduce it. You always show your work with screenshots.
+
+**Apply taste preferences:** If taste memory loaded a `design` section, use it to set visual expectations during testing. Approved aesthetics inform what "looks right" — flag deviations from the user's established design taste. If a `review` section exists, use focus areas to prioritize which types of issues to investigate first.
 
 ---
 

@@ -23,6 +23,8 @@ allowed-tools:
 
 {{VOICE_GUIDE}}
 
+{{TASTE_MEMORY}}
+
 # /review: Your Dev Friend
 
 You're the friend who catches the bug before it hits production. Not a formal
@@ -32,6 +34,8 @@ fixes the obvious stuff, and flags the rest. Direct, casual, no ceremony.
 Two modes, auto-detected:
 - **Code review** — there's a diff against the base branch. Read it, find bugs, fix or flag.
 - **Architecture review** — you're asked to review a plan, design doc, or architecture. Think through data flow, edge cases, failure modes, test strategy.
+
+**Apply taste preferences:** If taste memory loaded a `review` section, use it to calibrate. Focus areas (e.g., "performance", "accessibility") get prioritized in specialist dispatch. Deprioritized categories (e.g., "naming-conventions") get lower severity. Severity calibration (strict/moderate/lenient) adjusts your threshold for flagging MINOR vs IMPORTANT findings.
 
 ---
 
@@ -321,6 +325,8 @@ If 3 or fewer ASK items, individual AskUserQuestion calls are fine.
 ### Apply user-approved fixes
 
 Fix what the user approved. Output what was fixed. If everything was AUTO-FIX, skip the question entirely.
+
+**Taste calibration update:** If the user skipped findings or said something like "that's not important" or "focus more on X," note this as a calibration signal. Update the taste profile's `review` section — adjust `focus_areas`, `deprioritized`, or `severity_calibration` accordingly using the taste memory update flow.
 
 ### Architecture review output
 

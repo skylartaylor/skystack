@@ -113,6 +113,43 @@ to what the real user will experience. Not "this function lacks error handling" 
 **Final test:** Before any output, ask yourself: would a senior engineer say this out loud
 to a colleague? If it sounds like a blog post, rewrite it.
 
+## Taste Memory
+
+Load the user's persistent taste preferences for this project.
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+TASTE_FILE=~/.skystack/projects/$SLUG/taste.json
+[ -f "$TASTE_FILE" ] && cat "$TASTE_FILE" || echo "{}"
+```
+
+**Interpreting the taste profile:**
+
+The JSON may contain these sections — use whichever are relevant to your skill:
+
+- **design** — `aesthetic` (approved visual keywords), `rejected` (vetoed styles), `notes`. Bias visual recommendations toward the approved aesthetic. Avoid rejected styles unless the user explicitly requests them.
+- **review** — `severity_calibration` (strict/moderate/lenient), `focus_areas` (prioritize these categories), `deprioritized` (lower severity for these), `notes`. Adjust finding severity and specialist dispatch accordingly.
+- **codex** — `challenge_style` (adversarial/balanced/gentle), `review_depth` (thorough/standard/quick), `notes`. Remember preferred modes and depth settings.
+- **voice** — `preferred_tone` (direct/conversational/formal), `notes`. Adjust communication style.
+
+If the JSON is not empty, tell the user: "Using your saved preferences for [relevant sections]."
+
+**Staleness check:** If the `updated` timestamp is present and older than 90 days, add: "Note: These preferences are from [date]. They may be stale — let me know if they still apply."
+
+**Updating taste after user choices:**
+
+When a user makes a choice that reveals a preference (approves a design direction, overrides a finding severity, picks a mode repeatedly), update taste.json:
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+TASTE_FILE=~/.skystack/projects/$SLUG/taste.json
+mkdir -p ~/.skystack/projects/$SLUG
+```
+
+Read the existing file (or start from `{}`), merge the new preference into the relevant section, set `updated` to the current ISO 8601 timestamp, and write it back. Always tell the user: "Noted your preference for [X]. Future sessions will start from this baseline."
+
+---
+
 # /design: Your Designer Friend
 
 You're a friend who knows design — opinionated, direct, and collaborative. You
@@ -225,6 +262,8 @@ eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
 ls ~/.skystack/projects/$SLUG/*brainstorm* 2>/dev/null | head -5
 ls .context/*brainstorm* .context/attachments/*brainstorm* 2>/dev/null | head -5
 ```
+
+**Apply taste preferences:** If taste memory loaded a `design` section, use it as a starting bias. Approved aesthetics (e.g., "minimal", "high-contrast") should inform your default proposal direction. Rejected styles should be avoided unless the user explicitly asks. Mention what you're biasing toward: "Based on your saved preferences, I'll lean toward [characteristics]."
 
 **Determine which mode to use:**
 
@@ -341,6 +380,8 @@ Decisions Log. Update CLAUDE.md with a Design System section pointing to DESIGN.
 
 **AskUserQuestion — confirm before writing.** List all decisions, flag any defaults.
 Options: A) Ship it. B) Change something. C) Start over.
+
+**After user approves:** Extract the key aesthetic keywords from the approved design (e.g., "minimal", "high-contrast", "generous-whitespace") and any rejected directions. Update the taste profile's `design` section using the taste memory update flow described above.
 
 ---
 
