@@ -107,6 +107,7 @@ To do this: use Grep to find all references to the sibling values (e.g., grep fo
 - Inline `<style>` blocks in partials (re-parsed every render)
 - O(n*m) lookups in views (`Array#find` in a loop instead of `index_by` hash)
 - Ruby-side `.select{}` filtering on DB results that could be a `WHERE` clause (unless intentionally avoiding leading-wildcard `LIKE`)
+- AI slop patterns (generic gradients, vague hero copy, template-default styling) — see full criteria in `pm/code-quality-reviewer-prompt.md` under "AI Slop Check"
 
 ---
 
