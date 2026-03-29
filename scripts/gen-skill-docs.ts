@@ -504,6 +504,45 @@ Minimum 0 per category.
 11. **Show screenshots to the user.** After every \`$B screenshot\`, \`$B snapshot -a -o\`, or \`$B responsive\` command, use the Read tool on the output file(s) so the user can see them inline. For \`responsive\` (3 files), Read all three. This is critical — without it, screenshots are invisible to the user.`;
 }
 
+function generateTasteMemory(): string {
+  return `## Taste Memory
+
+Load the user's persistent taste preferences for this project.
+
+\`\`\`bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+TASTE_FILE=~/.skystack/projects/$SLUG/taste.json
+[ -f "$TASTE_FILE" ] && cat "$TASTE_FILE" || echo "{}"
+\`\`\`
+
+**Interpreting the taste profile:**
+
+The JSON may contain these sections — use whichever are relevant to your skill:
+
+- **design** — \`aesthetic\` (approved visual keywords), \`rejected\` (vetoed styles), \`notes\`. Bias visual recommendations toward the approved aesthetic. Avoid rejected styles unless the user explicitly requests them.
+- **review** — \`severity_calibration\` (strict/moderate/lenient), \`focus_areas\` (prioritize these categories), \`deprioritized\` (lower severity for these), \`notes\`. Adjust finding severity and specialist dispatch accordingly.
+- **codex** — \`challenge_style\` (adversarial/balanced/gentle), \`review_depth\` (thorough/standard/quick), \`notes\`. Remember preferred modes and depth settings.
+- **voice** — \`preferred_tone\` (direct/conversational/formal), \`notes\`. Adjust communication style.
+
+If the JSON is not empty, tell the user: "Using your saved preferences for [relevant sections]."
+
+**Staleness check:** If the \`updated\` timestamp is present and older than 90 days, add: "Note: These preferences are from [date]. They may be stale — let me know if they still apply."
+
+**Updating taste after user choices:**
+
+When a user makes a choice that reveals a preference (approves a design direction, overrides a finding severity, picks a mode repeatedly), update taste.json:
+
+\`\`\`bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+TASTE_FILE=~/.skystack/projects/$SLUG/taste.json
+mkdir -p ~/.skystack/projects/$SLUG
+\`\`\`
+
+Read the existing file (or start from \`{}\`), merge the new preference into the relevant section, set \`updated\` to the current ISO 8601 timestamp, and write it back. Always tell the user: "Noted your preference for [X]. Future sessions will start from this baseline."
+
+---`;
+}
+
 function generateDesignReviewLite(): string {
   return `## Design Review (conditional, diff-scoped)
 
@@ -791,6 +830,7 @@ const RESOLVERS: Record<string, () => string> = {
   MOBILE_SETUP: generateMobileSetup,
   BASE_BRANCH_DETECT: generateBaseBranchDetect,
   QA_METHODOLOGY: generateQAMethodology,
+  TASTE_MEMORY: generateTasteMemory,
   DESIGN_REVIEW_LITE: generateDesignReviewLite,
   REVIEW_DASHBOARD: generateReviewDashboard,
   TEST_BOOTSTRAP: generateTestBootstrap,
