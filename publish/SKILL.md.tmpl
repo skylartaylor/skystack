@@ -28,6 +28,7 @@ You are running the `/publish` workflow. This is a **non-interactive, fully auto
 - MINOR or MAJOR version bump needed (ask — see Step 4)
 - TODOS.md missing and user wants to create one (ask — see Step 5.5)
 - TODOS.md disorganized and user wants to reorganize (ask — see Step 5.5)
+- Plan items NOT DONE (ask to ship anyway, drop, or stop — see Step 6.6)
 
 **Never stop for:**
 - Uncommitted changes (always include them)
@@ -483,6 +484,65 @@ Claiming work is complete without verification is dishonesty, not efficiency.
 
 ---
 
+## Step 6.6: Plan Completion Audit
+
+Cross-reference the active plan file against the diff to verify what was planned vs. what was shipped.
+
+**1. Discover the plan file (three tiers):**
+
+   a. **Conversation context:** Check if a plan file path was mentioned earlier in this conversation (Claude Code system messages sometimes include plan paths). If so, use that file.
+
+   b. **Content search by branch name:** Search plan files for references to the current branch:
+   ```bash
+   _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+   grep -rl "$_BRANCH" ~/.claude/plans/*.md 2>/dev/null | head -1
+   ```
+
+   c. **Most recent plan (24hr):** If no branch match, find the most recently modified plan file within the last 24 hours:
+   ```bash
+   find ~/.claude/plans -name '*.md' -mtime -1 -exec ls -t {} + 2>/dev/null | head -1
+   ```
+
+   If no plan file is found via any tier, skip this step: "No active plan file found — skipping plan completion audit."
+
+**2. Parse plan items.** Read the plan file. Extract each actionable item (task, requirement, deliverable). Cap at 50 items — if the plan has more than 50, take the first 50 and note: "Plan has N items — auditing the first 50."
+
+**3. Classify each item** by cross-referencing against the diff (`git diff <base>...HEAD`) and the commit history (`git log <base>..HEAD --oneline`):
+
+   - **DONE** — clear evidence in the diff that this item was completed. Cite the evidence (file, function, commit).
+   - **PARTIAL** — some work done, but incomplete. Note what's missing.
+   - **CHANGED** — a different approach was taken to achieve the same goal. Note the alternative.
+   - **NOT DONE** — no evidence in the diff that this item was addressed.
+
+**4. Present as a table:**
+
+```
+## Plan Completion (N/M items done)
+
+DONE: Add user profile endpoint (evidence: src/routes/profile.ts added)
+DONE: Add profile tests (evidence: test/profile.test.ts added)
+PARTIAL: Mobile responsive layout (missing tablet breakpoint)
+CHANGED: Used REST instead of GraphQL (simpler, same outcome)
+NOT DONE: Dark mode support
+```
+
+**5. Gate logic:**
+
+   - All items DONE or CHANGED: proceed silently.
+   - Any PARTIAL items: advisory note only — include in PR body, proceed.
+   - Any NOT DONE items: Use AskUserQuestion:
+     - "N plan items are not done: [list them]. How to proceed?"
+     - A) Ship anyway — I'll create a follow-up TODO for the remaining items
+     - B) These were intentionally dropped — proceed without TODO
+     - C) Stop — I need to finish these first
+   - If user chose A: add the NOT DONE items as a TODO note in the PR body.
+   - If user chose B: note "intentionally dropped" in the PR body.
+   - If user chose C: STOP.
+
+**6. PR body integration:** Save the plan completion table for inclusion under `## Plan Completion` in the PR body (Step 8).
+
+---
+
 ## Step 7: Push
 
 Push to the remote:
@@ -516,6 +576,10 @@ gh pr create --base <base> --title "<type>: <summary>" --body "$(cat <<'EOF'
 ## Design Review
 <If design review ran: "Design Review (lite): N findings — M auto-fixed, K skipped. AI Slop: clean/N issues.">
 <If no frontend files changed: "No frontend files changed — design review skipped.">
+
+## Plan Completion
+<If plan audit ran: include the plan completion table from Step 6.6>
+<If no plan file found: omit this section>
 
 ## TODOS
 <If items marked complete: bullet list of completed items with version>
