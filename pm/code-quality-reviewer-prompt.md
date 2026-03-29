@@ -46,6 +46,33 @@ Apply the checklist to the batch diff. Also check:
 Note: this reviewer uses CRITICAL/IMPORTANT/MINOR severity labels (not Missing/Extra/Wrong)
 — it's checking code quality, not spec compliance.
 
+## AI Slop Check (UI batches only)
+
+If this batch created or modified UI files (components, views, templates, CSS),
+check for these AI slop patterns:
+
+**Instant FAIL patterns:**
+- Purple/blue gradient backgrounds with white card overlays
+- Hero sections with vague inspirational copy ("Unlock the power of...",
+  "Transform your workflow...")
+- Generic card grids with rounded corners and subtle shadows as the
+  primary layout pattern
+- Stock illustration placeholder aesthetic (blob shapes, abstract geometry)
+
+**Warning patterns (flag, don't fail):**
+- Using component library defaults without customization
+- Spacing/padding that looks like framework defaults (e.g., p-4 everywhere)
+- Color palette that matches a popular template or starter kit
+- Typography that's the framework default (Inter for everything)
+
+**What to look for instead:**
+- Evidence of deliberate creative choices (custom color palette, intentional
+  type scale, layout that serves the content)
+- Consistency with DESIGN.md if it exists
+- UI that looks like it was designed for THIS app, not any app
+
+Skip this check entirely if the batch is backend-only (no UI files).
+
 ## Output
 
 **Strengths:** [What's done well]
