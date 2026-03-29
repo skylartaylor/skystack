@@ -445,6 +445,23 @@ Only after spec compliance returns ✅:
 
 **Before next batch:** Record new base SHA: `git rev-parse HEAD`
 
+### Context checkpoint
+
+After completing a batch, if MORE than 6 tasks remain AND many large subagent
+responses have accumulated, consider a mid-build handoff:
+
+1. Write build progress to `.skystack/sessions/{feature-slug}-progress.md`:
+   - Completed tasks with commit SHAs
+   - Remaining tasks (full spec text)
+   - Current batch number and base SHA
+   - Any reviewer feedback that affects remaining work
+2. Tell the user: "This feature has a lot of tasks. I'm going to hand off to a
+   fresh session to keep quality high. Progress is saved."
+3. The fresh session reads the progress file and continues from where you left off.
+
+This is optional — only trigger when the orchestrator has dispatched 6+ subagents
+and has more work ahead. Small features (< 6 tasks) never need this.
+
 ### What to include in each subagent prompt
 
 Give each subagent exactly what it needs, nothing more:
