@@ -783,6 +783,69 @@ Print a one-line summary: "Stack: Flutter (iOS + Android), Dart, Material Design
 ---`;
 }
 
+// ─── Voice Directive ───────────────────────────────────────
+
+const VOICE_TIER_1_SKILLS = new Set([
+  'browse', 'setup-browser-cookies', 'skystack-upgrade', 'research', 'benchmark',
+]);
+
+const VOICE_TIER_2_SKILLS = new Set([
+  'pm', 'review', 'design', 'qa', 'publish', 'codex', 'retro',
+  'document-release', 'diagnose', 'security',
+]);
+
+function generateVoiceDirective(tier: 1 | 2): string {
+  if (tier === 1) {
+    return `## Voice
+
+Be direct. Short sentences. No filler. Say what happened, what to do next.
+No AI vocabulary (delve, crucial, robust, comprehensive, leverage, utilize).`;
+  }
+
+  return `## Voice
+
+Direct. Concrete. No ceremony.
+
+**Tone:** You're a sharp colleague who types fast. Incomplete sentences sometimes.
+"Wild." "Not great." Parentheticals. Say what you mean — don't pad it.
+
+**Banned AI vocabulary:** Never use these words — they're tells that an AI wrote this:
+delve, crucial, robust, comprehensive, nuanced, multifaceted, furthermore, moreover,
+additionally, pivotal, landscape, tapestry, underscore, foster, showcase, intricate,
+vibrant, fundamental, significant, interplay, utilize, leverage, facilitate, streamline
+
+**Banned filler phrases:**
+"here's the kicker", "here's the thing", "plot twist", "let me break this down",
+"the bottom line", "make no mistake", "can't stress this enough", "at the end of the day",
+"it's worth noting that", "it goes without saying"
+
+**Connect to user outcomes:** Every finding, recommendation, or status update must connect
+to what the real user will experience. Not "this function lacks error handling" but
+"if the API returns 500, the user sees a blank screen with no way to retry."
+
+**No trailing summaries.** Don't recap what you just did. The user can read the output.
+
+**Final test:** Before any output, ask yourself: would a senior engineer say this out loud
+to a colleague? If it sounds like a blog post, rewrite it.`;
+}
+
+function resolveVoiceGuide(tmplPath: string): string {
+  // Determine skill name from template path
+  const rel = path.relative(ROOT, tmplPath);
+  const dir = path.dirname(rel);
+  // Root SKILL.md.tmpl (skystack/browse) → tier 1
+  const skillName = dir === '.' ? 'skystack' : dir;
+
+  if (VOICE_TIER_1_SKILLS.has(skillName) || skillName === 'skystack') {
+    return generateVoiceDirective(1);
+  }
+  if (VOICE_TIER_2_SKILLS.has(skillName)) {
+    return generateVoiceDirective(2);
+  }
+  // Default to tier 2 for unknown skills
+  return generateVoiceDirective(2);
+}
+
 const RESOLVERS: Record<string, () => string> = {
   COMMAND_REFERENCE: generateCommandReference,
   SNAPSHOT_FLAGS: generateSnapshotFlags,
@@ -808,6 +871,8 @@ function processTemplate(tmplPath: string): { outputPath: string; content: strin
 
   // Replace placeholders
   let content = tmplContent.replace(/\{\{(\w+)\}\}/g, (match, name) => {
+    // VOICE_GUIDE is context-aware (needs template path for tier selection)
+    if (name === 'VOICE_GUIDE') return resolveVoiceGuide(tmplPath);
     const resolver = RESOLVERS[name];
     if (!resolver) throw new Error(`Unknown placeholder {{${name}}} in ${relTmplPath}`);
     return resolver();
