@@ -213,7 +213,7 @@ CROSS-MODEL ANALYSIS:
 eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
 mkdir -p ~/.skystack/projects/$SLUG
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
-echo '{"skill":"codex-review","timestamp":"TIMESTAMP","status":"STATUS","gate":"GATE","findings":N}' >> ~/.skystack/projects/$SLUG/$_BRANCH-reviews.jsonl
+echo '{"skill":"codex-review","timestamp":"TIMESTAMP","status":"STATUS","gate":"GATE","findings":N,"via":"standalone"}' >> ~/.skystack/projects/$SLUG/$_BRANCH-reviews.jsonl
 ```
 
 Substitute: TIMESTAMP (ISO 8601), STATUS ("clean" if PASS, "issues_found" if FAIL),
