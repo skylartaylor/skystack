@@ -166,6 +166,28 @@ Skills should leverage Claude Code's Agent tool for parallel work. Two key param
 - `/research`: 4 parallel read-only subagents (one per reference file)
 - `/qa`: single verification subagent after fixes
 
+## Harness simplification
+
+Every skill component encodes an assumption about what the model can't do alone.
+As models improve, stress-test those assumptions periodically.
+
+**Candidates for simplification testing:**
+- Does `/review` still need 3 parallel specialist subagents, or can a single
+  pass with the full checklist match quality? (Test: run both, compare findings)
+- Does `/pm` still need the plan-reviewer subagent, or is the plan consistently
+  good without it? (Test: skip plan review for 5 features, track quality)
+- Does the test bootstrap interactive framework selection add value, or should
+  we just auto-pick the obvious choice? (Test: auto-pick for 10 projects)
+- Does the coverage audit need the full ASCII diagram, or is a simple gap list
+  sufficient? (Test: compare user satisfaction with both formats)
+
+**How to test:** Remove the component on a branch, run the skill 3-5 times on
+real tasks, compare output quality against the version with the component.
+If quality doesn't meaningfully degrade, ship the simpler version.
+
+**When to test:** After each major model upgrade (new Opus/Sonnet release),
+or when a skill feels sluggish.
+
 ## CHANGELOG style
 
 CHANGELOG.md is **for users**, not contributors. Write it like product release notes:
