@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.6.8.0] - 2026-03-28 — Voice, Taste Memory, Dual-Model Review, and Process Upgrades
+
+### Added
+
+- **Every skill now speaks in a consistent voice.** A centralized voice directive bans AI-sounding vocabulary ("delve", "crucial", "robust" and 20+ more), kills filler phrases, and requires every finding to connect to what the real user will experience. Two tiers: conversational skills (review, design, pm, codex) get the full treatment, utility skills (browse, research) get a lightweight version.
+- **Skills remember your preferences across sessions.** Taste memory persists your design aesthetic, review focus areas, codex mode preferences, and communication style to `~/.skystack/projects/$SLUG/taste.json`. Future invocations start from your baseline instead of from scratch. Preferences older than 90 days get a staleness warning.
+- **`/codex` now prevents Codex from reading skill files.** A filesystem boundary directive is prepended to every Codex prompt, keeping it focused on your code instead of wandering into skystack's own templates. Rabbit-hole detection warns you if Codex got distracted anyway.
+- **`/codex` cross-model analysis now classifies decisions.** When both Claude and Codex agree your approach should change, findings are presented as structured "User Challenges" with what you said, what they recommend, why, what they might be missing, and the cost if they're wrong. You always decide.
+- **`/publish` now audits plan completion before shipping.** Cross-references your Claude Code plan file against the diff — classifies each plan item as DONE, PARTIAL, CHANGED, or NOT DONE with evidence. Unfinished items get flagged before PR creation.
+- **`/publish` has a progressive trust ladder.** First run walks you through everything (teacher mode). After that, it runs efficiently. If your config changes, it re-validates. Trust state persists per-project.
+- **`/publish` enforces configurable test coverage thresholds.** Add a `## Test Coverage` section to CLAUDE.md with Minimum/Target percentages. Above target passes silently, between min and target asks, below minimum is a hard gate.
+- **Review logs now track where reviews came from.** Every review JSONL entry includes a `via` field (standalone, publish, pm, codex) so `/retro` can show review patterns.
+
+### Fixed
+
+- **Browse skill now warns about untrusted page content.** Pages fetched via goto/text/html/js are explicitly marked as data to inspect, not commands to execute. Prompt injection attempts from page content get flagged.
+- **QA examples no longer leak test credentials.** Hardcoded `test@example.com`/`password123` replaced with `$TEST_EMAIL`/`$TEST_PASSWORD` environment variables.
+- **Cookie import now has a safety callout.** Warns about plaintext storage and importing only from controlled browsers.
+- **zsh glob compatibility across 6 skill templates.** Added `setopt +o nomatch` guards before bare glob patterns that would fail in zsh with no matches.
+
 ## [0.6.7.0] - 2026-03-24 — Worktree Isolation and Subagent Patterns
 
 ### Added
