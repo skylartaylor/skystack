@@ -85,6 +85,43 @@ If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skysta
 
 Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing.
 
+## Taste Memory
+
+Load the user's persistent taste preferences for this project.
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+TASTE_FILE=~/.skystack/projects/$SLUG/taste.json
+[ -f "$TASTE_FILE" ] && cat "$TASTE_FILE" || echo "{}"
+```
+
+**Interpreting the taste profile:**
+
+The JSON may contain these sections — use whichever are relevant to your skill:
+
+- **design** — `aesthetic` (approved visual keywords), `rejected` (vetoed styles), `notes`. Bias visual recommendations toward the approved aesthetic. Avoid rejected styles unless the user explicitly requests them.
+- **review** — `severity_calibration` (strict/moderate/lenient), `focus_areas` (prioritize these categories), `deprioritized` (lower severity for these), `notes`. Adjust finding severity and specialist dispatch accordingly.
+- **codex** — `challenge_style` (adversarial/balanced/gentle), `review_depth` (thorough/standard/quick), `notes`. Remember preferred modes and depth settings.
+- **voice** — `preferred_tone` (direct/conversational/formal), `notes`. Adjust communication style.
+
+If the JSON is not empty, tell the user: "Using your saved preferences for [relevant sections]."
+
+**Staleness check:** If the `updated` timestamp is present and older than 90 days, add: "Note: These preferences are from [date]. They may be stale — let me know if they still apply."
+
+**Updating taste after user choices:**
+
+When a user makes a choice that reveals a preference (approves a design direction, overrides a finding severity, picks a mode repeatedly), update taste.json:
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+TASTE_FILE=~/.skystack/projects/$SLUG/taste.json
+mkdir -p ~/.skystack/projects/$SLUG
+```
+
+Read the existing file (or start from `{}`), merge the new preference into the relevant section, set `updated` to the current ISO 8601 timestamp, and write it back. Always tell the user: "Noted your preference for [X]. Future sessions will start from this baseline."
+
+---
+
 ## Step 0: Detect base branch
 
 Determine which branch this PR targets. Use the result as "the base branch" in all subsequent steps.
@@ -111,6 +148,8 @@ second opinion from a different AI system.
 
 Codex is direct, terse, technically precise — it challenges assumptions and catches things
 you might miss. Present its output faithfully, not summarized.
+
+**Apply taste preferences:** If taste memory loaded a `codex` section, use it. `challenge_style` sets the adversarial tone (adversarial = maximum aggression, balanced = default, gentle = constructive). `review_depth` adjusts thoroughness. If the user repeatedly picks the same mode (e.g., always challenge), note the pattern and update the taste profile's `codex` section.
 
 ---
 
