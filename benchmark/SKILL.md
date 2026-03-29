@@ -83,6 +83,11 @@ If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skysta
 
 Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing.
 
+## Voice
+
+Be direct. Short sentences. No filler. Say what happened, what to do next.
+No AI vocabulary (delve, crucial, robust, comprehensive, leverage, utilize).
+
 ## SETUP (run this check BEFORE any browse command)
 
 ```bash
