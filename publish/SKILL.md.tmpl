@@ -97,6 +97,7 @@ You are running the `/publish` workflow. This is a **non-interactive, fully auto
 - TODOS.md disorganized and user wants to reorganize (ask — see Step 5.5)
 - Plan items NOT DONE (ask to ship anyway, drop, or stop — see Step 6.6)
 - First run or config changed (trust ladder — see Step 0)
+- Coverage below minimum threshold (ask to override — see Step 3.4.1)
 
 **Never stop for:**
 - Uncommitted changes (always include them)
@@ -348,6 +349,46 @@ find . -name '*.test.*' -o -name '*.spec.*' -o -name '*_test.*' -o -name '*_spec
 
 For PR body: `Tests: {before} → {after} (+{delta} new)`
 Coverage line: `Test Coverage Audit: N new code paths. M covered (X%). K tests generated, J committed.`
+
+---
+
+## Step 3.4.1: Coverage Gate
+
+Check if the project defines coverage thresholds in CLAUDE.md. If so, enforce them.
+
+1. **Read CLAUDE.md** and look for a `## Test Coverage` section. If no such section exists, skip this step entirely: "No coverage thresholds configured — skipping coverage gate."
+
+2. **Parse thresholds.** The section should contain lines like:
+   ```
+   Minimum: 60%
+   Target: 80%
+   ```
+   Extract the Minimum and Target percentages. If the format is unrecognizable, skip the gate: "Could not parse coverage thresholds — skipping coverage gate."
+
+3. **Get current coverage.** Run the project's coverage command (look for `coverage` script in package.json, or `--coverage` flag on the test runner). Parse the overall percentage from the output.
+
+   If coverage percentage cannot be determined (command not found, output unparseable), skip the gate: "Coverage percentage undetermined — skipping coverage gate." Do NOT default to 0%.
+
+4. **Apply the three-tier gate:**
+
+   - **Above target** (coverage >= Target%): PASS. Continue silently. Note in PR body: "Coverage: X% (target: Y%)".
+   - **Between minimum and target** (Minimum% <= coverage < Target%): Use AskUserQuestion:
+     - "Coverage is X% — above minimum (M%) but below target (T%). Ship anyway or generate more tests?"
+     - A) Ship as-is (note gap in PR body)
+     - B) Generate more tests (max 2 passes)
+   - **Below minimum** (coverage < Minimum%): Hard gate. Use AskUserQuestion:
+     - "Coverage is X% — below minimum threshold of M%. This requires an override to ship."
+     - A) Override and ship anyway (will be noted in PR body)
+     - B) Generate more tests (max 2 passes)
+     - C) Abort
+
+5. **Test generation passes** (if user chose B above): Generate tests targeting uncovered paths (same approach as Step 3.4 item 5). Re-run coverage after each pass. Maximum 2 generation passes — if still below threshold after 2 passes, report the final coverage and ask the user whether to ship or abort.
+
+6. **Safety valves:**
+   - Maximum 2 test generation passes (prevents infinite loops)
+   - Undetermined coverage = skip the gate, never default to 0%
+   - No `## Test Coverage` section in CLAUDE.md = skip the gate entirely
+   - Coverage command fails = skip the gate with a note
 
 ---
 
