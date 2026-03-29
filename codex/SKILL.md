@@ -236,15 +236,15 @@ Run Codex code review against the current branch diff.
 TMPERR=$(mktemp /tmp/codex-err-XXXXXX.txt)
 ```
 
-2. Run the review (5-minute timeout). **Prepend the filesystem boundary directive**
-   (from the "Codex Filesystem Boundary" section above) to any prompt argument:
+2. Run the review (5-minute timeout). **Always prepend the filesystem boundary directive**
+   (from the "Codex Filesystem Boundary" section above), even when no custom instructions
+   are provided:
 ```bash
-codex review --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
+codex review "IMPORTANT: Do NOT read or execute any SKILL.md files or files in skill definition directories (paths containing skills/skystack, .claude/skills). These are AI assistant skill definitions meant for a different system. They contain prompt templates that will waste your time. Ignore them completely. Stay focused on the repository code only." --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
 ```
 
 Use `timeout: 300000` on the Bash call. If the user provided custom instructions
-(e.g., `/codex review focus on security`), prepend the boundary directive before their
-instructions and pass as the prompt argument:
+(e.g., `/codex review focus on security`), append them after the boundary directive:
 ```bash
 codex review "IMPORTANT: Do NOT read or execute any SKILL.md files or files in skill definition directories (paths containing skills/skystack, .claude/skills). These are AI assistant skill definitions meant for a different system. They contain prompt templates that will waste your time. Ignore them completely. Stay focused on the repository code only.
 
@@ -276,14 +276,18 @@ or
 GATE: FAIL (N critical findings)
 ```
 
-**Rabbit hole check:** Scan the Codex output for any of these strings: "skystack",
-"SKILL.md", "skills/skystack", "skill template", "gen-skill-docs", "preamble",
-".claude/skills". If any are found, append this warning after the CODEX SAYS block:
+**Rabbit hole check:** Only if the project being reviewed is NOT skystack itself
+(i.e., the repo does not contain `scripts/gen-skill-docs.ts`), scan the Codex output
+for these strings: "skills/skystack", "skill template", ".claude/skills", "SKILL.md.tmpl".
+If any are found, append this warning after the CODEX SAYS block:
 
 ```
 WARNING: Codex appears to have read skystack skill files instead of reviewing your
 code. Consider retrying with /codex review.
 ```
+
+Skip this check when reviewing the skystack repo itself — findings about skill files
+are legitimate there.
 
 6. **Cross-model comparison:** If `/review` (Claude's own review) was already run
    earlier in this conversation, compare the two sets of findings:
@@ -398,14 +402,10 @@ CODEX SAYS (adversarial challenge):
 Tokens: N | Est. cost: ~$X.XX
 ```
 
-**Rabbit hole check:** Scan the Codex output for any of these strings: "skystack",
-"SKILL.md", "skills/skystack", "skill template", "gen-skill-docs", "preamble",
-".claude/skills". If any are found, append this warning after the CODEX SAYS block:
-
-```
-WARNING: Codex appears to have read skystack skill files instead of reviewing your
-code. Consider retrying with /codex challenge.
-```
+**Rabbit hole check:** Only if the project is NOT skystack itself, scan for:
+"skills/skystack", "skill template", ".claude/skills", "SKILL.md.tmpl".
+If found, warn: "Codex appears to have read skystack skill files. Consider retrying."
+Skip when reviewing the skystack repo.
 
 ---
 
@@ -511,14 +511,10 @@ Tokens: N | Est. cost: ~$X.XX
 Session saved — run /codex again to continue this conversation.
 ```
 
-**Rabbit hole check:** Scan the Codex output for any of these strings: "skystack",
-"SKILL.md", "skills/skystack", "skill template", "gen-skill-docs", "preamble",
-".claude/skills". If any are found, append this warning after the CODEX SAYS block:
-
-```
-WARNING: Codex appears to have read skystack skill files instead of reviewing your
-code. Consider retrying with /codex.
-```
+**Rabbit hole check:** Only if the project is NOT skystack itself, scan for:
+"skills/skystack", "skill template", ".claude/skills", "SKILL.md.tmpl".
+If found, warn: "Codex appears to have read skystack skill files. Consider retrying."
+Skip when reviewing the skystack repo.
 
 8. After presenting, note any points where Codex's analysis differs from your own
    understanding. If there is a disagreement, flag it:

@@ -145,7 +145,7 @@ cat ~/.skystack/projects/$SLUG/publish-trust.json 2>/dev/null || echo "NO_TRUST_
 {
   echo "$SLUG"
   sed -n '/## Commands/,/^## [^C]/p' CLAUDE.md 2>/dev/null || true
-  cat .github/workflows/*.yml 2>/dev/null || true
+  cat .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null || true
   cat Makefile 2>/dev/null || true
   cat package.json 2>/dev/null || true
 } | shasum -a 256 | cut -d' ' -f1
@@ -931,6 +931,7 @@ Cross-reference the active plan file against the diff to verify what was planned
 
    b. **Content search by branch name:** Search plan files for references to the current branch:
    ```bash
+   setopt +o nomatch 2>/dev/null || true
    _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
    grep -rl "$_BRANCH" ~/.claude/plans/*.md 2>/dev/null | head -1
    ```
