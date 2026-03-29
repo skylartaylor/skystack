@@ -101,6 +101,73 @@ branch name wherever the instructions say "the base branch."
 
 ---
 
+## Step 0: Trust Ladder
+
+Determine whether this is a first run, a config-changed run, or a confirmed run for this project.
+
+1. **Read trust state:**
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+mkdir -p ~/.skystack/projects/$SLUG
+cat ~/.skystack/projects/$SLUG/publish-trust.json 2>/dev/null || echo "NO_TRUST_STATE"
+```
+
+2. **Compute config fingerprint.** Hash the publish-relevant sections of CLAUDE.md and any workflow config files:
+
+```bash
+{
+  sed -n '/## Commands/,/^## [^C]/p' CLAUDE.md 2>/dev/null || true
+  cat .github/workflows/*.yml 2>/dev/null || true
+  cat Makefile 2>/dev/null || true
+  cat package.json 2>/dev/null || true
+} | shasum -a 256 | cut -d' ' -f1
+```
+
+Remember this hash as the "current config fingerprint."
+
+3. **Determine trust mode:**
+
+   - If `NO_TRUST_STATE` (no file found): mode is **FIRST_RUN**.
+   - If trust state exists and `config_hash` matches the current config fingerprint: mode is **CONFIRMED**.
+   - If trust state exists but `config_hash` does NOT match: mode is **CONFIG_CHANGED**.
+
+4. **Behave according to the mode:**
+
+   **FIRST_RUN:** Teacher mode. Before proceeding, explain to the user what /publish will do:
+   - Detect and merge the base branch
+   - Run the test suite
+   - Review the diff for issues (auto-fix safe ones, ask about risky ones)
+   - Bump VERSION and update CHANGELOG
+   - Commit in bisectable chunks, push, and create a PR
+   - Ask: "This is your first /publish run for this project. I'll walk you through each step with extra detail. Ready to proceed?" via AskUserQuestion with options: A) Let's go  B) Abort
+   - If the user chooses B, stop.
+
+   **CONFIG_CHANGED:** Re-validate mode. Tell the user: "Your publish configuration has changed since the last confirmed run. Quick dry-run to make sure I still have it right." Show what changed (e.g., "test command changed", "new workflow file detected"). Then ask via AskUserQuestion: A) Looks good, proceed  B) Abort
+   - If the user chooses B, stop.
+
+   **CONFIRMED:** Efficient mode. Say nothing extra. Proceed silently. Brief status updates only.
+
+5. **After a successful publish** (at the very end, after PR creation or direct push), persist the trust state:
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+RUNS=$(python3 -c "import json; d=json.load(open('$HOME/.skystack/projects/$SLUG/publish-trust.json')); print(d.get('runs',0))" 2>/dev/null || echo "0")
+NEW_RUNS=$((RUNS + 1))
+cat > ~/.skystack/projects/$SLUG/publish-trust.json << TRUSTEOF
+{
+  "status": "confirmed",
+  "config_hash": "CONFIG_FINGERPRINT_HERE",
+  "last_confirmed": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "runs": $NEW_RUNS
+}
+TRUSTEOF
+```
+
+Substitute `CONFIG_FINGERPRINT_HERE` with the actual config fingerprint computed in step 2.
+
+---
+
 # Ship: Fully Automated Ship Workflow
 
 You are running the `/publish` workflow. This is a **non-interactive, fully automated** workflow. Do NOT ask for confirmation at any step. The user said `/publish` which means DO IT. Run straight through and output the PR URL at the end.
@@ -114,6 +181,7 @@ You are running the `/publish` workflow. This is a **non-interactive, fully auto
 - TODOS.md missing and user wants to create one (ask — see Step 5.5)
 - TODOS.md disorganized and user wants to reorganize (ask — see Step 5.5)
 - Plan items NOT DONE (ask to ship anyway, drop, or stop — see Step 6.6)
+- First run or config changed (trust ladder — see Step 0)
 
 **Never stop for:**
 - Uncommitted changes (always include them)
