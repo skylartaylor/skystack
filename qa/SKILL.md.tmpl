@@ -355,6 +355,14 @@ WTF-LIKELIHOOD:
 If WTF > 20%: STOP. Show what you've done so far and ask whether to continue.
 Hard cap: 50 fixes.
 
+### Context checkpoint for exhaustive mode
+
+In exhaustive mode with 10+ findings, the fix loop can fill context. After fixing
+5 bugs, if more remain:
+1. Write progress to `.skystack/qa-reports/{slug}-fix-progress.md`
+2. Tell user: "Fixed 5 bugs so far. Handing off to a fresh session for the rest."
+3. Fresh session reads progress and continues.
+
 ### 4g. Post-fix verification
 
 After all fixes are committed, dispatch a single `general-purpose` verification subagent.
