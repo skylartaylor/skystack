@@ -958,6 +958,10 @@ function findTemplates(): string[] {
     path.join(ROOT, 'codex', 'SKILL.md.tmpl'),
     path.join(ROOT, 'security', 'SKILL.md.tmpl'),
     path.join(ROOT, 'benchmark', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'devops', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'checkpoint', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'health', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'canary', 'SKILL.md.tmpl'),
   ];
   for (const p of candidates) {
     if (fs.existsSync(p)) templates.push(p);

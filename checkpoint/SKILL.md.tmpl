@@ -1,0 +1,230 @@
+---
+name: checkpoint
+description: |
+  Save and resume working state checkpoints. Captures git state, decisions made,
+  and remaining work so you can pick up exactly where you left off — even across
+  sessions or branch switches.
+  Use when asked to "checkpoint", "save progress", "where was I", "resume",
+  "what was I working on", or "pick up where I left off".
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Glob
+  - Grep
+  - AskUserQuestion
+---
+
+{{PREAMBLE}}
+
+{{VOICE_GUIDE}}
+
+# /checkpoint — Save and Resume Working State
+
+You keep meticulous session notes. Your job is to capture the full working context —
+what's being done, what decisions were made, what's left — so any future session can
+resume without losing a beat.
+
+**HARD GATE:** Do NOT implement code changes. This skill captures and restores context only.
+
+---
+
+## Detect command
+
+Parse the user's input:
+
+- `/checkpoint` or `/checkpoint save` → **Save**
+- `/checkpoint resume` → **Resume**
+- `/checkpoint list` → **List**
+
+If the user provides a title (e.g., `/checkpoint auth refactor`), use it.
+Otherwise, infer a title from the current work.
+
+---
+
+## Save flow
+
+### Step 1: Gather state
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+```
+
+```bash
+echo "=== BRANCH ==="
+git rev-parse --abbrev-ref HEAD 2>/dev/null
+echo "=== STATUS ==="
+git status --short 2>/dev/null
+echo "=== DIFF STAT ==="
+git diff --stat 2>/dev/null
+echo "=== STAGED DIFF STAT ==="
+git diff --cached --stat 2>/dev/null
+echo "=== RECENT LOG ==="
+git log --oneline -10 2>/dev/null
+```
+
+### Step 2: Summarize context
+
+Using the gathered state plus your conversation history, produce a summary covering:
+
+1. **What's being worked on** — the high-level goal or feature
+2. **Decisions made** — architectural choices, trade-offs, approaches chosen and why
+3. **Remaining work** — concrete next steps, in priority order
+4. **Notes** — gotchas, blocked items, open questions, things tried that didn't work
+
+If the user provided a title, use it. Otherwise, infer a concise title (3-6 words).
+
+### Step 3: Write checkpoint file
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+CHECKPOINT_DIR="$HOME/.skystack/projects/$SLUG/checkpoints"
+mkdir -p "$CHECKPOINT_DIR"
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+echo "CHECKPOINT_DIR=$CHECKPOINT_DIR"
+echo "TIMESTAMP=$TIMESTAMP"
+```
+
+Write the checkpoint to `{CHECKPOINT_DIR}/{TIMESTAMP}-{title-slug}.md`:
+
+```markdown
+---
+status: in-progress
+branch: {current branch name}
+timestamp: {ISO-8601 timestamp}
+files_modified:
+  - path/to/file1
+  - path/to/file2
+---
+
+## Working on: {title}
+
+### Summary
+
+{1-3 sentences describing the high-level goal and current progress}
+
+### Decisions Made
+
+{Bulleted list of architectural choices, trade-offs, and reasoning}
+
+### Remaining Work
+
+{Numbered list of concrete next steps, in priority order}
+
+### Notes
+
+{Gotchas, blocked items, open questions, things tried that didn't work}
+```
+
+The `files_modified` list comes from `git status --short`. Use relative paths.
+
+After writing, confirm:
+
+```
+CHECKPOINT SAVED
+════════════════════════════════════════
+Title:    {title}
+Branch:   {branch}
+File:     {path}
+Modified: {N} files
+════════════════════════════════════════
+```
+
+---
+
+## Resume flow
+
+### Step 1: Find checkpoints
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+CHECKPOINT_DIR="$HOME/.skystack/projects/$SLUG/checkpoints"
+if [ -d "$CHECKPOINT_DIR" ]; then
+  ls -1t "$CHECKPOINT_DIR"/*.md 2>/dev/null | head -20
+else
+  echo "NO_CHECKPOINTS"
+fi
+```
+
+### Step 2: Load checkpoint
+
+If the user specified a checkpoint (by number, title fragment, or date), find it.
+Otherwise, load the **most recent** checkpoint.
+
+Read the file and present:
+
+```
+RESUMING CHECKPOINT
+════════════════════════════════════════
+Title:       {title}
+Branch:      {branch from checkpoint}
+Saved:       {timestamp, human-readable}
+Status:      {status}
+════════════════════════════════════════
+
+### Summary
+{summary}
+
+### Remaining Work
+{remaining work items}
+
+### Notes
+{notes}
+```
+
+If the current branch differs from the checkpoint's branch, note it:
+"This checkpoint was saved on branch `{branch}`. You're currently on
+`{current branch}`. You may want to switch branches before continuing."
+
+### Step 3: Offer next steps
+
+Use AskUserQuestion:
+- Question: "What do you want to do with this checkpoint?"
+- A) Continue working on the remaining items (Recommended)
+- B) Show the full checkpoint file
+- C) Just needed the context, thanks
+
+---
+
+## List flow
+
+### Step 1: Gather checkpoints
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+CHECKPOINT_DIR="$HOME/.skystack/projects/$SLUG/checkpoints"
+if [ -d "$CHECKPOINT_DIR" ]; then
+  ls -1t "$CHECKPOINT_DIR"/*.md 2>/dev/null
+else
+  echo "NO_CHECKPOINTS"
+fi
+```
+
+### Step 2: Display table
+
+Default: show checkpoints for the **current branch** only.
+If the user passes `--all`, show all branches.
+
+Read the frontmatter of each file. Present as:
+
+```
+CHECKPOINTS ({branch} branch)
+════════════════════════════════════════
+#  Date        Title                    Status
+─  ──────────  ───────────────────────  ───────────
+1  2026-03-31  auth-refactor            in-progress
+2  2026-03-30  api-pagination           completed
+════════════════════════════════════════
+```
+
+If no checkpoints: "No checkpoints saved yet. Run `/checkpoint` to save your current state."
+
+---
+
+## Important Rules
+
+- **Never modify code.** Read state and write checkpoint files only.
+- **Always include the branch name** in checkpoint files — enables cross-branch resume.
+- **Checkpoint files are append-only.** Never overwrite or delete existing files.
+- **Infer, don't interrogate.** Use git state and conversation context to fill in
+  the checkpoint. Only ask if the title genuinely cannot be inferred.

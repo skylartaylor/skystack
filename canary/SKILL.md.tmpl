@@ -1,0 +1,229 @@
+---
+name: canary
+description: |
+  Post-deploy canary monitoring. Watches the live app for console errors,
+  performance regressions, and page failures using the browse daemon. Takes
+  periodic screenshots, compares against pre-deploy baselines, and alerts
+  on anomalies. Use when: "monitor deploy", "canary", "post-deploy check",
+  "watch production", "verify deploy".
+argument-hint: "<url> [--baseline] [--duration 5m] [--pages /,/dash] [--quick]"
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Glob
+  - AskUserQuestion
+---
+
+{{PREAMBLE}}
+
+{{VOICE_GUIDE}}
+
+{{BROWSE_SETUP}}
+
+# /canary — Post-Deploy Visual Monitor
+
+You're a Release Reliability Engineer watching production after a deploy. You've seen
+deploys that pass CI but break in production — missing env var, stale CDN cache,
+slow migration on real data. Your job is to catch these in the first 10 minutes.
+
+---
+
+## Arguments
+
+- `/canary <url>` — monitor for 10 minutes after deploy
+- `/canary <url> --duration 5m` — custom duration (1m to 30m)
+- `/canary <url> --baseline` — capture baseline screenshots (run BEFORE deploying)
+- `/canary <url> --pages /,/dashboard,/settings` — specify pages to monitor
+- `/canary <url> --quick` — single-pass health check (no continuous monitoring)
+
+---
+
+## Phase 1: Setup
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+mkdir -p .skystack/canary-reports/baselines
+mkdir -p .skystack/canary-reports/screenshots
+```
+
+Parse arguments. Default duration: 10 minutes. Default pages: auto-discover from nav.
+
+---
+
+## Phase 2: Baseline Capture (--baseline mode)
+
+If `--baseline` was passed, capture the current state BEFORE deploying.
+
+For each page:
+
+```bash
+$B goto <page-url>
+$B snapshot -i -a -o ".skystack/canary-reports/baselines/<page-name>.png"
+$B console --errors
+$B perf
+$B text
+```
+
+Collect per page: screenshot path, console error count, page load time, text snapshot.
+
+Save to `.skystack/canary-reports/baseline.json`:
+
+```json
+{
+  "url": "<url>",
+  "timestamp": "<ISO>",
+  "branch": "<branch>",
+  "pages": {
+    "/": {
+      "screenshot": "baselines/home.png",
+      "console_errors": 0,
+      "load_time_ms": 450
+    }
+  }
+}
+```
+
+Then STOP: "Baseline captured. Deploy your changes, then run `/canary <url>` to monitor."
+
+---
+
+## Phase 3: Page Discovery
+
+If no `--pages` specified, auto-discover:
+
+```bash
+$B goto <url>
+$B links
+$B snapshot -i
+```
+
+Extract top 5 internal navigation links. Always include homepage.
+
+Use AskUserQuestion:
+- Question: "Which pages should the canary monitor?"
+- A) Monitor these pages: [list] (Recommended)
+- B) Add more pages
+- C) Homepage only (quick check)
+
+---
+
+## Phase 4: Pre-Deploy Snapshot
+
+If no `baseline.json` exists, take a quick reference snapshot now.
+
+For each page:
+
+```bash
+$B goto <page-url>
+$B snapshot -i -a -o ".skystack/canary-reports/screenshots/pre-<page-name>.png"
+$B console --errors
+$B perf
+```
+
+Record console error count and load time per page.
+
+---
+
+## Phase 5: Monitoring Loop
+
+**If `--quick`: single pass only — check each page once, skip to Phase 6.**
+
+Monitor for the specified duration. Every 60 seconds, check each page:
+
+```bash
+$B goto <page-url>
+$B snapshot -i -a -o ".skystack/canary-reports/screenshots/<page-name>-<N>.png"
+$B console --errors
+$B perf
+```
+
+Compare against baseline (or pre-deploy snapshot):
+
+1. **Page load failure** — goto returns error or timeout → CRITICAL
+2. **New console errors** — errors not in baseline → HIGH
+3. **Performance regression** — load time >2x baseline → MEDIUM
+4. **Broken links** — new 404s not in baseline → LOW
+
+**Alert on changes, not absolutes.** 3 errors in baseline + 3 now = fine. 1 NEW error = alert.
+
+**Transient tolerance.** Only alert on patterns persisting 2+ consecutive checks.
+
+On CRITICAL or HIGH alert, use AskUserQuestion:
+
+```
+CANARY ALERT
+════════════════════════════════════════
+Time:     check #N at Xs
+Page:     <url>
+Type:     CRITICAL / HIGH
+Finding:  <what changed>
+Evidence: <screenshot path>
+Baseline: <baseline value>
+Current:  <current value>
+════════════════════════════════════════
+```
+
+- A) Investigate now — stop monitoring
+- B) Continue monitoring — might be transient (Recommended for first occurrence)
+- C) Rollback
+- D) Dismiss — false positive
+
+---
+
+## Phase 6: Health Report
+
+```
+CANARY REPORT — <url>
+═════════════════════════════════════════════════════
+Duration:     X minutes
+Pages:        N pages monitored
+Checks:       N total checks
+Status:       HEALTHY / DEGRADED / BROKEN
+
+Per-Page Results:
+─────────────────────────────────────────────────────
+  Page            Status      Errors    Avg Load
+  /               HEALTHY     0         450ms
+  /dashboard      DEGRADED    2 new     1200ms (was 400ms)
+  /settings       HEALTHY     0         380ms
+
+Alerts Fired:  N (X critical, Y high, Z medium)
+Screenshots:   .skystack/canary-reports/screenshots/
+
+VERDICT: DEPLOY IS HEALTHY / DEPLOY HAS ISSUES
+═════════════════════════════════════════════════════
+```
+
+Save to `.skystack/canary-reports/{date}-canary.md` and `.skystack/canary-reports/{date}-canary.json`.
+
+Log result:
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+mkdir -p ~/.skystack/projects/$SLUG
+```
+
+Write JSONL: `{"skill":"canary","timestamp":"<ISO>","status":"<HEALTHY/DEGRADED/BROKEN>","url":"<url>","duration_min":<N>,"alerts":<N>}`
+
+---
+
+## Phase 7: Baseline Update
+
+If deploy is healthy, offer to update baseline:
+
+- A) Update baseline with current screenshots (Recommended)
+- B) Keep old baseline
+
+If A, copy latest screenshots to baselines directory and update `baseline.json`.
+
+---
+
+## Important Rules
+
+- **Speed matters.** Start monitoring within 30 seconds of invocation.
+- **Alert on changes, not absolutes.** Compare against baseline, not industry standards.
+- **Screenshots are evidence.** Every alert includes a screenshot path.
+- **Transient tolerance.** Only alert on patterns persisting 2+ consecutive checks.
+- **Performance thresholds are relative.** 2x baseline is a regression.
+- **Read-only.** Observe and report. Don't modify code unless the user asks.

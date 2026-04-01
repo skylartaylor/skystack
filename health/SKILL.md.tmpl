@@ -1,0 +1,164 @@
+---
+name: health
+description: |
+  Code quality dashboard. Wraps existing project tools (type checker, linter,
+  tests, dead code detection) into a weighted 0-10 composite score with trend
+  tracking over time. Read-only — detects and reports, never fixes.
+  Use when asked to "health check", "code quality", "project health",
+  "how's the codebase", or "quality score".
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Glob
+  - Grep
+  - AskUserQuestion
+---
+
+{{PREAMBLE}}
+
+{{VOICE_GUIDE}}
+
+# /health — Code Quality Dashboard
+
+You run the project's existing quality tools and score the results. You never fix
+anything — you detect and report. Think of this as a doctor's checkup, not surgery.
+
+---
+
+## Phase 1: Detect Health Stack
+
+Check CLAUDE.md for a `## Health Stack` section first. If present, use those exact commands.
+If not, auto-detect:
+
+```bash
+echo "=== CHECKING TOOLS ==="
+# TypeScript
+[ -f tsconfig.json ] && echo "TYPECHECK:tsc" && npx tsc --noEmit 2>&1 | tail -5
+# Linter
+[ -f .eslintrc* ] || [ -f eslint.config.* ] && echo "LINT:eslint"
+[ -f .rubocop.yml ] && echo "LINT:rubocop"
+[ -f ruff.toml ] || [ -f pyproject.toml ] && echo "LINT:ruff"
+# Tests
+[ -f jest.config.* ] || [ -f vitest.config.* ] && echo "TEST:vitest_or_jest"
+[ -f .rspec ] && echo "TEST:rspec"
+[ -f pytest.ini ] || [ -f pyproject.toml ] && echo "TEST:pytest"
+# Dead code
+which knip >/dev/null 2>&1 && echo "DEADCODE:knip"
+which ts-prune >/dev/null 2>&1 && echo "DEADCODE:ts-prune"
+# Shell
+which shellcheck >/dev/null 2>&1 && echo "SHELL:shellcheck"
+echo "=== DONE ==="
+```
+
+If CLAUDE.md has a `## Testing` section with a run command, use that for tests.
+
+---
+
+## Phase 2: Run Each Tool
+
+Run each detected tool sequentially. For each tool, capture:
+- Exit code
+- Last 50 lines of output
+- Duration (seconds)
+
+```bash
+# Example for TypeScript
+START=$(date +%s)
+npx tsc --noEmit 2>&1 | tail -50
+TSC_EXIT=$?
+END=$(date +%s)
+echo "DURATION: $((END - START))s EXIT: $TSC_EXIT"
+```
+
+Repeat for linter, tests, dead code detector, shell linter.
+
+**Use exact commands from CLAUDE.md if specified.** Never substitute your own.
+
+---
+
+## Phase 3: Score
+
+Score each category 0-10 using this rubric:
+
+| Category | Weight | 10 | 7 | 4 | 0 |
+|----------|--------|-----|-----|-----|-----|
+| Type check | 25% | 0 errors | 1-5 errors | 6-20 errors | 50+ errors |
+| Lint | 20% | 0 warnings | 1-5 warnings | 6-10 warnings | 20+ warnings |
+| Tests | 30% | All pass | 1-2 fail | 3-5 fail | 6+ fail or no tests |
+| Dead code | 15% | 0 unused | 1-5 unused | 6-10 unused | 20+ unused |
+| Shell lint | 10% | 0 issues | 1-3 issues | 4-8 issues | 10+ issues |
+
+**Skipped tools don't penalize.** Their weight redistributes proportionally to
+the tools that did run. If only type check and tests run, weights become ~45% and ~55%.
+
+Compute the weighted composite score (0-10).
+
+---
+
+## Phase 4: Present Dashboard
+
+```
+CODE HEALTH DASHBOARD
+═══════════════════════════════════════════════════
+  Category      Score   Status        Duration
+  ───────────   ─────   ──────────    ────────
+  Type check    10/10   CLEAN         3s
+  Lint           7/10   WARNING       2s
+  Tests         10/10   CLEAN         8s
+  Dead code      —      SKIPPED       —
+  Shell lint     —      SKIPPED       —
+
+  COMPOSITE SCORE: 9.1 / 10
+═══════════════════════════════════════════════════
+```
+
+Status labels:
+- 10: CLEAN
+- 7-9: WARNING
+- 4-6: NEEDS WORK
+- 0-3: CRITICAL
+
+For any category below 7, show the top 3 issues from the tool output.
+
+---
+
+## Phase 5: History & Trends
+
+```bash
+eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
+mkdir -p ~/.skystack/projects/$SLUG
+HISTORY="$HOME/.skystack/projects/$SLUG/health-history.jsonl"
+```
+
+Append this run as a JSON line:
+```json
+{"timestamp":"ISO","composite":9.1,"typecheck":10,"lint":7,"tests":10,"deadcode":null,"shell":null}
+```
+
+Read the last 10 entries from the history file. If prior runs exist, show trends:
+
+```
+TREND (last 5 runs)
+═══════════════════════════════════════════════════
+  Date        Composite   Δ       Notes
+  ──────────  ─────────   ─────   ─────────────
+  2026-04-01  9.1         +0.3    lint improved
+  2026-03-28  8.8         -0.2    2 new test failures
+  2026-03-25  9.0          —      baseline
+═══════════════════════════════════════════════════
+```
+
+If the composite score declined since the last run, identify which category regressed
+and show the specific tool output that caused it.
+
+---
+
+## Important Rules
+
+- **Read-only.** Never modify code or run fix commands. Report only.
+- **Use exact tool commands** from CLAUDE.md when specified.
+- **Show raw output for failures.** Don't summarize — let the user see what the tool said.
+- **Skipped tools = no penalty.** Don't punish a project for not having shellcheck.
+- **Trend tracking is the real value.** Individual scores are informative; trends over
+  time are actionable. Always show the trend if history exists.
