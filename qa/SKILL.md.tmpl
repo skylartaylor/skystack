@@ -351,7 +351,7 @@ Skip if: not "verified", or purely visual CSS fix, or no test framework detected
 
 **4f. Self-regulation**
 
-Every 5 fixes (or after any revert), compute the WTF-likelihood:
+After **every fix** (not every 5 — every single one), compute the WTF-likelihood:
 
 ```
 WTF-LIKELIHOOD:
@@ -363,8 +363,22 @@ WTF-LIKELIHOOD:
   Touching unrelated files:   +20%
 ```
 
-If WTF > 20%: STOP. Show what you've done so far and ask whether to continue.
-Hard cap: 50 fixes.
+**Continuous tracking:** Print the current WTF% in the commit message suffix:
+`fix(qa): ISSUE-NNN — short description [WTF: 8%]`
+
+**Hard gate at 20%:** When WTF exceeds 20%, STOP immediately. Show the user:
+- Fixes completed so far (count + commit SHAs)
+- Current WTF score and which signals contributed
+- Remaining issues by severity
+
+Then use AskUserQuestion:
+- Question: "WTF-likelihood hit {N}%. Should I keep going?"
+- A) Continue — I trust the fixes so far
+- B) Stop here — review what's been done
+- C) Revert last fix and stop
+
+**Hard cap: 50 fixes.** After 50 fixes, stop regardless of remaining issues or WTF score.
+Print: "Hit the 50-fix cap. Remaining {N} issues deferred to TODOS.md."
 
 ### Context checkpoint for exhaustive mode
 
