@@ -62,6 +62,7 @@ skystack/
 ├── diagnose/        # /diagnose skill (systematic root-cause debugging)
 ├── security/        # /security skill (infrastructure-first security audit)
 ├── benchmark/       # /benchmark skill (performance regression detection)
+├── devops/          # /devops skill (safe infrastructure management + incident tracking)
 ├── docs/            # documentation (skills.md, architecture guides)
 ├── document-release/ # /document-release skill (post-ship doc updates)
 ├── skystack-upgrade/ # /skystack-upgrade skill
@@ -263,3 +264,13 @@ The active skill lives at `~/.claude/skills/skystack/`. After making changes:
 3. Rebuild: `cd ~/.claude/skills/skystack && bun run build`
 
 Or copy the binary directly: `cp browse/dist/browse ~/.claude/skills/skystack/browse/dist/browse`
+
+**When to re-run `./setup`:** The setup script creates per-skill symlinks
+(`~/.claude/skills/<name>` → `skystack/<name>`) so Claude Code discovers each skill.
+Re-run `cd ~/.claude/skills/skystack && ./setup` when:
+- A **new skill directory** is added (e.g., `devops/`)
+- A skill directory is **renamed or removed**
+- Symlinks are broken (skill doesn't appear in new sessions)
+
+You do NOT need to re-run setup for template edits, binary rebuilds, or
+`gen:skill-docs` — those are picked up automatically via the existing symlinks.

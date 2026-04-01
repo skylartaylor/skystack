@@ -268,6 +268,7 @@ Refs are invalidated on navigation — run `snapshot` again after `goto`.
 ### Interaction
 | Command | Description |
 |---------|-------------|
+| `cleanup [--ads|--cookies|--sticky|--social|--overlays|--all]` | Remove ads, cookie banners, sticky overlays, and social widgets for cleaner snapshots |
 | `click <sel>` | Click element |
 | `cookie <name>=<value>` | Set cookie on current page domain |
 | `cookie-import <json>` | Import cookies from JSON file |
@@ -306,6 +307,7 @@ Refs are invalidated on navigation — run `snapshot` again after `goto`.
 |---------|-------------|
 | `diff <url1> <url2>` | Text diff between pages |
 | `pdf [path]` | Save as PDF |
+| `prettyscreenshot [--hide sel] [--width N] [path]` | Screenshot with auto-cleanup (removes ads, banners, overlays first) |
 | `responsive [prefix]` | Screenshots at mobile (375x812), tablet (768x1024), desktop (1280x720). Saves as {prefix}-mobile.png etc. |
 | `screenshot [--viewport] [--clip x,y,w,h] [selector|@ref] [path]` | Save screenshot (supports element crop via CSS/@ref, --clip region, --viewport) |
 
@@ -318,6 +320,8 @@ Refs are invalidated on navigation — run `snapshot` again after `goto`.
 | Command | Description |
 |---------|-------------|
 | `chain` | Run commands from JSON stdin. Format: [["cmd","arg1",...],...] |
+| `frame <selector|@ref|main>` | Switch to iframe context for snapshot/commands. Use "frame main" to return |
+| `state save|load <name>` | Save or load browser state (cookies + open pages) |
 
 ### Tabs
 | Command | Description |
