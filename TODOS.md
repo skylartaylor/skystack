@@ -46,15 +46,13 @@
 **Effort:** S
 **Priority:** P3
 
-### State persistence
+### State persistence — SHIPPED
 
-**What:** Save/load cookies + localStorage to JSON files for reproducible test sessions.
+~~**What:** Save/load cookies + localStorage to JSON files for reproducible test sessions.~~
 
-**Why:** Enables "resume where I left off" for QA sessions and repeatable auth states.
+Shipped as `state save|load <name>` browse command in v0.6.9.0. Uses Playwright's built-in `storageState()` for cookies + localStorage + IndexedDB. Saved to `.skystack/browse-states/<name>.json` with 0600 permissions.
 
-**Effort:** M
-**Priority:** P3
-**Depends on:** Sessions
+**Completed:** v0.6.9.0 (2026-04-01)
 
 ### Auth vault
 
@@ -66,14 +64,13 @@
 **Priority:** P3
 **Depends on:** Sessions, state persistence
 
-### Iframe support
+### Iframe support — SHIPPED
 
-**What:** `frame <sel>` and `frame main` commands for cross-frame interaction.
+~~**What:** `frame <sel>` and `frame main` commands for cross-frame interaction.~~
 
-**Why:** Many web apps use iframes (embeds, payment forms, ads). Currently invisible to browse.
+Shipped as `frame <selector|@ref|main>` browse command in v0.6.9.0. All read/write commands are frame-aware via `getTarget()` — text, snapshot, click, fill, etc. all operate within the active frame. `frame main` returns to the page context.
 
-**Effort:** M
-**Priority:** P4
+**Completed:** v0.6.9.0 (2026-04-01)
 
 ### Semantic locators
 

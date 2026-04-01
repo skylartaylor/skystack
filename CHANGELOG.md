@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.6.9.0] - 2026-04-01 — gstack Port: New Skills, Browse Commands, QA Hardening
+
+### Added
+
+- **`/checkpoint` — save and resume session context.** Captures git state, decisions made, and remaining work to a file. Resume exactly where you left off, even after switching branches or closing the session. Commands: save, resume, list.
+- **`/health` — code quality dashboard.** Wraps your existing tools (tsc, eslint, tests, dead code detection) into a weighted 0-10 composite score. Tracks trends over time so you can see if quality is improving or degrading. Read-only — reports, never fixes.
+- **`/canary` — post-deploy monitoring.** Watches your live app after a deploy using the browse daemon. Screenshots every 60 seconds, compares against baselines, alerts on new console errors or performance regressions. Includes baseline capture mode (`--baseline`) for before-deploy snapshots.
+- **`/devops` skill now registered** in the doc generator and listed in README/CLAUDE.md.
+- **`cleanup` browse command.** Removes ads, cookie banners, sticky overlays, and social widgets from a page for cleaner snapshots. Targets specific known frameworks (OneTrust, CookieBot, Google Ads) to avoid false positives.
+- **`prettyscreenshot` browse command.** Screenshot with auto-cleanup — runs cleanup first, then captures. Supports `--hide <selector>` and `--width <N>` flags.
+- **`frame` browse command.** Switch to an iframe context so all subsequent commands (text, snapshot, click, etc.) operate inside the frame. Use `frame main` to return. All read/write commands are now frame-aware.
+- **`state` browse command.** Save and load browser state (cookies + localStorage + open pages) to named files. Uses Playwright's built-in `storageState()` for complete persistence including IndexedDB.
+
+### Changed
+
+- **QA self-regulation is now continuous.** WTF-likelihood tracking runs after every fix (was every 5). Hard gate at 20% with explicit user prompt. WTF% now appears in commit message suffixes. 50-fix hard cap has explicit enforcement and defers remaining issues to TODOS.md.
+- **Browse commands are frame-aware.** When a frame is active, text, html, links, forms, accessibility, js, eval, css, attrs, is, click, fill, select, hover, scroll, and wait all operate within the frame context. Page-level commands (goto, screenshot, cookies) still target the page.
+
+### Fixed
+
+- **Cleanup selectors no longer match false positives.** Replaced overly broad selectors like `[class*="ad-"]` (matched "gradient-", "padding-") and `[id*="cookie"]` (matched cookie recipe sites) with specific framework selectors.
+- **Cleanup no longer scans every DOM element.** Replaced `querySelectorAll('*')` with targeted container queries (`div, section, aside, footer, [role="dialog"]`) for fixed/sticky position detection. Faster on heavy pages.
+
 ## [0.6.8.0] - 2026-03-29 — Voice, Taste Memory, Dual-Model Review, and Process Upgrades
 
 ### Added
