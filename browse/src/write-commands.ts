@@ -16,6 +16,7 @@ export async function handleWriteCommand(
   bm: BrowserManager
 ): Promise<string> {
   const page = bm.getPage();
+  const target = bm.getTarget();
 
   switch (command) {
     case 'goto': {
@@ -70,13 +71,13 @@ export async function handleWriteCommand(
         if ('locator' in resolved) {
           await resolved.locator.click({ timeout: 5000 });
         } else {
-          await page.click(resolved.selector, { timeout: 5000 });
+          await target.locator(resolved.selector).click({ timeout: 5000 });
         }
       } catch (err: any) {
         // Enhanced error guidance: clicking <option> elements always fails (not visible / timeout)
         const isOption = 'locator' in resolved
           ? await resolved.locator.evaluate(el => el.tagName === 'OPTION').catch(() => false)
-          : await page.evaluate(
+          : await target.evaluate(
               (sel: string) => document.querySelector(sel)?.tagName === 'OPTION',
               (resolved as { selector: string }).selector
             ).catch(() => false);
@@ -100,7 +101,7 @@ export async function handleWriteCommand(
       if ('locator' in resolved) {
         await resolved.locator.fill(value, { timeout: 5000 });
       } else {
-        await page.fill(resolved.selector, value, { timeout: 5000 });
+        await target.locator(resolved.selector).fill(value, { timeout: 5000 });
       }
       return `Filled ${selector}`;
     }
@@ -113,7 +114,7 @@ export async function handleWriteCommand(
       if ('locator' in resolved) {
         await resolved.locator.selectOption(value, { timeout: 5000 });
       } else {
-        await page.selectOption(resolved.selector, value, { timeout: 5000 });
+        await target.locator(resolved.selector).selectOption(value, { timeout: 5000 });
       }
       return `Selected "${value}" in ${selector}`;
     }
@@ -125,7 +126,7 @@ export async function handleWriteCommand(
       if ('locator' in resolved) {
         await resolved.locator.hover({ timeout: 5000 });
       } else {
-        await page.hover(resolved.selector, { timeout: 5000 });
+        await target.locator(resolved.selector).hover({ timeout: 5000 });
       }
       return `Hovered ${selector}`;
     }
@@ -151,11 +152,11 @@ export async function handleWriteCommand(
         if ('locator' in resolved) {
           await resolved.locator.scrollIntoViewIfNeeded({ timeout: 5000 });
         } else {
-          await page.locator(resolved.selector).scrollIntoViewIfNeeded({ timeout: 5000 });
+          await target.locator(resolved.selector).scrollIntoViewIfNeeded({ timeout: 5000 });
         }
         return `Scrolled ${selector} into view`;
       }
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await target.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       return 'Scrolled to bottom';
     }
 
@@ -180,7 +181,7 @@ export async function handleWriteCommand(
       if ('locator' in resolved) {
         await resolved.locator.waitFor({ state: 'visible', timeout });
       } else {
-        await page.waitForSelector(resolved.selector, { timeout });
+        await target.waitForSelector(resolved.selector, { timeout });
       }
       return `Element ${selector} appeared`;
     }
@@ -302,6 +303,95 @@ export async function handleWriteCommand(
 
       await page.context().addCookies(cookies);
       return `Loaded ${cookies.length} cookies from ${filePath}`;
+    }
+
+    case 'cleanup': {
+      // Remove ads, cookie banners, sticky overlays, social widgets
+      // Selectors are specific to avoid false positives (e.g., [class*="ad-"] would match "gradient-")
+      const CLEANUP_SELECTORS: Record<string, string[]> = {
+        ads: [
+          'ins.adsbygoogle', '[id*="google_ads"]', '[id*="doubleclick"]',
+          '[data-ad]', '[data-ad-slot]', '[data-ad-unit]',
+          '[class*="sponsored-"]', '[class*="banner-ad"]',
+          '.ad-container', '.ad-wrapper', '.ad-slot',
+          'iframe[src*="doubleclick"]', 'iframe[src*="googlesyndication"]',
+        ],
+        cookies: [
+          '#onetrust-banner-sdk', '#onetrust-consent-sdk',
+          '.cc-banner', '.cc-window',
+          '[class*="cookie-banner"]', '[class*="cookie-consent"]',
+          '[class*="CookieConsent"]', '.js-cookie-notice',
+          '#cookie-law-info-bar', '.cookie-notice',
+          '[class*="gdpr-banner"]', '[class*="gdpr-consent"]',
+          '[id="CybotCookiebotDialog"]',
+        ],
+        overlays: [
+          '[class*="paywall"]', '[class*="signup-wall"]',
+          '[class*="interstitial"]',
+          '[class*="newsletter-popup"]', '[class*="newsletter-modal"]',
+          '[class*="app-banner"]', '[class*="smart-banner"]',
+        ],
+        social: [
+          '[class*="share-buttons"]', '[class*="social-share"]',
+          '.addthis_toolbox', '.addthis_sharing_toolbox',
+          '[class*="social-embed"]',
+        ],
+        sticky: [], // handled via JS evaluation below
+      };
+
+      const flags = args.length > 0 ? args.map(a => a.replace('--', '')) : ['all'];
+      const isAll = flags.includes('all');
+
+      const selectorsToRemove: string[] = [];
+      for (const [category, selectors] of Object.entries(CLEANUP_SELECTORS)) {
+        if (isAll || flags.includes(category)) {
+          selectorsToRemove.push(...selectors);
+        }
+      }
+
+      // Remove matched elements + sticky/fixed elements + unlock scroll
+      const result = await page.evaluate((selectors: string[]) => {
+        let removed = 0;
+
+        // Remove elements matching selectors
+        for (const sel of selectors) {
+          try {
+            document.querySelectorAll(sel).forEach(el => {
+              (el as HTMLElement).style.display = 'none';
+              removed++;
+            });
+          } catch {}
+        }
+
+        // Remove fixed/sticky position elements — scan only common overlay containers
+        // (avoids expensive querySelectorAll('*') + getComputedStyle on every element)
+        const overlayContainers = document.querySelectorAll('div, section, aside, footer, [role="dialog"], [role="alertdialog"], [role="banner"]');
+        for (const el of overlayContainers) {
+          const style = window.getComputedStyle(el);
+          const pos = style.position;
+          if (pos === 'fixed' || pos === 'sticky') {
+            const tag = el.tagName.toLowerCase();
+            const role = el.getAttribute('role');
+            // Preserve main navigation
+            if (tag === 'nav' || role === 'navigation') continue;
+            if (tag === 'header' && el.querySelector('nav')) continue;
+            (el as HTMLElement).style.display = 'none';
+            removed++;
+          }
+        }
+
+        // Unlock scroll (often blocked by overlays)
+        document.documentElement.style.overflow = '';
+        document.body.style.overflow = '';
+        // Remove blur filters from direct body children (overlay blur targets)
+        document.querySelectorAll('body > [style*="filter"]').forEach(el => {
+          (el as HTMLElement).style.filter = '';
+        });
+
+        return removed;
+      }, selectorsToRemove);
+
+      return `Cleaned up ${result} elements (${flags.join(', ')})`;
     }
 
     case 'cookie-import-browser': {

@@ -15,7 +15,7 @@
  *   restores state. Falls back to clean slate on any failure.
  */
 
-import { chromium, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Locator } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Locator, type Frame } from 'playwright';
 import { addConsoleEntry, addNetworkEntry, addDialogEntry, networkBuffer, type DialogEntry } from './buffers';
 
 export interface RefEntry {
@@ -42,6 +42,9 @@ export class BrowserManager {
   // ─── Snapshot Diffing ─────────────────────────────────────
   // NOT cleared on navigation — it's a text baseline for diffing
   private lastSnapshot: string | null = null;
+
+  // ─── Frame Context ────────────────────────────────────────
+  private activeFrame: Frame | null = null;
 
   // ─── Dialog Handling ──────────────────────────────────────
   private dialogAutoAccept: boolean = true;
@@ -166,6 +169,16 @@ export class BrowserManager {
     return page;
   }
 
+  /**
+   * Returns the active frame if set (via `frame` command), otherwise the page.
+   * Use this for commands that should be frame-scoped (text, snapshot, click, etc.).
+   * Frame and Page share most methods (evaluate, locator, url, etc.).
+   */
+  getTarget(): Frame | Page {
+    if (this.activeFrame) return this.activeFrame;
+    return this.getPage();
+  }
+
   getCurrentUrl(): string {
     try {
       return this.getPage().url();
@@ -219,6 +232,110 @@ export class BrowserManager {
 
   getRefCount(): number {
     return this.refMap.size;
+  }
+
+  // ─── Frame Context ─────────────────────────────────────────
+  setFrame(frame: Frame | null) {
+    this.activeFrame = frame;
+  }
+
+  getFrame(): Frame | null {
+    return this.activeFrame;
+  }
+
+  // ─── State Save/Load ──────────────────────────────────────
+
+  /** Save browser state using Playwright's built-in storageState (cookies + localStorage + IndexedDB) plus open page URLs. */
+  async saveState(statePath: string): Promise<{ cookieCount: number; pageCount: number }> {
+    if (!this.context) throw new Error('Browser not launched');
+
+    // Save cookies + storage via Playwright built-in
+    const storageState = await this.context.storageState();
+
+    // Also save open page URLs (not part of storageState)
+    const pages: Array<{ url: string; isActive: boolean }> = [];
+    for (const [id, page] of this.pages) {
+      pages.push({ url: page.url(), isActive: id === this.activeTabId });
+    }
+
+    const saveData = {
+      version: 2,
+      savedAt: new Date().toISOString(),
+      storageState,
+      pages,
+    };
+
+    const fs = await import('fs');
+    fs.writeFileSync(statePath, JSON.stringify(saveData, null, 2), { mode: 0o600 });
+
+    return { cookieCount: storageState.cookies.length, pageCount: pages.length };
+  }
+
+  /** Load browser state from file. Closes existing pages and restores cookies + storage + pages. */
+  async loadState(statePath: string): Promise<{ cookieCount: number; pageCount: number }> {
+    if (!this.context) throw new Error('Browser not launched');
+
+    const fs = await import('fs');
+    const data = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+
+    // Support v1 (manual cookies) and v2 (storageState)
+    if (data.version === 2 && data.storageState) {
+      // Restore cookies + origins (localStorage) from storageState
+      if (data.storageState.cookies?.length > 0) {
+        await this.context.addCookies(data.storageState.cookies);
+      }
+    } else if (Array.isArray(data.cookies)) {
+      // v1 fallback
+      if (data.cookies.length > 0) {
+        await this.context.addCookies(data.cookies);
+      }
+    }
+
+    // Close existing pages and restore saved ones
+    this.activeFrame = null;
+    for (const page of this.pages.values()) {
+      await page.close().catch(() => {});
+    }
+    this.pages.clear();
+
+    const pages: Array<{ url: string; isActive: boolean }> = data.pages || [];
+    let activeId: number | null = null;
+    for (const saved of pages) {
+      const page = await this.context.newPage();
+      const id = this.nextTabId++;
+      this.pages.set(id, page);
+      this.wirePageEvents(page);
+
+      if (saved.url && saved.url !== 'about:blank') {
+        await page.goto(saved.url, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+
+        // Restore localStorage from storageState origins (v2 only)
+        if (data.version === 2 && data.storageState?.origins) {
+          const origin = new URL(saved.url).origin;
+          const originState = data.storageState.origins.find((o: any) => o.origin === origin);
+          if (originState?.localStorage?.length > 0) {
+            await page.evaluate((items: Array<{ name: string; value: string }>) => {
+              for (const { name, value } of items) localStorage.setItem(name, value);
+            }, originState.localStorage).catch(() => {});
+          }
+        }
+      }
+
+      if (saved.isActive) activeId = id;
+    }
+
+    if (this.pages.size === 0) {
+      await this.newTab();
+    } else {
+      this.activeTabId = activeId ?? [...this.pages.keys()][0];
+    }
+
+    this.clearRefs();
+
+    const cookieCount = data.version === 2
+      ? (data.storageState?.cookies?.length ?? 0)
+      : (data.cookies?.length ?? 0);
+    return { cookieCount, pageCount: pages.length };
   }
 
   // ─── Snapshot Diffing ─────────────────────────────────────

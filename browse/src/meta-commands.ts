@@ -5,7 +5,9 @@
 import type { BrowserManager } from './browser-manager';
 import { handleSnapshot } from './snapshot';
 import { getCleanText } from './read-commands';
+import { handleWriteCommand } from './write-commands';
 import { READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS } from './commands';
+import { resolveConfig } from './config';
 import * as Diff from 'diff';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -246,6 +248,122 @@ export async function handleMetaCommand(
     // ─── Snapshot ─────────────────────────────────────
     case 'snapshot': {
       return await handleSnapshot(args, bm);
+    }
+
+    // ─── Pretty Screenshot ────────────────────────────
+    case 'prettyscreenshot': {
+      const page = bm.getPage();
+      let outputPath = '/tmp/browse-pretty.png';
+      let hideSelectors: string[] = [];
+      let width: number | null = null;
+      const originalViewport = page.viewportSize();
+
+      // Parse flags
+      for (let i = 0; i < args.length; i++) {
+        if (args[i] === '--hide') {
+          hideSelectors.push(args[++i]);
+        } else if (args[i] === '--width') {
+          width = parseInt(args[++i], 10);
+        } else if (!args[i].startsWith('--')) {
+          outputPath = args[i];
+        }
+      }
+
+      validateOutputPath(outputPath);
+
+      // Set viewport width if requested
+      if (width && originalViewport) {
+        await page.setViewportSize({ width, height: originalViewport.height });
+      }
+
+      // Run cleanup first
+      await handleWriteCommand('cleanup', ['--all'], bm);
+
+      // Hide additional selectors
+      if (hideSelectors.length > 0) {
+        await page.evaluate((sels: string[]) => {
+          for (const sel of sels) {
+            try {
+              document.querySelectorAll(sel).forEach(el => {
+                (el as HTMLElement).style.display = 'none';
+              });
+            } catch {}
+          }
+        }, hideSelectors);
+      }
+
+      await page.screenshot({ path: outputPath, fullPage: true });
+
+      // Restore viewport
+      if (width && originalViewport) {
+        await page.setViewportSize(originalViewport);
+      }
+
+      const applied = ['cleanup'];
+      if (hideSelectors.length) applied.push(`hide:${hideSelectors.join(',')}`);
+      if (width) applied.push(`width:${width}`);
+      return `Pretty screenshot saved: ${outputPath} (${applied.join(', ')})`;
+    }
+
+    // ─── Frame ────────────────────────────────────────
+    case 'frame': {
+      const target = args[0];
+      if (!target) throw new Error('Usage: frame <selector|@ref|main>');
+
+      if (target === 'main') {
+        bm.setFrame(null);
+        bm.clearRefs();
+        return 'Switched to main frame';
+      }
+
+      const page = bm.getPage();
+      const resolved = await bm.resolveRef(target);
+      const locator = 'locator' in resolved ? resolved.locator : page.locator(resolved.selector);
+      const elementHandle = await locator.elementHandle({ timeout: 5000 });
+      const frame = await elementHandle?.contentFrame() ?? null;
+      await elementHandle?.dispose();
+
+      if (!frame) throw new Error(`Frame not found: ${target}`);
+      bm.setFrame(frame);
+      bm.clearRefs();
+      return `Switched to frame: ${frame.url()}`;
+    }
+
+    // ─── State ────────────────────────────────────────
+    case 'state': {
+      const [action, name] = args;
+      if (!action || !name) throw new Error('Usage: state save|load <name>');
+
+      if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+        throw new Error('State name must be alphanumeric (a-z, 0-9, _, -)');
+      }
+
+      const config = resolveConfig();
+      const stateDir = path.join(config.stateDir, 'browse-states');
+      fs.mkdirSync(stateDir, { recursive: true });
+      const statePath = path.join(stateDir, `${name}.json`);
+
+      if (action === 'save') {
+        const { cookieCount, pageCount } = await bm.saveState(statePath);
+        return `State saved: ${statePath} (${cookieCount} cookies, ${pageCount} pages, + localStorage)\n⚠️  Cookies stored in plaintext. Delete when no longer needed.`;
+      }
+
+      if (action === 'load') {
+        if (!fs.existsSync(statePath)) throw new Error(`State not found: ${statePath}`);
+        // Warn on state files older than 7 days
+        const data = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        if (data.savedAt) {
+          const ageMs = Date.now() - new Date(data.savedAt).getTime();
+          const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+          if (ageMs > SEVEN_DAYS) {
+            console.warn(`[browse] Warning: State file is ${Math.round(ageMs / 86400000)} days old. Consider re-saving.`);
+          }
+        }
+        const { cookieCount, pageCount } = await bm.loadState(statePath);
+        return `State loaded: ${cookieCount} cookies, ${pageCount} pages`;
+      }
+
+      throw new Error('Usage: state save|load <name>');
     }
 
     default:

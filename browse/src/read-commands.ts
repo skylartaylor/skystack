@@ -7,7 +7,7 @@
 
 import type { BrowserManager } from './browser-manager';
 import { consoleBuffer, networkBuffer, dialogBuffer } from './buffers';
-import type { Page } from 'playwright';
+import type { Page, Frame } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -56,8 +56,8 @@ function validateReadPath(filePath: string): void {
  * Extract clean text from a page (strips script/style/noscript/svg).
  * Exported for DRY reuse in meta-commands (diff).
  */
-export async function getCleanText(page: Page): Promise<string> {
-  return await page.evaluate(() => {
+export async function getCleanText(target: Page | Frame): Promise<string> {
+  return await target.evaluate(() => {
     const body = document.body;
     if (!body) return '';
     const clone = body.cloneNode(true) as HTMLElement;
@@ -75,11 +75,13 @@ export async function handleReadCommand(
   args: string[],
   bm: BrowserManager
 ): Promise<string> {
+  // Use getTarget() for frame-scoped commands, getPage() for page-level ones
   const page = bm.getPage();
+  const target = bm.getTarget();
 
   switch (command) {
     case 'text': {
-      return await getCleanText(page);
+      return await getCleanText(target);
     }
 
     case 'html': {
@@ -89,13 +91,13 @@ export async function handleReadCommand(
         if ('locator' in resolved) {
           return await resolved.locator.innerHTML({ timeout: 5000 });
         }
-        return await page.innerHTML(resolved.selector);
+        return await target.innerHTML(resolved.selector);
       }
-      return await page.content();
+      return await target.content();
     }
 
     case 'links': {
-      const links = await page.evaluate(() =>
+      const links = await target.evaluate(() =>
         [...document.querySelectorAll('a[href]')].map(a => ({
           text: a.textContent?.trim().slice(0, 120) || '',
           href: (a as HTMLAnchorElement).href,
@@ -105,7 +107,7 @@ export async function handleReadCommand(
     }
 
     case 'forms': {
-      const forms = await page.evaluate(() => {
+      const forms = await target.evaluate(() => {
         return [...document.querySelectorAll('form')].map((form, i) => {
           const fields = [...form.querySelectorAll('input, select, textarea')].map(el => {
             const input = el as HTMLInputElement;
@@ -135,7 +137,7 @@ export async function handleReadCommand(
     }
 
     case 'accessibility': {
-      const snapshot = await page.locator("body").ariaSnapshot();
+      const snapshot = await target.locator("body").ariaSnapshot();
       return snapshot;
     }
 
@@ -143,7 +145,7 @@ export async function handleReadCommand(
       const expr = args[0];
       if (!expr) throw new Error('Usage: browse js <expression>');
       const wrapped = wrapForEvaluate(expr);
-      const result = await page.evaluate(wrapped);
+      const result = await target.evaluate(wrapped);
       return typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result ?? '');
     }
 
@@ -154,7 +156,7 @@ export async function handleReadCommand(
       if (!fs.existsSync(filePath)) throw new Error(`File not found: ${filePath}`);
       const code = fs.readFileSync(filePath, 'utf-8');
       const wrapped = wrapForEvaluate(code);
-      const result = await page.evaluate(wrapped);
+      const result = await target.evaluate(wrapped);
       return typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result ?? '');
     }
 
@@ -169,7 +171,7 @@ export async function handleReadCommand(
         );
         return value;
       }
-      const value = await page.evaluate(
+      const value = await target.evaluate(
         ([sel, prop]) => {
           const el = document.querySelector(sel);
           if (!el) return `Element not found: ${sel}`;
@@ -194,7 +196,7 @@ export async function handleReadCommand(
         });
         return JSON.stringify(attrs, null, 2);
       }
-      const attrs = await page.evaluate((sel) => {
+      const attrs = await target.evaluate((sel) => {
         const el = document.querySelector(sel);
         if (!el) return `Element not found: ${sel}`;
         const result: Record<string, string> = {};
@@ -252,7 +254,7 @@ export async function handleReadCommand(
       if ('locator' in resolved) {
         locator = resolved.locator;
       } else {
-        locator = page.locator(resolved.selector);
+        locator = target.locator(resolved.selector);
       }
 
       switch (property) {
