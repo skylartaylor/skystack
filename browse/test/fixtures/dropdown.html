@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Dropdown Test</title></head>
+<body>
+  <h1>Dropdown Portal Test</h1>
+  <input id="search" type="text" placeholder="Search contacts..." aria-label="Search contacts" />
+  <button id="open-btn">Open Menu</button>
+  <a href="/about">About</a>
+
+  <!-- Floating portal container (simulates React portal / Radix dropdown) -->
+  <div data-floating-ui-portal
+       style="position: fixed; top: 60px; left: 20px; z-index: 9999; background: white; border: 1px solid #ccc; padding: 8px; width: 250px;">
+
+    <div style="cursor: pointer;" onclick="document.getElementById('search').value = 'Alice Johnson'">
+      Alice Johnson - Acme Corp
+    </div>
+    <div style="cursor: pointer;" onclick="document.getElementById('search').value = 'Bob Smith'">
+      Bob Smith - Beta Inc
+    </div>
+    <div style="cursor: pointer;" onclick="document.getElementById('search').value = 'Carol Davis'">
+      Carol Davis - Gamma LLC
+    </div>
+    <div role="option" onclick="document.getElementById('search').value = 'Dave Wilson'">
+      Dave Wilson - Delta Co
+    </div>
+    <div>No results? Try a different search.</div>
+  </div>
+</body>
+</html>

@@ -55,14 +55,14 @@ export const SNAPSHOT_FLAGS: Array<{
   valueHint?: string;
   optionKey: keyof SnapshotOptions;
 }> = [
-  { short: '-i', long: '--interactive', description: 'Interactive elements only (buttons, links, inputs) with @e refs', optionKey: 'interactive' },
+  { short: '-i', long: '--interactive', description: 'Interactive elements only (buttons, links, inputs) with @e refs. Auto-enables -C to capture dropdowns/popovers', optionKey: 'interactive' },
   { short: '-c', long: '--compact', description: 'Compact (no empty structural nodes)', optionKey: 'compact' },
   { short: '-d', long: '--depth', description: 'Limit tree depth (0 = root only, default: unlimited)', takesValue: true, valueHint: '<N>', optionKey: 'depth' },
   { short: '-s', long: '--selector', description: 'Scope to CSS selector', takesValue: true, valueHint: '<sel>', optionKey: 'selector' },
   { short: '-D', long: '--diff', description: 'Unified diff against previous snapshot (first call stores baseline)', optionKey: 'diff' },
   { short: '-a', long: '--annotate', description: 'Annotated screenshot with red overlay boxes and ref labels', optionKey: 'annotate' },
   { short: '-o', long: '--output', description: 'Output path for annotated screenshot (default: /tmp/browse-annotated.png)', takesValue: true, valueHint: '<path>', optionKey: 'outputPath' },
-  { short: '-C', long: '--cursor-interactive', description: 'Cursor-interactive elements (@c refs — divs with pointer, onclick)', optionKey: 'cursorInteractive' },
+  { short: '-C', long: '--cursor-interactive', description: 'Cursor-interactive elements (@c refs — divs with pointer, onclick). Auto-enabled with -i', optionKey: 'cursorInteractive' },
 ];
 
 interface ParsedNode {
@@ -229,7 +229,12 @@ export async function handleSnapshot(
     output.push(outputLine);
   }
 
-  // ─── Cursor-interactive scan (-C) ─────────────────────────
+  // ─── Cursor-interactive scan (-C, or auto with -i) ────────
+  // Auto-enable cursor scan when interactive mode is on — agents asking for
+  // interactive elements should always see clickable non-ARIA items too.
+  if (opts.interactive && !opts.cursorInteractive) {
+    opts.cursorInteractive = true;
+  }
   if (opts.cursorInteractive) {
     try {
       const cursorElements = await page.evaluate(() => {
@@ -252,9 +257,37 @@ export async function handleSnapshot(
           const hasTabindex = el.hasAttribute('tabindex') && parseInt(el.getAttribute('tabindex')!, 10) >= 0;
           const hasRole = el.hasAttribute('role');
 
-          if (!hasCursorPointer && !hasOnclick && !hasTabindex) continue;
-          // Skip if it has an ARIA role (likely already captured)
-          if (hasRole) continue;
+          // Check if element is inside a floating container (portal/popover/dropdown)
+          const isInFloating = (() => {
+            let parent: Element | null = el;
+            while (parent && parent !== document.documentElement) {
+              const pStyle = getComputedStyle(parent);
+              const isFloating = (pStyle.position === 'fixed' || pStyle.position === 'absolute') &&
+                parseInt(pStyle.zIndex || '0', 10) >= 10;
+              const hasPortalAttr = parent.hasAttribute('data-floating-ui-portal') ||
+                parent.hasAttribute('data-radix-popper-content-wrapper') ||
+                parent.hasAttribute('data-radix-portal') ||
+                parent.hasAttribute('data-popper-placement') ||
+                parent.getAttribute('role') === 'listbox' ||
+                parent.getAttribute('role') === 'menu';
+              if (isFloating || hasPortalAttr) return true;
+              parent = parent.parentElement;
+            }
+            return false;
+          })();
+
+          if (!hasCursorPointer && !hasOnclick && !hasTabindex) {
+            // For elements inside floating containers, also check for role="option"/"menuitem"
+            if (isInFloating && hasRole) {
+              const role = el.getAttribute('role');
+              if (role !== 'option' && role !== 'menuitem' && role !== 'menuitemcheckbox' && role !== 'menuitemradio') continue;
+            } else {
+              continue;
+            }
+          }
+          // Skip elements with ARIA roles UNLESS they're inside a floating container
+          // (floating container items may be missed by the accessibility tree)
+          if (hasRole && !isInFloating) continue;
 
           // Build deterministic nth-child CSS path
           const parts: string[] = [];
@@ -271,9 +304,11 @@ export async function handleSnapshot(
 
           const text = (el as HTMLElement).innerText?.trim().slice(0, 80) || el.tagName.toLowerCase();
           const reasons: string[] = [];
+          if (isInFloating) reasons.push('popover-child');
           if (hasCursorPointer) reasons.push('cursor:pointer');
           if (hasOnclick) reasons.push('onclick');
           if (hasTabindex) reasons.push(`tabindex=${el.getAttribute('tabindex')}`);
+          if (hasRole) reasons.push(`role=${el.getAttribute('role')}`);
 
           results.push({ selector, text, reason: reasons.join(', ') });
         }

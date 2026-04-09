@@ -388,6 +388,74 @@ describe('Cursor-interactive', () => {
   });
 });
 
+// ─── Dropdown/Popover Detection ──────────────────────────────────
+
+describe('Dropdown/popover detection', () => {
+  test('snapshot -i auto-enables cursor scan and finds dropdown items', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/dropdown.html'], bm);
+    const result = await handleMetaCommand('snapshot', ['-i'], bm, shutdown);
+    // Should have ARIA interactive elements
+    expect(result).toContain('[button]');
+    expect(result).toContain('[link]');
+    expect(result).toContain('[textbox]');
+    // Should auto-enable cursor scan and find dropdown items
+    expect(result).toContain('cursor-interactive');
+    expect(result).toContain('@c');
+    expect(result).toContain('Alice Johnson');
+    expect(result).toContain('Bob Smith');
+  });
+
+  test('dropdown items in floating container are tagged as popover-child', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/dropdown.html'], bm);
+    const result = await handleMetaCommand('snapshot', ['-C'], bm, shutdown);
+    expect(result).toContain('popover-child');
+  });
+
+  test('dropdown items with role="option" in portal are captured', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/dropdown.html'], bm);
+    const result = await handleMetaCommand('snapshot', ['-C'], bm, shutdown);
+    expect(result).toContain('Dave Wilson');
+    expect(result).toContain('role=option');
+  });
+
+  test('static text in dropdown without interactivity is NOT in cursor scan', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/dropdown.html'], bm);
+    const result = await handleMetaCommand('snapshot', ['-C'], bm, shutdown);
+    // The cursor-interactive section should NOT include the static text
+    const cursorSection = result.split('── cursor-interactive')[1] || '';
+    expect(cursorSection).not.toContain('No results');
+    // But Alice (cursor:pointer) and Dave (role=option) should be there
+    expect(cursorSection).toContain('Alice Johnson');
+    expect(cursorSection).toContain('Dave Wilson');
+  });
+
+  test('@c ref from dropdown is clickable', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/dropdown.html'], bm);
+    const snap = await handleMetaCommand('snapshot', ['-C'], bm, shutdown);
+    // Find the @c ref for Alice Johnson in the cursor-interactive section
+    const cursorSection = snap.split('── cursor-interactive')[1] || '';
+    const aliceLine = cursorSection.split('\n').find(l => l.includes('Alice Johnson'));
+    expect(aliceLine).toBeDefined();
+    const refMatch = aliceLine!.match(/@(c\d+)/);
+    expect(refMatch).toBeTruthy();
+    const result = await handleWriteCommand('click', [`@${refMatch![1]}`], bm);
+    expect(result).toContain('Clicked');
+    // Verify the onclick handler fired
+    const page = bm.getPage();
+    const searchVal = await page.inputValue('#search');
+    expect(searchVal).toBe('Alice Johnson');
+  });
+
+  test('snapshot -C still works standalone without -i', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/dropdown.html'], bm);
+    const result = await handleMetaCommand('snapshot', ['-C'], bm, shutdown);
+    // Should find cursor elements
+    expect(result).toContain('cursor-interactive');
+    // Should include non-interactive ARIA elements like heading
+    expect(result).toContain('[heading]');
+  });
+});
+
 // ─── Snapshot Error Paths ───────────────────────────────────────
 
 describe('Snapshot errors', () => {
