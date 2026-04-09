@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.6.10.0] - 2026-04-09 — Self-Learning, Token Optimization, Security Hardening
+
+### Added
+
+- **Self-learning infrastructure.** Skills now remember what worked and what broke across sessions. Two new binaries (`skystack-learnings-log`, `skystack-learnings-search`) store per-project learnings as append-only JSONL with confidence decay and cross-project discovery. 13 skills wired into the learn-and-recall loop.
+- **Operational self-improvement.** Every skill session now reflects on failures and project-specific quirks at the end, logging them for future sessions. Preamble shows top 3 learnings when you have more than 5 — your agents get smarter with every run.
+- **Automatic model selection for subagents.** Skills now assign opus/sonnet/haiku to each subagent based on task complexity. Planning and review subagents use opus; implementation uses sonnet; test runners use haiku. ~45% cost reduction on subagent-heavy workflows like `/pm`.
+- **Worktree safety checks.** New `{{WORKTREE_SAFETY}}` resolver warns you before subagents spawn from uncommitted state. Asks to commit or stash first — prevents the bug where worktree-isolated agents can't see your latest changes.
+- **Code index MCP setup.** New reference doc and `bin/skystack-setup-code-index` script for jCodeMunch MCP — AST-based code indexing that cuts codebase exploration tokens by ~95%.
+- **Snapshot dropdown/popover detection.** `snapshot -i` now auto-enables `-C` and detects floating containers (Radix popovers, React portals). Dropdown items show up as `@c` refs tagged `popover-child`. 8 new tests.
+- **Confidence calibration resolver.** Review-producing skills now include honest confidence scoring — findings are graded 1-10 so you can trust the severity ratings.
+
+### Fixed
+
+- **Cookie picker auth hardened.** One-time code exchange (Jupyter-style) replaces unauthenticated access. The master auth token never appears in HTML or browser history. Session cookies with 1-hour TTL.
+- **Symlink bypass in path validation.** `validateOutputPath` now resolves symlinks via `realpathSync` — a symlink inside `/tmp` pointing outside can no longer bypass the path check.
+- **Directory permissions hardened.** State directories created with `mode: 0o700` (owner-only).
+- **Snapshot floating container walk.** Fixed bug where the parent walk started at the element itself, incorrectly tagging fixed-position elements as `popover-child`. Added `WeakMap` cache to avoid O(N*M) `getComputedStyle` calls on deep DOMs.
+- **Cross-project learnings detection.** Fixed unreliable detection that grepped line content for the project slug. Now uses file provenance tagging.
+
 ## [0.6.9.0] - 2026-04-01 — gstack Port: New Skills, Browse Commands, QA Hardening
 
 ### Added
