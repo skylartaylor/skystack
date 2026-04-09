@@ -33,6 +33,13 @@ find ~/.skystack/sessions -mmin +120 -type f -delete 2>/dev/null || true
 _CONTRIB=$(~/.claude/skills/skystack/bin/skystack-config get skystack_contributor 2>/dev/null || true)
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 echo "BRANCH: $_BRANCH"
+eval "$(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)" 2>/dev/null || true
+_LEARN_FILE="${SKYSTACK_HOME:-$HOME/.skystack}/projects/${SLUG:-unknown}/learnings.jsonl"
+if [ -f "$_LEARN_FILE" ]; then
+  _LEARN_COUNT=$(wc -l < "$_LEARN_FILE" 2>/dev/null | tr -d ' ')
+  echo "LEARNINGS: $_LEARN_COUNT"
+  [ "$_LEARN_COUNT" -gt 5 ] 2>/dev/null && ~/.claude/skills/skystack/bin/skystack-learnings-search --limit 3 2>/dev/null || true
+fi
 ```
 
 If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack/skystack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running skystack v{to} (just updated!)" and continue.
@@ -88,6 +95,24 @@ If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skysta
 ```
 
 Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing.
+
+## Operational Self-Improvement
+
+Before wrapping up, reflect on this session:
+- Did any commands fail unexpectedly?
+- Did you take a wrong approach and have to backtrack?
+- Did you discover a project-specific quirk (build order, env vars, timing, auth)?
+- Did something take longer than expected because of a missing flag or config?
+
+If yes, log an operational learning for future sessions:
+
+```bash
+~/.claude/skills/skystack/bin/skystack-learnings-log '{"skill":"SKILL_NAME","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
+```
+
+Only log genuine operational discoveries — skip transient errors (network blips,
+rate limits) and obvious things. A good test: would knowing this save 5+ minutes
+in a future session? If yes, log it.
 
 ## Voice
 
@@ -232,6 +257,19 @@ Print the detected base branch name. In every subsequent `git diff`, `git log`,
 branch name wherever the instructions say "the base branch."
 
 ---
+
+## Prior Learnings
+
+Load project-specific learnings from previous sessions:
+
+```bash
+~/.claude/skills/skystack/bin/skystack-learnings-search --limit 5 2>/dev/null || true
+```
+
+If learnings are returned, use them to inform your approach. Prior learnings
+about this project's quirks, common pitfalls, and working patterns can save
+time and prevent repeated mistakes. Mark any applied learning with
+"Prior learning applied: [key]" in your output.
 
 ## Phase 1: Understand what changed
 
@@ -502,6 +540,23 @@ Present findings as numbered issues with recommendations. For genuine tradeoffs,
 
 ## Phase 4: Present findings and fix
 
+## Confidence Calibration
+
+Every finding must include a confidence score. Calibrate honestly:
+
+| Score | Meaning | Display rule |
+|-------|---------|-------------|
+| 9-10  | Verified. Concrete bug, tested. | Show normally |
+| 7-8   | High confidence pattern. | Show normally |
+| 5-6   | Moderate, could be false positive. | Show with caveat |
+| 3-4   | Low confidence. | Suppress to appendix only |
+| 1-2   | Speculation. | Only show if P0 severity |
+
+Finding format: `[SEVERITY] (confidence: N/10) file:line — description`
+
+Never pad confidence to look thorough. A 6/10 that's honest is better than
+a 9/10 that wastes the user's time investigating a false positive.
+
 ### Classify each finding (code review)
 
 For each finding, classify as **AUTO-FIX** or **ASK** per the Fix-First Heuristic in checklist.md:
@@ -578,6 +633,21 @@ Informational only — never critical. Skip silently if no docs exist.
 ---
 
 ## Phase 6: Log completion
+
+## Log Learnings
+
+At the end of this session, log any genuine discoveries for future sessions.
+
+**Types:** `pattern`, `pitfall`, `preference`, `architecture`, `tool`, `operational`
+**Sources:** `observed` (you saw it), `user-stated` (user told you), `inferred` (you deduced it)
+**Confidence:** 1-10 (8+ = verified, 5-7 = probable, 3-4 = hunch)
+
+```bash
+~/.claude/skills/skystack/bin/skystack-learnings-log '{"skill":"SKILL_NAME","type":"TYPE","key":"short-key","insight":"What you learned","confidence":N,"source":"SOURCE"}'
+```
+
+Only log genuine discoveries — would knowing this save 5+ minutes next time?
+Skip transient errors (network blips, rate limits) and obvious things.
 
 After all fixes are applied (or no issues found), log the review result so `/publish` knows the review ran:
 

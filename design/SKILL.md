@@ -31,6 +31,13 @@ find ~/.skystack/sessions -mmin +120 -type f -delete 2>/dev/null || true
 _CONTRIB=$(~/.claude/skills/skystack/bin/skystack-config get skystack_contributor 2>/dev/null || true)
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 echo "BRANCH: $_BRANCH"
+eval "$(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)" 2>/dev/null || true
+_LEARN_FILE="${SKYSTACK_HOME:-$HOME/.skystack}/projects/${SLUG:-unknown}/learnings.jsonl"
+if [ -f "$_LEARN_FILE" ]; then
+  _LEARN_COUNT=$(wc -l < "$_LEARN_FILE" 2>/dev/null | tr -d ' ')
+  echo "LEARNINGS: $_LEARN_COUNT"
+  [ "$_LEARN_COUNT" -gt 5 ] 2>/dev/null && ~/.claude/skills/skystack/bin/skystack-learnings-search --limit 3 2>/dev/null || true
+fi
 ```
 
 If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack/skystack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running skystack v{to} (just updated!)" and continue.
@@ -86,6 +93,24 @@ If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skysta
 ```
 
 Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing.
+
+## Operational Self-Improvement
+
+Before wrapping up, reflect on this session:
+- Did any commands fail unexpectedly?
+- Did you take a wrong approach and have to backtrack?
+- Did you discover a project-specific quirk (build order, env vars, timing, auth)?
+- Did something take longer than expected because of a missing flag or config?
+
+If yes, log an operational learning for future sessions:
+
+```bash
+~/.claude/skills/skystack/bin/skystack-learnings-log '{"skill":"SKILL_NAME","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
+```
+
+Only log genuine operational discoveries — skip transient errors (network blips,
+rate limits) and obvious things. A good test: would knowing this save 5+ minutes
+in a future session? If yes, log it.
 
 ## Voice
 
@@ -230,6 +255,19 @@ If `NEEDS_SETUP`:
 1. Tell the user: "skystack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
 2. Run: `cd <SKILL_DIR> && ./setup`
 3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
+
+## Prior Learnings
+
+Load project-specific learnings from previous sessions:
+
+```bash
+~/.claude/skills/skystack/bin/skystack-learnings-search --limit 5 2>/dev/null || true
+```
+
+If learnings are returned, use them to inform your approach. Prior learnings
+about this project's quirks, common pitfalls, and working patterns can save
+time and prevent repeated mistakes. Mark any applied learning with
+"Prior learning applied: [key]" in your output.
 
 ## Phase 1: Assess the Situation
 
@@ -491,6 +529,21 @@ PR summary: "Design review found N issues, fixed M. Design score X -> Y, AI slop
 If the repo has `TODOS.md`, add deferred findings as TODOs and annotate fixed ones.
 
 ---
+
+## Log Learnings
+
+At the end of this session, log any genuine discoveries for future sessions.
+
+**Types:** `pattern`, `pitfall`, `preference`, `architecture`, `tool`, `operational`
+**Sources:** `observed` (you saw it), `user-stated` (user told you), `inferred` (you deduced it)
+**Confidence:** 1-10 (8+ = verified, 5-7 = probable, 3-4 = hunch)
+
+```bash
+~/.claude/skills/skystack/bin/skystack-learnings-log '{"skill":"SKILL_NAME","type":"TYPE","key":"short-key","insight":"What you learned","confidence":N,"source":"SOURCE"}'
+```
+
+Only log genuine discoveries — would knowing this save 5+ minutes next time?
+Skip transient errors (network blips, rate limits) and obvious things.
 
 ## Important Rules
 

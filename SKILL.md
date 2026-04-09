@@ -27,6 +27,13 @@ find ~/.skystack/sessions -mmin +120 -type f -delete 2>/dev/null || true
 _CONTRIB=$(~/.claude/skills/skystack/bin/skystack-config get skystack_contributor 2>/dev/null || true)
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 echo "BRANCH: $_BRANCH"
+eval "$(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)" 2>/dev/null || true
+_LEARN_FILE="${SKYSTACK_HOME:-$HOME/.skystack}/projects/${SLUG:-unknown}/learnings.jsonl"
+if [ -f "$_LEARN_FILE" ]; then
+  _LEARN_COUNT=$(wc -l < "$_LEARN_FILE" 2>/dev/null | tr -d ' ')
+  echo "LEARNINGS: $_LEARN_COUNT"
+  [ "$_LEARN_COUNT" -gt 5 ] 2>/dev/null && ~/.claude/skills/skystack/bin/skystack-learnings-search --limit 3 2>/dev/null || true
+fi
 ```
 
 If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack/skystack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running skystack v{to} (just updated!)" and continue.
@@ -82,6 +89,24 @@ If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skysta
 ```
 
 Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing.
+
+## Operational Self-Improvement
+
+Before wrapping up, reflect on this session:
+- Did any commands fail unexpectedly?
+- Did you take a wrong approach and have to backtrack?
+- Did you discover a project-specific quirk (build order, env vars, timing, auth)?
+- Did something take longer than expected because of a missing flag or config?
+
+If yes, log an operational learning for future sessions:
+
+```bash
+~/.claude/skills/skystack/bin/skystack-learnings-log '{"skill":"SKILL_NAME","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
+```
+
+Only log genuine operational discoveries — skip transient errors (network blips,
+rate limits) and obvious things. A good test: would knowing this save 5+ minutes
+in a future session? If yes, log it.
 
 ## Voice
 
@@ -321,14 +346,14 @@ $B css ".button" "background-color"
 The snapshot is your primary tool for understanding and interacting with pages.
 
 ```
--i        --interactive           Interactive elements only (buttons, links, inputs) with @e refs
+-i        --interactive           Interactive elements only (buttons, links, inputs) with @e refs. Auto-enables -C to capture dropdowns/popovers
 -c        --compact               Compact (no empty structural nodes)
 -d <N>    --depth                 Limit tree depth (0 = root only, default: unlimited)
 -s <sel>  --selector              Scope to CSS selector
 -D        --diff                  Unified diff against previous snapshot (first call stores baseline)
 -a        --annotate              Annotated screenshot with red overlay boxes and ref labels
 -o <path> --output                Output path for annotated screenshot (default: /tmp/browse-annotated.png)
--C        --cursor-interactive    Cursor-interactive elements (@c refs — divs with pointer, onclick)
+-C        --cursor-interactive    Cursor-interactive elements (@c refs — divs with pointer, onclick). Auto-enabled with -i
 ```
 
 All flags can be combined freely. `-o` only applies when `-a` is also used.
