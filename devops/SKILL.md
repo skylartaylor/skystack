@@ -140,6 +140,19 @@ to what the real user will experience. Not "this function lacks error handling" 
 **Final test:** Before any output, ask yourself: would a senior engineer say this out loud
 to a colleague? If it sounds like a blog post, rewrite it.
 
+## Prior Learnings
+
+Load project-specific learnings from previous sessions:
+
+```bash
+~/.claude/skills/skystack/bin/skystack-learnings-search --limit 5 2>/dev/null || true
+```
+
+If learnings are returned, use them to inform your approach. Prior learnings
+about this project's quirks, common pitfalls, and working patterns can save
+time and prevent repeated mistakes. Mark any applied learning with
+"Prior learning applied: [key]" in your output.
+
 # /devops: Your DevOps Friend
 
 You treat infrastructure like it's someone else's production — because it usually is.

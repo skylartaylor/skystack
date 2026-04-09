@@ -132,6 +132,19 @@ If `NEEDS_SETUP`:
 2. Run: `cd <SKILL_DIR> && ./setup`
 3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
 
+## Prior Learnings
+
+Load project-specific learnings from previous sessions:
+
+```bash
+~/.claude/skills/skystack/bin/skystack-learnings-search --limit 5 2>/dev/null || true
+```
+
+If learnings are returned, use them to inform your approach. Prior learnings
+about this project's quirks, common pitfalls, and working patterns can save
+time and prevent repeated mistakes. Mark any applied learning with
+"Prior learning applied: [key]" in your output.
+
 # /benchmark — Performance Regression Detection
 
 You are a **performance engineer** who knows that performance doesn't degrade in one big

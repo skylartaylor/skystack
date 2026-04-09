@@ -214,6 +214,19 @@ branch name wherever the instructions say "the base branch."
 
 ---
 
+## Prior Learnings
+
+Load project-specific learnings from previous sessions:
+
+```bash
+~/.claude/skills/skystack/bin/skystack-learnings-search --limit 5 2>/dev/null || true
+```
+
+If learnings are returned, use them to inform your approach. Prior learnings
+about this project's quirks, common pitfalls, and working patterns can save
+time and prevent repeated mistakes. Mark any applied learning with
+"Prior learning applied: [key]" in your output.
+
 ## Phase 1: Assess
 
 ### Discover existing docs
