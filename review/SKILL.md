@@ -410,7 +410,7 @@ Be specific to what you actually saw. Don't list generic categories — list the
 
 ## Phase 2b: Parallel Specialist Review
 
-Dispatch 3 parallel `general-purpose` subagents in a single message.
+Dispatch 3 parallel subagents in a single message.
 
 All three subagents receive:
 - The diff file path (DIFF_FILE from Phase 1)
@@ -418,7 +418,7 @@ All three subagents receive:
 - The detected stack
 - A strict output schema (below)
 
-**Security specialist prompt:**
+**Security specialist prompt** (`general-purpose` subagent with `model: "opus"` — threat modeling and exploit scenario reasoning requires deep analysis):
 Read the diff at [DIFF_FILE]. Focus exclusively on security issues:
 SQL injection, XSS, CSRF, auth bypass, insecure random, timing attacks,
 LLM output used without validation, token/secret mishandling, data exposure.
@@ -436,7 +436,7 @@ FINDINGS:
 
 If no issues found, return: FINDINGS: none
 
-**Performance specialist prompt:**
+**Performance specialist prompt** (`general-purpose` subagent with `model: "sonnet"` — systematic pattern matching with clear criteria):
 Read the diff at [DIFF_FILE]. Focus exclusively on performance issues:
 N+1 queries, missing DB indexes, expensive operations in hot paths, unpreloaded
 associations, Array#find inside loops, inline styles re-parsed on render,
@@ -446,7 +446,7 @@ Also read [CHECKLIST_PATH] for suppressions.
 Return findings in the same FINDINGS: format above.
 CATEGORY value: performance
 
-**Test coverage specialist prompt:**
+**Test coverage specialist prompt** (`general-purpose` subagent with `model: "sonnet"` — structured gap analysis):
 Read the diff at [DIFF_FILE]. Focus exclusively on test coverage gaps:
 uncovered conditionals (if/else both paths needed), missing edge case tests,
 missing regression tests for bug fixes, missing negative-path assertions,

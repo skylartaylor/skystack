@@ -524,7 +524,9 @@ One confirmed SSRF means there may be 5 more.
 
 **Parallel Finding Verification:**
 
-For each candidate finding, launch an independent verification sub-task using the Agent tool.
+For each candidate finding, launch an independent verification sub-task using the Agent tool
+with `model: "sonnet"` — verifiers do structured confirmation/denial of findings, not novel
+security reasoning (that's done by the main context).
 The verifier has fresh context — only the finding itself and the FP filtering rules.
 
 Launch all verifiers in parallel. Discard findings where the verifier scores below 8 (daily)
