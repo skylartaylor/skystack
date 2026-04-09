@@ -961,6 +961,36 @@ Never pad confidence to look thorough. A 6/10 that's honest is better than
 a 9/10 that wastes the user's time investigating a false positive.`;
 }
 
+function generateWorktreeSafety(): string {
+  return `## Worktree Safety Check
+
+Before dispatching write-capable subagents (implementers, fixers), verify the
+working tree is clean. Worktree-isolated subagents start from the last **committed**
+state — uncommitted changes won't be visible to them, and merging back gets messy.
+
+\`\`\`bash
+git status --porcelain
+\`\`\`
+
+**If output is non-empty** (uncommitted changes exist), use AskUserQuestion before proceeding:
+
+Show the user what's uncommitted, then ask:
+- Question: "There are uncommitted changes. Subagents work from the last commit, so they won't see these. What should we do?"
+- A) Commit them now (recommended — auto-commits with message "wip: checkpoint before subagent dispatch")
+- B) Stash them (runs \`git stash\`)
+- C) Continue anyway (subagents will work from old state)
+
+If user picks A: \`git add -A && git commit -m "wip: checkpoint before subagent dispatch"\`
+If user picks B: \`git stash\`
+If user picks C: proceed with a warning in the build log
+
+**If output is empty** (clean tree): proceed normally.
+
+**Also verify** that all parallel write-capable subagents use \`isolation: "worktree"\`.
+Never dispatch two write-capable subagents into the same git tree — they will corrupt
+each other's changes. Sequential subagents are safe without worktree isolation.`;
+}
+
 const RESOLVERS: Record<string, () => string> = {
   COMMAND_REFERENCE: generateCommandReference,
   SNAPSHOT_FLAGS: generateSnapshotFlags,
@@ -977,6 +1007,7 @@ const RESOLVERS: Record<string, () => string> = {
   LEARNINGS_SEARCH: generateLearningsSearch,
   LEARNINGS_LOG: generateLearningsLog,
   CONFIDENCE_CALIBRATION: generateConfidenceCalibration,
+  WORKTREE_SAFETY: generateWorktreeSafety,
 };
 
 // ─── Template Processing ────────────────────────────────────
