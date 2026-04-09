@@ -21,6 +21,16 @@ function validateOutputPath(filePath: string): void {
   if (!isSafe) {
     throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')}`);
   }
+  // Second pass: resolve symlinks to prevent symlink-to-outside-safe-dir attacks
+  try {
+    const real = fs.realpathSync(resolved);
+    const isSafeReal = SAFE_DIRECTORIES.some(dir => real === dir || real.startsWith(dir + '/'));
+    if (!isSafeReal) {
+      throw new Error(`Path symlink target must be within: ${SAFE_DIRECTORIES.join(', ')}`);
+    }
+  } catch (e: any) {
+    if (e.code !== 'ENOENT') throw e; // ENOENT = file doesn't exist yet, that's fine
+  }
 }
 
 export async function handleMetaCommand(

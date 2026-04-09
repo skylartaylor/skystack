@@ -7,6 +7,7 @@
 
 import type { BrowserManager } from './browser-manager';
 import { findInstalledBrowsers, importCookies } from './cookie-import-browser';
+import { generatePickerCode } from './cookie-picker-routes';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -423,7 +424,8 @@ export async function handleWriteCommand(
         throw new Error('No Chromium browsers found. Supported: Comet, Chrome, Arc, Brave, Edge');
       }
 
-      const pickerUrl = `http://127.0.0.1:${port}/cookie-picker`;
+      const code = generatePickerCode();
+      const pickerUrl = `http://127.0.0.1:${port}/cookie-picker?code=${code}`;
       try {
         Bun.spawn(['open', pickerUrl], { stdout: 'ignore', stderr: 'ignore' });
       } catch {

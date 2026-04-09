@@ -4,8 +4,12 @@
  * Handles all /cookie-picker/* routes. Imports from cookie-import-browser.ts
  * (decryption) and cookie-picker-ui.ts (HTML generation).
  *
- * Routes (no auth — localhost-only, accepted risk):
- *   GET  /cookie-picker              → serves the picker HTML page
+ * Security: One-time code exchange for session auth (Jupyter-style).
+ * The master auth token never appears in HTML or URLs.
+ *
+ * Routes (session-gated):
+ *   GET  /cookie-picker?code=X       → exchange one-time code for session cookie
+ *   GET  /cookie-picker              → serves the picker HTML page (requires session)
  *   GET  /cookie-picker/browsers     → list installed browsers
  *   GET  /cookie-picker/domains      → list domains + counts for a browser
  *   POST /cookie-picker/import       → decrypt + import cookies to Playwright
@@ -19,10 +23,60 @@ import { getCookiePickerHTML } from './cookie-picker-ui';
 
 // ─── State ──────────────────────────────────────────────────────
 // Tracks which domains were imported via the picker.
-// /imported only returns cookies for domains in this Set.
-// /remove clears from this Set.
 const importedDomains = new Set<string>();
 const importedCounts = new Map<string, number>();
+
+// ─── Session Auth ───────────────────────────────────────────────
+// One-time codes (30s TTL) and session cookies (1h TTL)
+const pendingCodes = new Map<string, { expires: number }>();
+const validSessions = new Map<string, { expires: number }>();
+
+const CODE_TTL_MS = 30_000;       // 30 seconds
+const SESSION_TTL_MS = 3_600_000; // 1 hour
+
+/**
+ * Generate a one-time code for the cookie picker.
+ * Called by write-commands.ts before opening the picker URL.
+ */
+export function generatePickerCode(): string {
+  // Clean expired codes
+  const now = Date.now();
+  for (const [code, entry] of pendingCodes) {
+    if (entry.expires < now) pendingCodes.delete(code);
+  }
+  const code = crypto.randomUUID();
+  pendingCodes.set(code, { expires: now + CODE_TTL_MS });
+  return code;
+}
+
+function exchangeCodeForSession(code: string): string | null {
+  const entry = pendingCodes.get(code);
+  if (!entry) return null;
+  if (entry.expires < Date.now()) {
+    pendingCodes.delete(code);
+    return null;
+  }
+  // One-time use
+  pendingCodes.delete(code);
+  // Create session
+  const sessionId = crypto.randomUUID();
+  validSessions.set(sessionId, { expires: Date.now() + SESSION_TTL_MS });
+  return sessionId;
+}
+
+function isValidSession(req: Request): boolean {
+  const cookie = req.headers.get('cookie') || '';
+  const match = cookie.match(/skystack_picker=([a-f0-9-]+)/);
+  if (!match) return false;
+  const sessionId = match[1];
+  const entry = validSessions.get(sessionId);
+  if (!entry) return false;
+  if (entry.expires < Date.now()) {
+    validSessions.delete(sessionId);
+    return false;
+  }
+  return true;
+}
 
 // ─── JSON Helpers ───────────────────────────────────────────────
 
@@ -36,6 +90,7 @@ function jsonResponse(data: any, opts: { port: number; status?: number }): Respo
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': corsOrigin(opts.port),
+      'Access-Control-Allow-Credentials': 'true',
     },
   });
 }
@@ -65,11 +120,40 @@ export async function handleCookiePickerRoute(
         'Access-Control-Allow-Origin': corsOrigin(port),
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Credentials': 'true',
       },
     });
   }
 
   try {
+    // GET /cookie-picker?code=X — exchange one-time code for session
+    if (pathname === '/cookie-picker' && req.method === 'GET' && url.searchParams.has('code')) {
+      const code = url.searchParams.get('code')!;
+      const sessionId = exchangeCodeForSession(code);
+      if (!sessionId) {
+        return new Response('Invalid or expired code. Close this tab and re-open the cookie picker.', {
+          status: 403,
+          headers: { 'Content-Type': 'text/plain' },
+        });
+      }
+      // 302 redirect to /cookie-picker with session cookie
+      return new Response(null, {
+        status: 302,
+        headers: {
+          'Location': `/cookie-picker`,
+          'Set-Cookie': `skystack_picker=${sessionId}; HttpOnly; SameSite=Strict; Path=/cookie-picker`,
+        },
+      });
+    }
+
+    // All other routes require a valid session cookie
+    if (!isValidSession(req)) {
+      return new Response('Session expired. Close this tab and re-open the cookie picker.', {
+        status: 403,
+        headers: { 'Content-Type': 'text/plain' },
+      });
+    }
+
     // GET /cookie-picker — serve the picker UI
     if (pathname === '/cookie-picker' && req.method === 'GET') {
       const html = getCookiePickerHTML(port);

@@ -328,7 +328,10 @@ export function getCookiePickerHTML(serverPort: number): string {
 
   // ─── API ────────────────────────────────
   async function api(path, opts) {
-    const res = await fetch(BASE + '/cookie-picker' + path, opts);
+    const res = await fetch(BASE + '/cookie-picker' + path, {
+      credentials: 'same-origin',
+      ...opts,
+    });
     const data = await res.json();
     if (!res.ok) {
       const err = new Error(data.error || 'Request failed');
