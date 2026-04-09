@@ -244,7 +244,7 @@ RECOMMENDATION: Choose A for first run, or if it's been a while since the last u
 
 Read all four current reference files from `.skystack/references/` before dispatching.
 
-Dispatch 4 parallel `general-purpose` subagents — one per reference file. Run all four
+Dispatch 4 parallel `general-purpose` subagents (`model: "sonnet"`) — one per reference file. Run all four
 in a single message (multiple Agent tool calls).
 
 Each subagent prompt should include:

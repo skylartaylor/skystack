@@ -346,7 +346,7 @@ echo "REFS: $_REFS"
 
 Read `designer.md` and `dev.md` from the references directory found above.
 
-**Dispatch the Designer** as a subagent using the Agent tool with `subagent_type: "designer"`:
+**Dispatch the Designer** as a subagent using the Agent tool with `subagent_type: "designer"` and `model: "sonnet"`:
 
 Include in the prompt:
 - The draft spec (full text)
@@ -354,7 +354,7 @@ Include in the prompt:
 - The contents of DESIGN.md if it exists
 - The contents of the `designer.md` reference file if found above
 
-**Dispatch the Dev** as a subagent (in parallel) using the Agent tool with `subagent_type: "dev"`:
+**Dispatch the Dev** as a subagent (in parallel) using the Agent tool with `subagent_type: "dev"` and `model: "sonnet"`:
 
 Include in the prompt:
 - The draft spec (full text)
@@ -527,7 +527,7 @@ Add a one-line rationale per batch at the top of the plan:
 After writing all tasks and batch annotations:
 
 1. Read `pm/plan-reviewer-prompt.md`
-2. Dispatch a `general-purpose` subagent with the prompt filled in:
+2. Dispatch a `general-purpose` subagent with `model: "opus"` and the prompt filled in:
    - `[PLAN_FILE_PATH]` → path to the plan document you just wrote
    - `[SPEC_FILE_PATH]` → path to the approved spec at `~/.skystack/projects/$SLUG/pm-specs/`
 3. If ❌ Issues Found: fix the plan, re-dispatch the reviewer
@@ -707,6 +707,34 @@ The Agent tool handles worktree lifecycle automatically — if the subagent make
 changes, the worktree is discarded; if changes are made, the worktree path and branch
 are returned in the result.
 
+## Worktree Safety Check
+
+Before dispatching write-capable subagents (implementers, fixers), verify the
+working tree is clean. Worktree-isolated subagents start from the last **committed**
+state — uncommitted changes won't be visible to them, and merging back gets messy.
+
+```bash
+git status --porcelain
+```
+
+**If output is non-empty** (uncommitted changes exist), use AskUserQuestion before proceeding:
+
+Show the user what's uncommitted, then ask:
+- Question: "There are uncommitted changes. Subagents work from the last commit, so they won't see these. What should we do?"
+- A) Commit them now (recommended — auto-commits with message "wip: checkpoint before subagent dispatch")
+- B) Stash them (runs `git stash`)
+- C) Continue anyway (subagents will work from old state)
+
+If user picks A: `git add -A && git commit -m "wip: checkpoint before subagent dispatch"`
+If user picks B: `git stash`
+If user picks C: proceed with a warning in the build log
+
+**If output is empty** (clean tree): proceed normally.
+
+**Also verify** that all parallel write-capable subagents use `isolation: "worktree"`.
+Never dispatch two write-capable subagents into the same git tree — they will corrupt
+each other's changes. Sequential subagents are safe without worktree isolation.
+
 ### Batch loop
 
 Before starting: record the current git SHA as the **batch base SHA**.
@@ -723,10 +751,10 @@ Loop over batches in order:
 
 Dispatch implementer subagents for all tasks in the batch:
 - Tasks marked `[INDEPENDENT]` within the batch: dispatch in parallel (single message,
-  multiple Agent calls) with `isolation: "worktree"` so each subagent gets an isolated
+  multiple Agent calls) with `isolation: "worktree"` and `model: "sonnet"` so each subagent gets an isolated
   copy of the repo and can't conflict with parallel work
 - Tasks marked `[DEPENDS ON: Task N]` within the batch: dispatch sequentially after
-  dependency commits (no worktree needed — sequential execution is safe)
+  dependency commits with `model: "sonnet"` (no worktree needed — sequential execution is safe)
 
 **Step 2 — Spec compliance review**
 
@@ -735,13 +763,13 @@ After all implementer subagents in the batch have committed:
 The base SHA for this batch's reviews is always the SHA recorded before Step 1 began — even when tasks within the batch ran sequentially.
 
 1. Read `pm/spec-reviewer-prompt.md`
-2. Dispatch a `general-purpose` subagent with the prompt filled in:
+2. Dispatch a `general-purpose` subagent with `model: "opus"` and the prompt filled in:
    - `[FULL TEXT of task requirements]` → full text of every task in this batch
    - `[SPEC_FILE_PATH]` → path to approved spec at `~/.skystack/projects/$SLUG/pm-specs/`
    - `[DISPATCHER: paste the relevant spec section for this batch]` → paste the spec section covering this batch's requirements (from the saved pm-spec)
    - `[BASE_SHA]` → the SHA recorded before this batch started
    - `[CURRENT_HEAD]` → output of `git rev-parse HEAD`
-3. If ❌ Issues found: dispatch a fix subagent with the specific issue list, then re-dispatch spec reviewer (max 3 iterations, then surface to human)
+3. If ❌ Issues found: dispatch a fix subagent with `model: "sonnet"` and the specific issue list, then re-dispatch spec reviewer (max 3 iterations, then surface to human)
 4. If ✅ Spec compliant: proceed to code quality review
 
 **Step 3 — Code quality review**
@@ -749,11 +777,11 @@ The base SHA for this batch's reviews is always the SHA recorded before Step 1 b
 Only after spec compliance returns ✅:
 
 1. Read `pm/code-quality-reviewer-prompt.md`
-2. Dispatch a `general-purpose` subagent with the prompt filled in:
+2. Dispatch a `general-purpose` subagent with `model: "opus"` and the prompt filled in:
    - `[Summary from implementers]` → what the implementers reported building
    - `[BASE_SHA]` → same SHA used for spec review
    - `[CURRENT_HEAD]` → output of `git rev-parse HEAD`
-3. If ❌ Changes Required: dispatch a fix subagent with the specific issue list, then re-dispatch code quality reviewer (max 3 iterations, then surface to human)
+3. If ❌ Changes Required: dispatch a fix subagent with `model: "sonnet"` and the specific issue list, then re-dispatch code quality reviewer (max 3 iterations, then surface to human)
 4. If ✅ Approved: mark batch complete
 
 **Before next batch:** Record new base SHA: `git rev-parse HEAD`
@@ -810,7 +838,7 @@ Each batch was reviewed for spec compliance and code quality. Phase 5 confirms i
 ```
 
 Run the command. Read the full output. Count the failures. **Do not claim "tests pass"
-without having seen the output.** If tests fail, dispatch a fix subagent with the
+without having seen the output.** If tests fail, dispatch a fix subagent with `model: "sonnet"`, the
 failure output and relevant task context.
 
 ### 5b. Accessibility spot-check

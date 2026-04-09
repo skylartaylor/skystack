@@ -635,7 +635,7 @@ In exhaustive mode with 10+ findings, the fix loop can fill context. After fixin
 
 ### 4g. Post-fix verification
 
-After all fixes are committed, dispatch a single `general-purpose` verification subagent.
+After all fixes are committed, dispatch a single `general-purpose` verification subagent (`model: "sonnet"`).
 
 **Subagent prompt:**
 
