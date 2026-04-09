@@ -243,6 +243,7 @@ export async function handleSnapshot(
         ]);
 
         const results: Array<{ selector: string; text: string; reason: string }> = [];
+        const floatingCache = new WeakMap<Element, boolean>();
         const allElements = document.querySelectorAll('*');
 
         for (const el of allElements) {
@@ -258,9 +259,12 @@ export async function handleSnapshot(
           const hasRole = el.hasAttribute('role');
 
           // Check if element is inside a floating container (portal/popover/dropdown)
+          // Cache results per element to avoid O(N*M) getComputedStyle calls
           const isInFloating = (() => {
-            let parent: Element | null = el;
+            let parent: Element | null = el.parentElement;
             while (parent && parent !== document.documentElement) {
+              const cached = floatingCache.get(parent);
+              if (cached !== undefined) return cached;
               const pStyle = getComputedStyle(parent);
               const isFloating = (pStyle.position === 'fixed' || pStyle.position === 'absolute') &&
                 parseInt(pStyle.zIndex || '0', 10) >= 10;
@@ -270,7 +274,10 @@ export async function handleSnapshot(
                 parent.hasAttribute('data-popper-placement') ||
                 parent.getAttribute('role') === 'listbox' ||
                 parent.getAttribute('role') === 'menu';
-              if (isFloating || hasPortalAttr) return true;
+              if (isFloating || hasPortalAttr) {
+                floatingCache.set(parent, true);
+                return true;
+              }
               parent = parent.parentElement;
             }
             return false;

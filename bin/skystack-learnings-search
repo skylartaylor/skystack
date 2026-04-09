@@ -41,24 +41,32 @@ if [ ${#FILES[@]} -eq 0 ]; then
   exit 0
 fi
 
-cat "${FILES[@]}" 2>/dev/null | \
+# Tag each line with provenance: current project (0) or cross-project (1)
+{
+  [ -f "$LEARNINGS_FILE" ] && sed 's/^/0\t/' "$LEARNINGS_FILE"
+  if [ "$CROSS_PROJECT" = true ]; then
+    for f in $(find "$SKYSTACK_HOME/projects" -name "learnings.jsonl" -not -path "*/$SLUG/*" 2>/dev/null | head -5); do
+      sed 's/^/1\t/' "$f"
+    done
+  fi
+} 2>/dev/null | \
   SKYSTACK_SEARCH_TYPE="$TYPE" \
   SKYSTACK_SEARCH_QUERY="$QUERY" \
   SKYSTACK_SEARCH_LIMIT="$LIMIT" \
-  SKYSTACK_SEARCH_SLUG="$SLUG" \
-  SKYSTACK_SEARCH_CROSS="$CROSS_PROJECT" \
   bun -e "
 const lines = (await Bun.stdin.text()).trim().split('\n').filter(Boolean);
 const now = Date.now();
 const type = process.env.SKYSTACK_SEARCH_TYPE || '';
 const query = (process.env.SKYSTACK_SEARCH_QUERY || '').toLowerCase();
 const limit = parseInt(process.env.SKYSTACK_SEARCH_LIMIT || '10', 10);
-const slug = process.env.SKYSTACK_SEARCH_SLUG || '';
 
 const entries = [];
 for (const line of lines) {
   try {
-    const e = JSON.parse(line);
+    const tabIdx = line.indexOf('\t');
+    const isCross = line.charAt(0) === '1';
+    const json = line.slice(tabIdx + 1);
+    const e = JSON.parse(json);
     if (!e.key || !e.type) continue;
 
     // Confidence decay: observed/inferred lose 1pt per 30 days
@@ -68,7 +76,7 @@ for (const line of lines) {
       conf = Math.max(0, conf - Math.floor(days / 30));
     }
     e._effectiveConfidence = conf;
-    e._crossProject = !line.includes(slug) && process.env.SKYSTACK_SEARCH_CROSS === 'true';
+    e._crossProject = isCross;
 
     entries.push(e);
   } catch {}

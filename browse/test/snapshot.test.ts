@@ -449,10 +449,22 @@ describe('Dropdown/popover detection', () => {
   test('snapshot -C still works standalone without -i', async () => {
     await handleWriteCommand('goto', [baseUrl + '/dropdown.html'], bm);
     const result = await handleMetaCommand('snapshot', ['-C'], bm, shutdown);
-    // Should find cursor elements
+    // Should find cursor elements in the cursor-interactive section
     expect(result).toContain('cursor-interactive');
-    // Should include non-interactive ARIA elements like heading
-    expect(result).toContain('[heading]');
+    const cursorSection = result.split('── cursor-interactive')[1] || '';
+    expect(cursorSection).toContain('Alice Johnson');
+    // ARIA tree should still appear in the non-cursor section (heading is in ARIA tree)
+    const ariaSection = result.split('── cursor-interactive')[0];
+    expect(ariaSection).toContain('[heading]');
+  });
+
+  test('non-portal element with ARIA role is excluded from cursor scan', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/dropdown.html'], bm);
+    const result = await handleMetaCommand('snapshot', ['-C'], bm, shutdown);
+    // The "Open Menu" button has role="button" (from <button>) but is NOT in a portal
+    // It should appear in the ARIA tree, not in the cursor-interactive section
+    const cursorSection = result.split('── cursor-interactive')[1] || '';
+    expect(cursorSection).not.toContain('Open Menu');
   });
 });
 

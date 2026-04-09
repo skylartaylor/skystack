@@ -141,7 +141,7 @@ export async function handleCookiePickerRoute(
         status: 302,
         headers: {
           'Location': `/cookie-picker`,
-          'Set-Cookie': `skystack_picker=${sessionId}; HttpOnly; SameSite=Strict; Path=/cookie-picker`,
+          'Set-Cookie': `skystack_picker=${sessionId}; HttpOnly; SameSite=Strict; Path=/cookie-picker; Max-Age=3600`,
         },
       });
     }
