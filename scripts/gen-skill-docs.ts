@@ -885,6 +885,57 @@ function resolveVoiceGuide(tmplPath: string): string {
   return generateVoiceDirective(2);
 }
 
+function generateLearningsSearch(): string {
+  return `## Prior Learnings
+
+Load project-specific learnings from previous sessions:
+
+\`\`\`bash
+~/.claude/skills/skystack/bin/skystack-learnings-search --limit 5 2>/dev/null || true
+\`\`\`
+
+If learnings are returned, use them to inform your approach. Prior learnings
+about this project's quirks, common pitfalls, and working patterns can save
+time and prevent repeated mistakes. Mark any applied learning with
+"Prior learning applied: [key]" in your output.`;
+}
+
+function generateLearningsLog(): string {
+  return `## Log Learnings
+
+At the end of this session, log any genuine discoveries for future sessions.
+
+**Types:** \`pattern\`, \`pitfall\`, \`preference\`, \`architecture\`, \`tool\`, \`operational\`
+**Sources:** \`observed\` (you saw it), \`user-stated\` (user told you), \`inferred\` (you deduced it)
+**Confidence:** 1-10 (8+ = verified, 5-7 = probable, 3-4 = hunch)
+
+\`\`\`bash
+~/.claude/skills/skystack/bin/skystack-learnings-log '{"skill":"SKILL_NAME","type":"TYPE","key":"short-key","insight":"What you learned","confidence":N,"source":"SOURCE"}'
+\`\`\`
+
+Only log genuine discoveries — would knowing this save 5+ minutes next time?
+Skip transient errors (network blips, rate limits) and obvious things.`;
+}
+
+function generateConfidenceCalibration(): string {
+  return `## Confidence Calibration
+
+Every finding must include a confidence score. Calibrate honestly:
+
+| Score | Meaning | Display rule |
+|-------|---------|-------------|
+| 9-10  | Verified. Concrete bug, tested. | Show normally |
+| 7-8   | High confidence pattern. | Show normally |
+| 5-6   | Moderate, could be false positive. | Show with caveat |
+| 3-4   | Low confidence. | Suppress to appendix only |
+| 1-2   | Speculation. | Only show if P0 severity |
+
+Finding format: \`[SEVERITY] (confidence: N/10) file:line — description\`
+
+Never pad confidence to look thorough. A 6/10 that's honest is better than
+a 9/10 that wastes the user's time investigating a false positive.`;
+}
+
 const RESOLVERS: Record<string, () => string> = {
   COMMAND_REFERENCE: generateCommandReference,
   SNAPSHOT_FLAGS: generateSnapshotFlags,
@@ -898,6 +949,9 @@ const RESOLVERS: Record<string, () => string> = {
   REVIEW_DASHBOARD: generateReviewDashboard,
   TEST_BOOTSTRAP: generateTestBootstrap,
   STACK_DETECT: generateStackDetect,
+  LEARNINGS_SEARCH: generateLearningsSearch,
+  LEARNINGS_LOG: generateLearningsLog,
+  CONFIDENCE_CALIBRATION: generateConfidenceCalibration,
 };
 
 // ─── Template Processing ────────────────────────────────────

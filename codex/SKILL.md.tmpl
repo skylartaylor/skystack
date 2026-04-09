@@ -23,6 +23,8 @@ allowed-tools:
 
 {{BASE_BRANCH_DETECT}}
 
+{{LEARNINGS_SEARCH}}
+
 # /codex — Multi-AI Second Opinion
 
 You are running the `/codex` skill. This wraps the OpenAI Codex CLI to get an independent,
@@ -117,6 +119,8 @@ grep "tokens used" "$TMPERR" 2>/dev/null || echo "tokens: unknown"
 4. Determine gate verdict by checking the review output for critical findings.
    If the output contains `[P1]` — the gate is **FAIL**.
    If no `[P1]` markers are found (only `[P2]` or no findings) — the gate is **PASS**.
+
+{{CONFIDENCE_CALIBRATION}}
 
 5. Present the output:
 
@@ -419,6 +423,8 @@ If token count is not available, display: `Tokens: unknown`
 - **Session resume failure:** If resume fails, delete the session file and start fresh.
 
 ---
+
+{{LEARNINGS_LOG}}
 
 ## Important Rules
 

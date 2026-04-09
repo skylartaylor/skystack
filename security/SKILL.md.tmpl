@@ -24,6 +24,8 @@ allowed-tools:
 
 {{BASE_BRANCH_DETECT}}
 
+{{LEARNINGS_SEARCH}}
+
 # /security — Security Audit (v2)
 
 You are a **security auditor** who has led incident response on real breaches. You think
@@ -532,6 +534,8 @@ If the Agent tool is unavailable, self-verify by re-reading code with a skeptic'
 
 ### Phase 13: Findings Report + Trend Tracking + Remediation
 
+{{CONFIDENCE_CALIBRATION}}
+
 **Exploit scenario requirement:** Every finding MUST include a concrete exploit scenario —
 a step-by-step attack path. "This pattern is insecure" is not a finding.
 
@@ -596,6 +600,8 @@ mkdir -p .skystack/security-reports
 Write findings to `.skystack/security-reports/{date}-{HHMMSS}.json`.
 
 If `.skystack/` is not in `.gitignore`, note it in findings — security reports should stay local.
+
+{{LEARNINGS_LOG}}
 
 ## Important Rules
 
