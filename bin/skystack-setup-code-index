@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# skystack-setup-code-index — install and configure jCodeMunch MCP for code indexing
+# Reduces code retrieval tokens by ~95% via AST-based symbol search.
+set -euo pipefail
+
+echo "Setting up jCodeMunch MCP for code indexing..."
+echo ""
+
+# Check for pip/pip3
+PIP=""
+command -v pip3 &>/dev/null && PIP="pip3"
+command -v pip &>/dev/null && PIP="pip"
+
+if [ -z "$PIP" ]; then
+  echo "ERROR: pip not found. Install Python first:"
+  echo "  brew install python   # macOS"
+  echo "  sudo apt install python3-pip   # Ubuntu/Debian"
+  exit 1
+fi
+
+# Install jcodemunch-mcp
+echo "Installing jcodemunch-mcp..."
+$PIP install jcodemunch-mcp 2>&1
+
+# Initialize in current project (if in a git repo)
+if git rev-parse --show-toplevel &>/dev/null; then
+  echo ""
+  echo "Initializing index for $(basename "$(git rev-parse --show-toplevel)")..."
+  jcodemunch-mcp init 2>&1 || echo "(init is optional — MCP server indexes on first use)"
+fi
+
+echo ""
+echo "Done. Add this to your Claude Code settings (.claude/settings.json):"
+echo ""
+echo '  "mcpServers": {'
+echo '    "jcodemunch": {'
+echo '      "command": "jcodemunch-mcp",'
+echo '      "args": ["serve"]'
+echo '    }'
+echo '  }'
+echo ""
+echo "Then restart Claude Code. The index builds automatically on first use."
