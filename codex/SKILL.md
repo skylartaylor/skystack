@@ -391,132 +391,25 @@ Run Codex code review against the current branch diff.
 TMPERR=$(mktemp /tmp/codex-err-XXXXXX.txt)
 ```
 
-2. Run the review (5-minute timeout). **Always prepend the filesystem boundary directive**
-   (from the "Codex Filesystem Boundary" section above), even when no custom instructions
-   are provided:
+2. Run the review. Use `timeout: 300000` on the Bash call. **Run in foreground — do NOT
+   use `run_in_background`.** Codex typically finishes in 1-3 minutes. The output comes
+   back when it's done. Never sleep-poll for output.
+
+   **IMPORTANT:** `codex review` treats `--base` and `[PROMPT]` as mutually exclusive
+   arguments. Passing both causes exit code 2. Use the right invocation for each case:
+
+   **Case A — No custom instructions** (default `/codex review`):
+   Use `codex review --base` which uses codex's built-in review prompt:
 ```bash
-codex review "IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing ## Preamble (run first)
+codex review --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
+```
 
+   **Case B — User provided custom instructions** (e.g., `/codex review focus on security`):
+   Use `codex exec` instead, which allows a full prompt. **Prepend the filesystem boundary
+   directive** (from the "Codex Filesystem Boundary" section above) before the user's
+   instructions:
 ```bash
-_UPD=$(~/.claude/skills/skystack/bin/skystack-update-check 2>/dev/null || .claude/skills/skystack/bin/skystack-update-check 2>/dev/null || true)
-[ -n "$_UPD" ] && echo "$_UPD" || true
-mkdir -p ~/.skystack/sessions
-touch ~/.skystack/sessions/"$PPID"
-_SESSIONS=$(find ~/.skystack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
-find ~/.skystack/sessions -mmin +120 -type f -delete 2>/dev/null || true
-_CONTRIB=$(~/.claude/skills/skystack/bin/skystack-config get skystack_contributor 2>/dev/null || true)
-_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
-echo "BRANCH: $_BRANCH"
-eval "$(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)" 2>/dev/null || true
-_LEARN_FILE="${SKYSTACK_HOME:-$HOME/.skystack}/projects/${SLUG:-unknown}/learnings.jsonl"
-if [ -f "$_LEARN_FILE" ]; then
-  _LEARN_COUNT=$(wc -l < "$_LEARN_FILE" 2>/dev/null | tr -d ' ')
-  echo "LEARNINGS: $_LEARN_COUNT"
-  [ "$_LEARN_COUNT" -gt 5 ] 2>/dev/null && ~/.claude/skills/skystack/bin/skystack-learnings-search --limit 3 2>/dev/null || true
-fi
-```
-
-If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack/skystack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running skystack v{to} (just updated!)" and continue.
-
-## AskUserQuestion Format
-
-**Two types of AskUserQuestion calls — use the right format for each:**
-
-### Plan approval (review plan, test plan, spec approval, implementation plan)
-
-Output the plan details as **regular chat text first** — never inside the AskUserQuestion call. Then use AskUserQuestion with only a short question and 2-3 clean options. No detail in option descriptions.
-
-Example:
-```
-[chat text output]
-I've read the diff (~180 lines, 4 files). Here's what I'll focus on:
-
-1. **Race condition** — status transition in OrderService isn't atomic
-2. **N+1** — PostsController#index missing includes(:author)
-3. **Test coverage** — BillingService has no tests
-
-[AskUserQuestion]
-Question: "Anything to add or skip?"
-A) Looks good, go
-B) Adjust the focus
-```
-
-### Judgment questions (bugs, design decisions, tradeoffs)
-
-**ALWAYS follow this structure:**
-1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
-2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
-3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts when the delta is small. Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
-4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
-
-Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
-
-Per-skill instructions may add additional formatting rules on top of this baseline.
-
-5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and preferred. Exception: batch-ask patterns where multiple related findings are presented with per-item options (e.g., review findings) are fine as a single call.
-
-## Contributor Mode
-
-If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skystack experience 0 to 10. Not a 10? File a report at `~/.skystack/contributor-logs/{slug}.md` (skip if exists, max 3/session, file inline, tell user "Filed skystack field report: {title}"):
-
-```
-# {Title}
-**What I was trying to do:** {action}
-**What happened instead:** {result}
-**My rating:** {0-10} — {why not a 10}
-**What would make this a 10:** {one sentence}
-**Date:** {YYYY-MM-DD} | **Version:** {version} | **Skill:** /{skill}
-```
-
-Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing.
-
-## Operational Self-Improvement
-
-Before wrapping up, reflect on this session:
-- Did any commands fail unexpectedly?
-- Did you take a wrong approach and have to backtrack?
-- Did you discover a project-specific quirk (build order, env vars, timing, auth)?
-- Did something take longer than expected because of a missing flag or config?
-
-If yes, log an operational learning for future sessions:
-
-```bash
-~/.claude/skills/skystack/bin/skystack-learnings-log '{"skill":"SKILL_NAME","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
-```
-
-Only log genuine operational discoveries — skip transient errors (network blips,
-rate limits) and obvious things. A good test: would knowing this save 5+ minutes
-in a future session? If yes, log it., ## Voice
-
-Direct. Concrete. No ceremony.
-
-**Tone:** You're a sharp colleague who types fast. Incomplete sentences sometimes.
-"Wild." "Not great." Parentheticals. Say what you mean — don't pad it.
-
-**Banned AI vocabulary:** Never use these words — they're tells that an AI wrote this:
-delve, crucial, robust, comprehensive, nuanced, multifaceted, furthermore, moreover,
-additionally, pivotal, landscape, tapestry, underscore, foster, showcase, intricate,
-vibrant, fundamental, significant, interplay, utilize, leverage, facilitate, streamline
-
-**Banned filler phrases:**
-"here's the kicker", "here's the thing", "plot twist", "let me break this down",
-"the bottom line", "make no mistake", "can't stress this enough", "at the end of the day",
-"it's worth noting that", "it goes without saying"
-
-**Connect to user outcomes:** Every finding, recommendation, or status update must connect
-to what the real user will experience. Not "this function lacks error handling" but
-"if the API returns 500, the user sees a blank screen with no way to retry."
-
-**No trailing summaries.** Don't recap what you just did. The user can read the output.
-
-**Final test:** Before any output, ask yourself: would a senior engineer say this out loud
-to a colleague? If it sounds like a blog post, rewrite it., or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration." --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
-```
-
-Use `timeout: 300000` on the Bash call. If the user provided custom instructions
-(e.g., `/codex review focus on security`), append them after the boundary directive:
-```bash
-codex review "IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing ## Preamble (run first)
+codex exec "IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing ## Preamble (run first)
 
 ```bash
 _UPD=$(~/.claude/skills/skystack/bin/skystack-update-check 2>/dev/null || .claude/skills/skystack/bin/skystack-update-check 2>/dev/null || true)
@@ -633,8 +526,36 @@ to what the real user will experience. Not "this function lacks error handling" 
 **Final test:** Before any output, ask yourself: would a senior engineer say this out loud
 to a colleague? If it sounds like a blog post, rewrite it., or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
 
-focus on security" --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
+You are doing a code review. Run git diff origin/<base> to see the changes, then review them thoroughly. Look for bugs, security issues, race conditions, error handling gaps, and correctness problems. Be direct and terse. Tag critical findings with [P1] and minor findings with [P2].
+
+Additional instructions: focus on security" -s read-only -c 'model_reasoning_effort="xhigh"' --enable web_search_cached --json 2>"$TMPERR" | python3 -c "
+import sys, json
+for line in sys.stdin:
+    line = line.strip()
+    if not line: continue
+    try:
+        obj = json.loads(line)
+        t = obj.get('type','')
+        if t == 'item.completed' and 'item' in obj:
+            item = obj['item']
+            itype = item.get('type','')
+            text = item.get('text','')
+            if itype == 'reasoning' and text:
+                print(f'[codex thinking] {text}')
+                print()
+            elif itype == 'agent_message' and text:
+                print(text)
+            elif itype == 'command_execution':
+                cmd = item.get('command','')
+                if cmd: print(f'[codex ran] {cmd}')
+        elif t == 'turn.completed':
+            usage = obj.get('usage',{})
+            tokens = usage.get('input_tokens',0) + usage.get('output_tokens',0)
+            if tokens: print(f'\ntokens used: {tokens}')
+    except: pass
+"
 ```
+   Replace "focus on security" with the user's actual instructions.
 
 3. Capture the output. Then parse cost from stderr:
 ```bash
@@ -991,7 +912,7 @@ to a colleague? If it sounds like a blog post, rewrite it., or similar placehold
 
 Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Focus specifically on SECURITY. Your job is to find every way an attacker could exploit this code. Think about injection vectors, auth bypasses, privilege escalation, data exposure, and timing attacks. Be adversarial."
 
-2. Run codex exec with **JSONL output** to capture reasoning traces and tool calls (5-minute timeout):
+2. Run codex exec with **JSONL output** (use `timeout: 300000`, **foreground only — no `run_in_background`**):
 ```bash
 codex exec "<prompt>" -s read-only -c 'model_reasoning_effort="xhigh"' --enable web_search_cached --json 2>/dev/null | python3 -c "
 import sys, json
@@ -1082,7 +1003,7 @@ or sequencing issues. Be direct. Be terse. No compliments. Just the problems.
 THE PLAN:
 <plan content>"
 
-5. Run codex exec with **JSONL output** to capture reasoning traces (5-minute timeout):
+5. Run codex exec with **JSONL output** (use `timeout: 300000`, **foreground only — no `run_in_background`**):
 
 For a **new session:**
 ```bash
@@ -1215,7 +1136,8 @@ Skip transient errors (network blips, rate limits) and obvious things.
 - **Present output verbatim.** Do not truncate, summarize, or editorialize Codex's output
   before showing it. Show it in full inside the CODEX SAYS block.
 - **Add synthesis after, not instead of.** Any Claude commentary comes after the full output.
-- **5-minute timeout** on all Bash calls to codex (`timeout: 300000`).
+- **5-minute timeout** on all Bash calls to codex (`timeout: 300000`). **Always foreground.**
+  Never use `run_in_background` — it produces empty output. Never sleep-poll for results.
 - **No double-reviewing.** If the user already ran `/review`, Codex provides a second
   independent opinion. Do not re-run Claude Code's own review.
 - **Sequential, not parallel.** When running Claude review + Codex review in the same

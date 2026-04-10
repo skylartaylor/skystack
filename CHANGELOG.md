@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.10.1] - 2026-04-09
+
+### Fixed
+
+- **`/codex review` now actually works.** The codex CLI treats `--base` and custom instructions as mutually exclusive arguments — skystack was passing both, causing every review to fail with exit code 2 and enter a retry spiral. Now uses the right invocation for each case: `codex review --base` for default reviews, `codex exec` with a full prompt when you provide custom instructions.
+- **No more background polling loops.** Codex commands now run in the foreground with a clean 5-minute timeout instead of being backgrounded and polled with sleep loops (which produced empty output).
+
 ## [0.6.10.0] - 2026-04-09 — Self-Learning, Token Optimization, Security Hardening
 
 ### Added

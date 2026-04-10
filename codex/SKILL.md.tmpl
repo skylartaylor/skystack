@@ -96,20 +96,56 @@ Run Codex code review against the current branch diff.
 TMPERR=$(mktemp /tmp/codex-err-XXXXXX.txt)
 ```
 
-2. Run the review (5-minute timeout). **Always prepend the filesystem boundary directive**
-   (from the "Codex Filesystem Boundary" section above), even when no custom instructions
-   are provided:
+2. Run the review. Use `timeout: 300000` on the Bash call. **Run in foreground — do NOT
+   use `run_in_background`.** Codex typically finishes in 1-3 minutes. The output comes
+   back when it's done. Never sleep-poll for output.
+
+   **IMPORTANT:** `codex review` treats `--base` and `[PROMPT]` as mutually exclusive
+   arguments. Passing both causes exit code 2. Use the right invocation for each case:
+
+   **Case A — No custom instructions** (default `/codex review`):
+   Use `codex review --base` which uses codex's built-in review prompt:
 ```bash
-codex review "IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing {{PREAMBLE}}, {{VOICE_GUIDE}}, or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration." --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
+codex review --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
 ```
 
-Use `timeout: 300000` on the Bash call. If the user provided custom instructions
-(e.g., `/codex review focus on security`), append them after the boundary directive:
+   **Case B — User provided custom instructions** (e.g., `/codex review focus on security`):
+   Use `codex exec` instead, which allows a full prompt. **Prepend the filesystem boundary
+   directive** (from the "Codex Filesystem Boundary" section above) before the user's
+   instructions:
 ```bash
-codex review "IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing {{PREAMBLE}}, {{VOICE_GUIDE}}, or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
+codex exec "IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing {{PREAMBLE}}, {{VOICE_GUIDE}}, or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
 
-focus on security" --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
+You are doing a code review. Run git diff origin/<base> to see the changes, then review them thoroughly. Look for bugs, security issues, race conditions, error handling gaps, and correctness problems. Be direct and terse. Tag critical findings with [P1] and minor findings with [P2].
+
+Additional instructions: focus on security" -s read-only -c 'model_reasoning_effort="xhigh"' --enable web_search_cached --json 2>"$TMPERR" | python3 -c "
+import sys, json
+for line in sys.stdin:
+    line = line.strip()
+    if not line: continue
+    try:
+        obj = json.loads(line)
+        t = obj.get('type','')
+        if t == 'item.completed' and 'item' in obj:
+            item = obj['item']
+            itype = item.get('type','')
+            text = item.get('text','')
+            if itype == 'reasoning' and text:
+                print(f'[codex thinking] {text}')
+                print()
+            elif itype == 'agent_message' and text:
+                print(text)
+            elif itype == 'command_execution':
+                cmd = item.get('command','')
+                if cmd: print(f'[codex ran] {cmd}')
+        elif t == 'turn.completed':
+            usage = obj.get('usage',{})
+            tokens = usage.get('input_tokens',0) + usage.get('output_tokens',0)
+            if tokens: print(f'\ntokens used: {tokens}')
+    except: pass
+"
 ```
+   Replace "focus on security" with the user's actual instructions.
 
 3. Capture the output. Then parse cost from stderr:
 ```bash
@@ -221,7 +257,7 @@ With focus (e.g., "security"):
 
 Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Focus specifically on SECURITY. Your job is to find every way an attacker could exploit this code. Think about injection vectors, auth bypasses, privilege escalation, data exposure, and timing attacks. Be adversarial."
 
-2. Run codex exec with **JSONL output** to capture reasoning traces and tool calls (5-minute timeout):
+2. Run codex exec with **JSONL output** (use `timeout: 300000`, **foreground only — no `run_in_background`**):
 ```bash
 codex exec "<prompt>" -s read-only -c 'model_reasoning_effort="xhigh"' --enable web_search_cached --json 2>/dev/null | python3 -c "
 import sys, json
@@ -312,7 +348,7 @@ or sequencing issues. Be direct. Be terse. No compliments. Just the problems.
 THE PLAN:
 <plan content>"
 
-5. Run codex exec with **JSONL output** to capture reasoning traces (5-minute timeout):
+5. Run codex exec with **JSONL output** (use `timeout: 300000`, **foreground only — no `run_in_background`**):
 
 For a **new session:**
 ```bash
@@ -432,7 +468,8 @@ If token count is not available, display: `Tokens: unknown`
 - **Present output verbatim.** Do not truncate, summarize, or editorialize Codex's output
   before showing it. Show it in full inside the CODEX SAYS block.
 - **Add synthesis after, not instead of.** Any Claude commentary comes after the full output.
-- **5-minute timeout** on all Bash calls to codex (`timeout: 300000`).
+- **5-minute timeout** on all Bash calls to codex (`timeout: 300000`). **Always foreground.**
+  Never use `run_in_background` — it produces empty output. Never sleep-poll for results.
 - **No double-reviewing.** If the user already ran `/review`, Codex provides a second
   independent opinion. Do not re-run Claude Code's own review.
 - **Sequential, not parallel.** When running Claude review + Codex review in the same
