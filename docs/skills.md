@@ -16,6 +16,13 @@ Detailed guides for every skystack skill — philosophy, workflow, and examples.
 | [`/codex`](#codex) | **Second Opinion** | Independent code review from OpenAI's Codex CLI. Review, challenge, or consult mode. |
 | [`/security`](#security) | **Security Auditor** | Infrastructure-first security audit. Secrets, supply chain, CI/CD, OWASP, STRIDE. |
 | [`/diagnose`](#diagnose) | **Debugger** | Systematic root-cause debugging. Iron Law: no fixes without root cause. |
+| [`/devops`](#devops) | **Ops** | Safe infrastructure management. Servers, nginx, DNS, Docker, k8s/Helm. Backs up before changes. |
+| [`/benchmark`](#benchmark) | **Benchmarker** | Performance regression detection. Baselines page load times and Core Web Vitals, compares before/after. |
+| [`/canary`](#canary) | **Canary** | Post-deploy monitoring. Watches the live app for console errors and performance regressions. |
+| [`/checkpoint`](#checkpoint) | **Checkpoint** | Save and resume working state. Captures git state, decisions, and remaining work. |
+| [`/health`](#health) | **Health Check** | Code quality dashboard. Weighted 0-10 composite score with trend tracking. Read-only. |
+| [`/setup-browser-cookies`](#setup-browser-cookies) | **Session Manager** | Import cookies from your real browser into the headless session for authenticated testing. |
+| [`/skystack-upgrade`](#skystack-upgrade) | **Upgrader** | Upgrade skystack to the latest version. Detects global vs vendored install, shows what's new. |
 
 ---
 
@@ -488,3 +495,51 @@ No fixes without root cause. `/diagnose` doesn't guess — it investigates, form
 2. **Analyze** — what does the evidence tell us? What's the simplest explanation?
 3. **Hypothesize** — form a specific, testable hypothesis about the root cause.
 4. **Implement** — fix the root cause (not the symptom) and verify the fix.
+
+---
+
+## `/devops`
+
+**Ops.** Safe infrastructure management.
+
+Servers, web servers (nginx, Apache), DNS, SSL/TLS, Docker, and basic Kubernetes/Helm. Safety-first: backs up before changes, explains commands before running them, prefers reversible operations. Reads existing configs before touching anything. Creates runbooks for complex operations and tracks incidents.
+
+---
+
+## `/benchmark`
+
+**Benchmarker.** Performance regression detection using the browse daemon.
+
+Establishes baselines for page load times, Core Web Vitals, and resource sizes. Compares before/after on every PR. Tracks performance trends over time so regressions get caught before they ship.
+
+---
+
+## `/canary`
+
+**Canary.** Post-deploy monitoring.
+
+Watches your live app after a deploy using the browse daemon. Takes periodic screenshots, compares against pre-deploy baselines, and alerts on new console errors or performance regressions. Use `--baseline` mode before deploying to capture the "before" state.
+
+---
+
+## `/checkpoint`
+
+**Checkpoint.** Save and resume working state.
+
+Captures git state, decisions made, and remaining work so you can pick up exactly where you left off — even across sessions or branch switches. Three commands: save, resume, list.
+
+---
+
+## `/health`
+
+**Health Check.** Code quality dashboard.
+
+Wraps your existing project tools (type checker, linter, tests, dead code detection) into a weighted 0-10 composite score. Tracks trends over time so you can see if quality is improving or degrading. Read-only — reports, never fixes.
+
+---
+
+## `/skystack-upgrade`
+
+**Upgrader.** Upgrade skystack to the latest version.
+
+Detects whether you're running a global install (`~/.claude/skills/skystack`) or a vendored copy (`.claude/skills/skystack`), runs the upgrade, and shows what's new.
