@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.10.2] - 2026-04-09
+
+### Fixed
+
+- **README and docs now list all 19 skills.** Five skills (`/benchmark`, `/canary`, `/checkpoint`, `/health`, `/skystack-upgrade`) were missing from the README tools table. Four were missing from the install and troubleshooting skill lists. Seven were missing from the docs/skills.md deep dives page. All synced.
+
 ## [0.6.10.1] - 2026-04-09
 
 ### Fixed
