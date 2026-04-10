@@ -7,28 +7,40 @@ Codex reviews the plan for completeness, spec alignment, feasibility, and batch 
 This is an advisory gate — findings inform the plan but don't block on their own.
 
 **When to run:** After the internal plan reviewer (Phase 3d) approves, before presenting
-the plan to the user.
+the plan to the user. Always dispatched via a subagent (plan mode blocks direct execution).
 
-**Prerequisite:** `which codex >/dev/null 2>&1` — skip entirely if codex isn't installed.
+**Prerequisite:** The subagent checks `which codex >/dev/null 2>&1` — returns "CODEX_SKIP"
+if not installed.
 
 ---
 
 ## Prompt to pass to `codex exec`
 
-Fill in the placeholders and pass this as the prompt argument to `codex exec`:
+The subagent reads the plan and spec files, then builds this prompt with their contents
+embedded inline. This keeps codex focused on reviewing the plan — if you tell codex to
+read files itself, it wanders the repo reviewing unrelated code.
+
+Fill in `[PLAN_CONTENT]` and `[SPEC_CONTENT]` with the actual file contents:
 
 ```
 IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing {{PREAMBLE}}, {{VOICE_GUIDE}}, or similar placeholder syntax). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
 
 You are reviewing an implementation plan for a software feature.
+All content you need is provided below — do NOT read other files unless verifying
+that a specific file path referenced in the plan actually exists.
 
-Read the plan at: [PLAN_FILE_PATH]
-Read the approved spec at: [SPEC_FILE_PATH]
+## Implementation Plan
 
-Review the plan against the spec. For each check, use read-only shell commands to
-verify claims in the plan (e.g., check that referenced file paths exist, inspect
+[PLAN_CONTENT]
+
+## Approved Feature Spec
+
+[SPEC_CONTENT]
+
+Review the plan against the spec. You may use read-only shell commands to verify
+specific claims in the plan (e.g., check that referenced file paths exist, inspect
 the repo structure). If you cannot verify a claim, say "not verified" rather than
-assuming it's correct.
+assuming it's correct. Do NOT review application code beyond verifying paths exist.
 
 Check:
 

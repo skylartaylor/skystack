@@ -552,28 +552,29 @@ After writing all tasks and batch annotations:
 After the internal plan reviewer approves, get an independent second opinion from Codex.
 This is advisory — it doesn't block, but serious findings get folded into the plan.
 
-**Skip this step entirely if codex isn't installed:**
+**IMPORTANT: This step MUST use a subagent.** Plan mode prevents the main session from
+running non-readonly bash commands like `codex exec`. Subagents run outside plan mode
+and can execute freely. Do NOT attempt to run codex directly from plan mode.
 
-```bash
-which codex >/dev/null 2>&1 && echo "CODEX_AVAILABLE" || echo "CODEX_SKIP"
-```
+Print: `running codex plan review...`
 
-If `CODEX_SKIP`: print "Codex not installed — skipping cross-model plan review." and
-proceed to the "Ready to implement?" question below.
+Dispatch a `general-purpose` subagent with `model: "sonnet"`:
 
-If `CODEX_AVAILABLE`:
+**The subagent prompt must include:**
+1. Instruction to check if codex is installed: `which codex >/dev/null 2>&1`
+   — if not installed, return the string "CODEX_SKIP" immediately and stop
+2. The path to the plan file: `[PLAN_FILE_PATH]`
+3. The path to the spec file: `[SPEC_FILE_PATH]`
+4. Instruction to read both files, then read `pm/codex-plan-reviewer-prompt.md`
+5. Instruction to build the codex prompt by replacing `[PLAN_CONTENT]` with the
+   plan file contents and `[SPEC_CONTENT]` with the spec file contents — embed
+   the content inline so codex stays focused on the plan, not wandering the repo
+6. Instruction to run `codex exec` with the filled prompt using these flags:
+   `-s read-only -c 'model_reasoning_effort="xhigh"' --enable web_search_cached --json`
+   with `timeout: 300000` on the Bash call
+7. Instruction to parse the JSON output using this pipeline:
 
-1. Print: `running codex plan review...`
-
-2. Read `pm/codex-plan-reviewer-prompt.md`. Fill in the placeholders:
-   - `[PLAN_FILE_PATH]` → path to the plan document
-   - `[SPEC_FILE_PATH]` → path to the approved spec at `~/.skystack/projects/$SLUG/pm-specs/`
-
-3. Run `codex exec` with the filled-in prompt. Use `timeout: 300000` on the Bash call:
-
-```bash
-TMPERR=$(mktemp /tmp/codex-plan-err-XXXXXX.txt)
-codex exec "<filled prompt from codex-plan-reviewer-prompt.md>" -s read-only -c 'model_reasoning_effort="xhigh"' --enable web_search_cached --json 2>"$TMPERR" | python3 -c "
+```python
 import sys, json
 for line in sys.stdin:
     line = line.strip()
@@ -598,21 +599,28 @@ for line in sys.stdin:
             tokens = usage.get('input_tokens',0) + usage.get('output_tokens',0)
             if tokens: print(f'\ntokens used: {tokens}')
     except: pass
-"
 ```
 
-4. Parse the output for `[P1]` markers:
-   - **No P1 findings:** Note any `[P2]` findings as advisory context and continue.
-   - **P1 findings found:** Incorporate the P1 issues into the plan. Re-run the
-     internal plan reviewer (step 3d) one more time. Max 1 iteration of this
-     Codex→fix→re-review cycle. If the internal reviewer approves after fixes,
-     proceed regardless.
-   - **Codex timed out or errored:** Print "Codex plan review skipped (timeout/error)."
-     Proceed normally.
+8. Instruction to return the parsed output verbatim
 
-5. Synthesize into one "Plan Review" section. Don't show two separate review blocks.
-   Integrate the internal reviewer's verdict with Codex's findings. Note dissent
-   parenthetically where they disagree.
+**After the subagent returns:**
+
+If the subagent returned "CODEX_SKIP": print "Codex not installed — skipping
+cross-model plan review." and proceed to the "Ready to implement?" question below.
+
+If the subagent timed out or errored: print "Codex plan review skipped
+(timeout/error)." and proceed normally.
+
+Otherwise, parse the output for `[P1]` markers:
+- **No P1 findings:** Note any `[P2]` findings as advisory context and continue.
+- **P1 findings found:** Incorporate the P1 issues into the plan. Re-run the
+  internal plan reviewer (step 3d) one more time. Max 1 iteration of this
+  Codex→fix→re-review cycle. If the internal reviewer approves after fixes,
+  proceed regardless.
+
+Synthesize into one "Plan Review" section. Don't show two separate review blocks.
+Integrate the internal reviewer's verdict with Codex's findings. Note dissent
+parenthetically where they disagree.
 
 Output the full implementation plan as chat text (still in plan mode). Then use AskUserQuestion:
 - Question: "Ready to implement?"
@@ -817,11 +825,16 @@ each other's changes. Sequential subagents are safe without worktree isolation.
 
 ### Batch loop
 
-Before starting: record the current git SHA as the **batch base SHA**.
+Before starting: record the current git SHA as **two values**:
+- **build start SHA** — immutable, used later in Phase 5.5 for the cross-model review
+  (captures all changes /pm made across every batch)
+- **batch base SHA** — mutable, updated after each batch for per-batch reviews
 
 ```bash
 git rev-parse HEAD
 ```
+
+Store this SHA as both the build start SHA and the initial batch base SHA.
 
 Loop over batches in order:
 
@@ -962,7 +975,10 @@ which codex >/dev/null 2>&1 && echo "CODEX_AVAILABLE" || echo "CODEX_SKIP"
    **Agent: /review subagent** — dispatch a `general-purpose` subagent with `model: "opus"`:
 
    Tell the subagent to:
-   - First, save the branch diff to a temp file: `git diff <base>..HEAD > /tmp/pm-review-diff-$$.txt`
+   - First, save the feature diff to a temp file using the build start SHA:
+     `git diff <build_start_sha>..HEAD > /tmp/pm-review-diff-$$.txt`
+     (Use the build start SHA recorded before the batch loop, NOT the per-batch base
+     SHA or the base branch name — this captures all changes /pm built across every batch)
    - Read `review/SKILL.md.tmpl` Phase 2b (the "Parallel Specialist Review" section)
    - Follow that pattern exactly: dispatch 3 specialist subagents in parallel (security with
      model opus, performance with model sonnet, test coverage with model sonnet)
@@ -973,24 +989,45 @@ which codex >/dev/null 2>&1 && echo "CODEX_AVAILABLE" || echo "CODEX_SKIP"
    - After all 3 return, synthesize: collect, deduplicate by LOCATION, sort by severity
    - Return the synthesized FINDINGS block
 
-   Use the base branch detected in Step 0. The `<base>` placeholder is the base branch name
-   (main, master, etc.), NOT a SHA.
+   **Bash: Codex review** — run in parallel with the Agent call. Use `timeout: 300000`.
 
-   **Bash: Codex review** — run in parallel with the Agent call. Use `timeout: 300000`:
+   **Scope the review to only this feature's changes.** Use the build start SHA (recorded
+   before the batch loop) as the diff boundary — NOT the per-batch base SHA or base branch name.
+   `codex review --base <branch>` would review ALL changes on the branch including
+   commits from before this /pm session. Instead, pipe a targeted diff to `codex exec`:
 
    ```bash
+   BUILD_START_SHA="<build start SHA recorded before the batch loop>"
+   DIFF_FILE=$(mktemp /tmp/pm-codex-diff-XXXXXX.diff)
+   git diff "$BUILD_START_SHA"..HEAD > "$DIFF_FILE"
+   DIFF_STATS=$(git diff --stat "$BUILD_START_SHA"..HEAD | tail -1)
    TMPERR=$(mktemp /tmp/codex-review-err-XXXXXX.txt)
-   codex review --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
+   cat "$DIFF_FILE" | codex exec "Review the code changes provided via stdin. These changes are from a single feature implementation.
+
+Stats: $DIFF_STATS
+
+Focus on: bugs, security vulnerabilities, race conditions, missing error handling, correctness problems.
+Ignore: style preferences, naming conventions, pre-existing issues not in this diff.
+
+Tag each finding:
+- [P1] Serious: would cause bugs, security issues, or data loss
+- [P2] Minor: suggestions, could-be-better items
+
+Every finding MUST cite the exact file and line from the diff.
+If no issues found, output: REVIEW: No issues found." \
+     -s read-only \
+     -c 'model_reasoning_effort="xhigh"' \
+     --enable web_search_cached 2>"$TMPERR"
    ```
 
-   Replace `<base>` with the detected base branch name.
+   Replace `BUILD_START_SHA` with the actual SHA recorded before the batch loop.
 
 3. After both return, dispatch the cross-model synthesizer:
    - Read `pm/cross-model-reviewer-prompt.md`
    - Dispatch a `general-purpose` subagent with `model: "sonnet"` and the prompt filled in:
      - `[REVIEW_FINDINGS]` → the /review subagent's FINDINGS output
      - `[CODEX_OUTPUT]` → the codex review output
-     - `[BASE_SHA]` → the batch base SHA from the start of the build phase
+     - `[BASE_SHA]` → the build start SHA recorded before the batch loop
      - `[CURRENT_HEAD]` → output of `git rev-parse HEAD`
 
 4. Handle the synthesizer's Assessment:
