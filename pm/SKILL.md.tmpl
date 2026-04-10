@@ -373,6 +373,73 @@ After writing all tasks and batch annotations:
 4. If ✅ Approved: proceed to execution handoff
 5. If loop exceeds 3 iterations: surface to human for guidance
 
+### 3e. Codex plan review (optional)
+
+After the internal plan reviewer approves, get an independent second opinion from Codex.
+This is advisory — it doesn't block, but serious findings get folded into the plan.
+
+**Skip this step entirely if codex isn't installed:**
+
+```bash
+which codex >/dev/null 2>&1 && echo "CODEX_AVAILABLE" || echo "CODEX_SKIP"
+```
+
+If `CODEX_SKIP`: print "Codex not installed — skipping cross-model plan review." and
+proceed to the "Ready to implement?" question below.
+
+If `CODEX_AVAILABLE`:
+
+1. Print: `running codex plan review...`
+
+2. Read `pm/codex-plan-reviewer-prompt.md`. Fill in the placeholders:
+   - `[PLAN_FILE_PATH]` → path to the plan document
+   - `[SPEC_FILE_PATH]` → path to the approved spec at `~/.skystack/projects/$SLUG/pm-specs/`
+
+3. Run `codex exec` with the filled-in prompt. Use `timeout: 300000` on the Bash call:
+
+```bash
+TMPERR=$(mktemp /tmp/codex-plan-err-XXXXXX.txt)
+codex exec "<filled prompt from codex-plan-reviewer-prompt.md>" -s read-only -c 'model_reasoning_effort="xhigh"' --enable web_search_cached --json 2>"$TMPERR" | python3 -c "
+import sys, json
+for line in sys.stdin:
+    line = line.strip()
+    if not line: continue
+    try:
+        obj = json.loads(line)
+        t = obj.get('type','')
+        if t == 'item.completed' and 'item' in obj:
+            item = obj['item']
+            itype = item.get('type','')
+            text = item.get('text','')
+            if itype == 'reasoning' and text:
+                print(f'[codex thinking] {text}')
+                print()
+            elif itype == 'agent_message' and text:
+                print(text)
+            elif itype == 'command_execution':
+                cmd = item.get('command','')
+                if cmd: print(f'[codex ran] {cmd}')
+        elif t == 'turn.completed':
+            usage = obj.get('usage',{})
+            tokens = usage.get('input_tokens',0) + usage.get('output_tokens',0)
+            if tokens: print(f'\ntokens used: {tokens}')
+    except: pass
+"
+```
+
+4. Parse the output for `[P1]` markers:
+   - **No P1 findings:** Note any `[P2]` findings as advisory context and continue.
+   - **P1 findings found:** Incorporate the P1 issues into the plan. Re-run the
+     internal plan reviewer (step 3d) one more time. Max 1 iteration of this
+     Codex→fix→re-review cycle. If the internal reviewer approves after fixes,
+     proceed regardless.
+   - **Codex timed out or errored:** Print "Codex plan review skipped (timeout/error)."
+     Proceed normally.
+
+5. Synthesize into one "Plan Review" section. Don't show two separate review blocks.
+   Integrate the internal reviewer's verdict with Codex's findings. Note dissent
+   parenthetically where they disagree.
+
 Output the full implementation plan as chat text (still in plan mode). Then use AskUserQuestion:
 - Question: "Ready to implement?"
 - A) Yes, build it
