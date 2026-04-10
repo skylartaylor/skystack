@@ -590,7 +590,79 @@ commits depended on types or exports from a later batch.
 [ -f tsconfig.json ] && npx tsc --noEmit 2>&1 | head -20
 ```
 
-Fix any failures before proceeding to Phase 6.
+Fix any failures before proceeding.
+
+---
+
+## Cross-Model Code Review — independent second opinion
+
+After verification passes, get a final review from both Claude (/review specialists)
+and Codex before presenting to the user. This catches issues the per-batch reviewers
+might miss when looking at the full feature diff.
+
+**Check if codex is available:**
+
+```bash
+which codex >/dev/null 2>&1 && echo "CODEX_AVAILABLE" || echo "CODEX_SKIP"
+```
+
+**If `CODEX_AVAILABLE`:**
+
+1. Print: `running cross-model review (review + codex in parallel)...`
+
+2. Dispatch these **in parallel** (single message with 1 Agent call + 1 Bash call):
+
+   **Agent: /review subagent** — dispatch a `general-purpose` subagent with `model: "opus"`:
+
+   Tell the subagent to:
+   - First, save the branch diff to a temp file: `git diff <base>..HEAD > /tmp/pm-review-diff-$$.txt`
+   - Read `review/SKILL.md.tmpl` Phase 2b (the "Parallel Specialist Review" section)
+   - Follow that pattern exactly: dispatch 3 specialist subagents in parallel (security with
+     model opus, performance with model sonnet, test coverage with model sonnet)
+   - Each specialist receives the diff file path, the review checklist
+     (`~/.claude/skills/skystack/review/checklist.md` or `.claude/skills/skystack/review/checklist.md`),
+     and the detected stack
+   - Each specialist returns findings in the FINDINGS format (SEVERITY, CATEGORY, LOCATION, ISSUE, FIX)
+   - After all 3 return, synthesize: collect, deduplicate by LOCATION, sort by severity
+   - Return the synthesized FINDINGS block
+
+   Use the base branch detected in Step 0. The `<base>` placeholder is the base branch name
+   (main, master, etc.), NOT a SHA.
+
+   **Bash: Codex review** — run in parallel with the Agent call. Use `timeout: 300000`:
+
+   ```bash
+   TMPERR=$(mktemp /tmp/codex-review-err-XXXXXX.txt)
+   codex review --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
+   ```
+
+   Replace `<base>` with the detected base branch name.
+
+3. After both return, dispatch the cross-model synthesizer:
+   - Read `pm/cross-model-reviewer-prompt.md`
+   - Dispatch a `general-purpose` subagent with `model: "sonnet"` and the prompt filled in:
+     - `[REVIEW_FINDINGS]` → the /review subagent's FINDINGS output
+     - `[CODEX_OUTPUT]` → the codex review output
+     - `[BASE_SHA]` → the batch base SHA from the start of the build phase
+     - `[CURRENT_HEAD]` → output of `git rev-parse HEAD`
+
+4. Handle the synthesizer's Assessment:
+   - **CLEAN:** No findings. Proceed to Present & Publish with clean recommendation.
+   - **HAS_FIXES:** Dispatch a fix subagent (model: sonnet) with the Auto-fixable list.
+     After fixes commit, proceed to Present & Publish with clean recommendation.
+   - **HAS_CONCERNS:** Carry the "Surface to User" list forward. Shift the recommendation
+     in Present & Publish away from "Publish" toward "Review the code first."
+
+**If `CODEX_SKIP`:**
+
+1. Print: `Codex not installed — running Claude review only.`
+
+2. Dispatch only the /review subagent (same as above, without the parallel codex call).
+
+3. Skip the cross-model synthesizer. Instead, use the /review findings directly:
+   - If no CRITICAL findings: proceed to Present & Publish with clean recommendation.
+   - If CRITICAL findings exist: dispatch a fix subagent for auto-fixable items,
+     carry remaining findings to Present & Publish.
 
 ---
 
@@ -604,6 +676,7 @@ Present the completed work to the user.
 - Tests added (count and what they cover)
 - Accessibility features included
 - Any deviations from the spec (and why)
+- Cross-model review findings (if any remain unfixed) — present findings-first, source-second
 
 **Output the summary as chat text** (what was built, files changed, tests added, accessibility included, any deviations). Then use AskUserQuestion:
 - Question: "What's next?"
@@ -612,7 +685,7 @@ Present the completed work to the user.
 - C) Changes needed — tell me what to adjust
 - D) Run /qa first (recommend if there's a testable URL you haven't checked)
 
-RECOMMENDATION: A if self-review passed cleanly. D if the feature has a web-testable component and hasn't been tested in a browser yet.
+RECOMMENDATION: A if cross-model review returned CLEAN or HAS_FIXES (all fixed). B if cross-model review returned HAS_CONCERNS with unfixed items — the user should see the findings before publishing. D if the feature has a web-testable component and hasn't been tested in a browser yet.
 
 **If the user picks A:** Run `/publish`. It handles versioning, CHANGELOG, test verification,
 PR creation, and everything else. Don't do it manually.
