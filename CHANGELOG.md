@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.6.11.0] - 2026-04-10 — Autonomous Multi-Model Review Pipeline
+
+### Added
+
+- **`/pm` now runs Codex + Claude review gates automatically.** After the plan is written, Codex independently reviews it before implementation begins. After all code is built and verified, `/review` specialists and Codex run in parallel for a cross-model code review. Findings from both models get synthesized — issues found by both get high confidence, unique finds still surface. Auto-fixable items get fixed on the spot; the rest appear in your build summary. The whole flow runs without asking you anything.
+- **Graceful degradation when Codex isn't installed.** The new review gates skip silently if you don't have the codex CLI — /pm works exactly as before. Install codex to unlock the cross-model pipeline.
+- **Smart gate calibration.** Only CRITICAL findings or 3+ IMPORTANT items shift the publish recommendation. Minor and taste issues stay advisory — no more over-gating on trivial stuff.
+- **INCOMPLETE review status.** If Codex times out or a review source fails, the synthesizer flags it as INCOMPLETE instead of silently passing. You'll know the review was partial.
+- **Evidence-required plan reviews.** Codex plan review findings now require citations (plan_ref, spec_ref, repo evidence) — no more vague "this might be wrong" without proof.
+
 ## [0.6.10.2] - 2026-04-09
 
 ### Fixed
