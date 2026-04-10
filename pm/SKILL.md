@@ -994,11 +994,15 @@ which codex >/dev/null 2>&1 && echo "CODEX_AVAILABLE" || echo "CODEX_SKIP"
      - `[CURRENT_HEAD]` → output of `git rev-parse HEAD`
 
 4. Handle the synthesizer's Assessment:
-   - **CLEAN:** No findings. Proceed to Present & Publish with clean recommendation.
+   - **CLEAN:** No findings, both sources completed. Proceed to Present & Publish with clean recommendation.
    - **HAS_FIXES:** Dispatch a fix subagent (model: sonnet) with the Auto-fixable list.
      After fixes commit, proceed to Present & Publish with clean recommendation.
-   - **HAS_CONCERNS:** Carry the "Surface to User" list forward. Shift the recommendation
-     in Present & Publish away from "Publish" toward "Review the code first."
+   - **HAS_CONCERNS:** Carry the "Surface to User" list forward. Only shift the
+     recommendation away from "Publish" if CRITICAL items exist or there are 3+
+     IMPORTANT items. Otherwise include findings as advisory in the summary.
+   - **INCOMPLETE:** One or both review sources failed/timed out. Include whatever
+     findings are available and note in the summary that the review was partial.
+     Recommend the user review manually before publishing.
 
 **If `CODEX_SKIP`:**
 
@@ -1032,7 +1036,7 @@ Present the completed work to the user.
 - C) Changes needed — tell me what to adjust
 - D) Run /qa first (recommend if there's a testable URL you haven't checked)
 
-RECOMMENDATION: A if cross-model review returned CLEAN or HAS_FIXES (all fixed). B if cross-model review returned HAS_CONCERNS with unfixed items — the user should see the findings before publishing. D if the feature has a web-testable component and hasn't been tested in a browser yet.
+RECOMMENDATION: A if cross-model review returned CLEAN or HAS_FIXES (all fixed). B if cross-model review returned HAS_CONCERNS with CRITICAL items, 3+ IMPORTANT items, or INCOMPLETE — the user should see the findings before publishing. D if the feature has a web-testable component and hasn't been tested in a browser yet.
 
 **If the user picks A:** Run `/publish`. It handles versioning, CHANGELOG, test verification,
 PR creation, and everything else. Don't do it manually.

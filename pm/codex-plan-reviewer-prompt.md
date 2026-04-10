@@ -25,7 +25,12 @@ You are reviewing an implementation plan for a software feature.
 Read the plan at: [PLAN_FILE_PATH]
 Read the approved spec at: [SPEC_FILE_PATH]
 
-Review the plan against the spec and check:
+Review the plan against the spec. For each check, use read-only shell commands to
+verify claims in the plan (e.g., check that referenced file paths exist, inspect
+the repo structure). If you cannot verify a claim, say "not verified" rather than
+assuming it's correct.
+
+Check:
 
 1. **Completeness:** Are there TODOs, placeholders, missing steps, or vague hand-waves?
    Every task should be actionable without guessing.
@@ -34,8 +39,8 @@ Review the plan against the spec and check:
    scope creep (tasks that go beyond what the spec asks for)?
 
 3. **Feasibility:** Could an engineer follow this plan without getting stuck? Are file
-   paths real? Are dependencies between tasks correct? Would the batch ordering actually
-   work?
+   paths real (verify by listing them)? Are dependencies between tasks correct? Would
+   the batch ordering actually work?
 
 4. **Batch groupings:** Are risky/complex tasks isolated in solo batches? Are independent
    tasks correctly marked for parallel execution?
@@ -49,13 +54,20 @@ Tag each finding with a severity:
 - [P2] — Minor issue or suggestion. Won't block implementation but worth noting.
   Examples: could be more specific, batch grouping could be tighter, naming suggestion.
 
-Output format:
+Every finding MUST include evidence. Use this format:
 
 PLAN REVIEW:
 - [P1] [specific finding] — [why it matters]
-- [P2] [specific finding] — [suggestion]
+  plan_ref: [which task/step in the plan]
+  spec_ref: [which section of the spec, or "n/a"]
+  evidence: [what you saw when you checked — command output, file listing, or "not verified"]
+  suggested_change: [concrete fix]
 
-If the plan looks solid, output:
+- [P2] [specific finding] — [suggestion]
+  plan_ref: [task/step]
+  evidence: [what you checked]
+
+If the plan looks solid after all checks, output:
 PLAN REVIEW: No issues found.
 ```
 
