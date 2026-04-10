@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.11.1] - 2026-04-10
+
+### Fixed
+
+- **Codex plan review now actually runs during `/pm` planning.** Claude's plan mode was silently blocking the codex exec call — it'd "plan" the review instead of executing it. Now dispatched via a subagent that runs outside plan mode, so it fires every time.
+- **Codex code review scoped to your feature, not the whole branch.** Previously, `codex review --base main` reviewed every commit on the branch — including work from before your `/pm` session. Now pipes only the feature's diff (from build start to HEAD) to `codex exec`, so codex sees exactly what you built.
+- **Plan and spec content embedded inline for codex.** Instead of telling codex to read files (which let it wander the repo reviewing unrelated code), the plan and spec are now passed directly in the prompt. Codex stays focused on the review.
+- **Build start SHA vs batch base SHA distinguished.** Multi-batch builds now track an immutable "build start SHA" for the final cross-model review, separate from the per-batch SHA that gets updated after each batch. Previously, the final review would only cover the last batch's changes.
+
 ## [0.6.11.0] - 2026-04-10 — Autonomous Multi-Model Review Pipeline
 
 ### Added
