@@ -628,8 +628,21 @@ which codex >/dev/null 2>&1 && echo "CODEX_AVAILABLE" || echo "CODEX_SKIP"
    **Agent: /review subagent** — dispatch a `general-purpose` subagent with `model: "opus"`:
 
    Tell the subagent to:
-   - First, save the feature diff to a temp file using the build start SHA:
-     `git diff <build_start_sha>..HEAD > /tmp/pm-review-diff-$$.txt`
+   - First, save the feature diff to a temp file using the build start SHA, stripping
+     lock files and minified assets via git pathspec excludes:
+     ```
+     NOISE_EXCLUDES=(
+       ':(exclude)**/bun.lock' ':(exclude)**/package-lock.json'
+       ':(exclude)**/yarn.lock' ':(exclude)**/pnpm-lock.yaml'
+       ':(exclude)**/Cargo.lock' ':(exclude)**/go.sum'
+       ':(exclude)**/poetry.lock' ':(exclude)**/Pipfile.lock'
+       ':(exclude)**/flake.lock' ':(exclude)**/Gemfile.lock'
+       ':(exclude)**/composer.lock'
+       ':(exclude)**/*.min.js' ':(exclude)**/*.min.css'
+       ':(exclude)**/*.bundle.js' ':(exclude)**/*.map'
+     )
+     git diff <build_start_sha>..HEAD -- . "${NOISE_EXCLUDES[@]}" > /tmp/pm-review-diff-$$.txt
+     ```
      (Use the build start SHA recorded before the batch loop, NOT the per-batch base
      SHA or the base branch name — this captures all changes /pm built across every batch)
    - Read `review/SKILL.md.tmpl` Phase 2b (the "Parallel Specialist Review" section)
@@ -651,9 +664,19 @@ which codex >/dev/null 2>&1 && echo "CODEX_AVAILABLE" || echo "CODEX_SKIP"
 
    ```bash
    BUILD_START_SHA="<build start SHA recorded before the batch loop>"
+   NOISE_EXCLUDES=(
+     ':(exclude)**/bun.lock' ':(exclude)**/package-lock.json'
+     ':(exclude)**/yarn.lock' ':(exclude)**/pnpm-lock.yaml'
+     ':(exclude)**/Cargo.lock' ':(exclude)**/go.sum'
+     ':(exclude)**/poetry.lock' ':(exclude)**/Pipfile.lock'
+     ':(exclude)**/flake.lock' ':(exclude)**/Gemfile.lock'
+     ':(exclude)**/composer.lock'
+     ':(exclude)**/*.min.js' ':(exclude)**/*.min.css'
+     ':(exclude)**/*.bundle.js' ':(exclude)**/*.map'
+   )
    DIFF_FILE=$(mktemp /tmp/pm-codex-diff-XXXXXX.diff)
-   git diff "$BUILD_START_SHA"..HEAD > "$DIFF_FILE"
-   DIFF_STATS=$(git diff --stat "$BUILD_START_SHA"..HEAD | tail -1)
+   git diff "$BUILD_START_SHA"..HEAD -- . "${NOISE_EXCLUDES[@]}" > "$DIFF_FILE"
+   DIFF_STATS=$(git diff --stat "$BUILD_START_SHA"..HEAD -- . "${NOISE_EXCLUDES[@]}" | tail -1)
    TMPERR=$(mktemp /tmp/codex-review-err-XXXXXX.txt)
    cat "$DIFF_FILE" | codex exec "Review the code changes provided via stdin. These changes are from a single feature implementation.
 

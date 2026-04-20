@@ -83,11 +83,31 @@ Read `.claude/skills/review/checklist.md`. **If the checklist cannot be read, ST
 
 Skim the diff. Note which areas are touched: backend logic, data models, API endpoints, frontend/UI, tests, config, prompts/LLM, infrastructure. This shapes your review plan.
 
-Write the full diff to a tempfile for subagent access:
+Write the full diff to a tempfile for subagent access. Strip lock files and
+minified assets before passing to reviewers — they're noise that wastes tokens
+and triggers spurious findings:
 
 ```bash
+NOISE_EXCLUDES=(
+  ':(exclude)**/bun.lock'
+  ':(exclude)**/package-lock.json'
+  ':(exclude)**/yarn.lock'
+  ':(exclude)**/pnpm-lock.yaml'
+  ':(exclude)**/Cargo.lock'
+  ':(exclude)**/go.sum'
+  ':(exclude)**/poetry.lock'
+  ':(exclude)**/Pipfile.lock'
+  ':(exclude)**/flake.lock'
+  ':(exclude)**/Gemfile.lock'
+  ':(exclude)**/composer.lock'
+  ':(exclude)**/*.min.js'
+  ':(exclude)**/*.min.css'
+  ':(exclude)**/*.bundle.js'
+  ':(exclude)**/*.map'
+)
 DIFF_FILE=$(mktemp /tmp/skystack-review-XXXXXX.diff)
-git diff origin/<base> > "$DIFF_FILE" 2>/dev/null || git diff HEAD > "$DIFF_FILE"
+git diff origin/<base> -- . "${NOISE_EXCLUDES[@]}" > "$DIFF_FILE" 2>/dev/null \
+  || git diff HEAD -- . "${NOISE_EXCLUDES[@]}" > "$DIFF_FILE"
 echo "DIFF_FILE: $DIFF_FILE"
 ```
 
