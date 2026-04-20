@@ -445,6 +445,22 @@ LLM output used without validation, token/secret mishandling, data exposure.
 Also read [CHECKLIST_PATH] for project-specific suppressions — do NOT flag
 anything listed under "DO NOT flag".
 
+WHAT TO FLAG:
+- Concretely exploitable vulnerabilities with a 1-2 step path to impact
+- Hardcoded secrets, credentials, or API keys in code or config
+- Missing input validation on untrusted data crossing trust boundaries
+- Insecure cryptographic usage (weak algorithms, `rand()` for tokens, non-constant-time compare on secrets)
+
+WHAT NOT TO FLAG:
+- Theoretical risks requiring 3+ preconditions to exploit
+- Defense-in-depth suggestions when the primary defense is adequate
+- XSS in contexts where output is escaped by the framework (Rails `h`, React `{}`, Vue `{{ }}`)
+- SSRF warnings on URLs sourced from config/env/hardcoded constants (not user input)
+- CSRF on endpoints using the framework's built-in session-bound CSRF tokens
+- Timing attacks on comparisons that aren't on secrets or tokens
+- "Add rate limiting" on endpoints already behind upstream rate limiting
+- Issues in unchanged code — only flag what this diff touches
+
 Return findings in this exact format (no prose, only this structure):
 
 FINDINGS:
@@ -463,6 +479,21 @@ associations, Array#find inside loops, inline styles re-parsed on render,
 missing caching where clearly needed.
 Also read [CHECKLIST_PATH] for suppressions.
 
+WHAT TO FLAG:
+- N+1 queries in paths that run on user-facing requests
+- Unbounded loops or queries without LIMIT on user-facing paths
+- Array#find or Array#includes inside a loop (O(n*m)) on collections that grow
+- Missing preloading on associations accessed in loops or templates
+- Inline styles or expensive computed CSS re-evaluated on every render
+
+WHAT NOT TO FLAG:
+- Micro-optimizations in admin-only routes, migrations, background jobs, setup scripts
+- Asymptotic concerns on bounded collections (N<100 is always fine)
+- "Could cache this" when the value is computed once per request
+- Preloading suggestions on queries returning <10 rows
+- Index additions without evidence the query is slow or frequent
+- Issues in unchanged code
+
 Return findings in the same FINDINGS: format above.
 CATEGORY value: performance
 
@@ -472,6 +503,21 @@ uncovered conditionals (if/else both paths needed), missing edge case tests,
 missing regression tests for bug fixes, missing negative-path assertions,
 new error handlers with no test that triggers the error.
 Also read [CHECKLIST_PATH] for suppressions.
+
+WHAT TO FLAG:
+- New conditional branches (if/else, switch, ternary) where only one path is tested
+- Bug fixes with no regression test reproducing the original bug
+- New error handlers with no test that triggers the error
+- Missing negative-path assertions (test asserts happy return but not that side effects happened)
+- Security enforcement (auth checks, rate limits, blocklists) with no integration test verifying enforcement end-to-end
+
+WHAT NOT TO FLAG:
+- Tests that would just re-assert the type system ("test that function returns a string")
+- Coverage demands on pure-display components — integration tests at the page level are better
+- Private/internal methods already exercised through public API tests
+- Branches that only exist because of TypeScript narrowing or language-required defensive checks
+- "Test exercises multiple guards simultaneously" — fine, tests don't need to isolate every guard
+- Issues in unchanged code
 
 Return findings in the same FINDINGS: format above.
 CATEGORY value: test-coverage

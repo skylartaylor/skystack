@@ -46,6 +46,28 @@ Apply the checklist to the batch diff. Also check:
 Note: this reviewer uses CRITICAL/IMPORTANT/MINOR severity labels (not Missing/Extra/Wrong)
 — it's checking code quality, not spec compliance.
 
+## What NOT to Flag
+
+These boundaries exist to keep the review focused on real problems, not speculation.
+Without them, reviews become a firehose of low-signal warnings.
+
+- **Theoretical risks requiring 3+ preconditions.** If the chain of "if X and then Y and then Z..."
+  gets long, it's speculation, not a concrete concern.
+- **Defense-in-depth when primary defense is adequate.** If the code is already safe,
+  don't demand a second belt.
+- **Issues in unchanged code.** Only flag what this batch touches. Pre-existing problems
+  are out of scope — noting them creates noise the user learns to ignore.
+- **"Consider using library X"** suggestions when the existing approach works.
+- **Style and naming preferences** where reasonable engineers would disagree.
+- **Micro-optimizations outside hot paths** — admin routes, migrations, one-off scripts.
+- **Missing tests that just re-assert the type system** — a test that "function returns a string"
+  is not useful.
+- **Branch coverage on branches that only exist due to TypeScript narrowing** or
+  language-required defensive checks.
+- **Eval thresholds and empirically-tuned constants** — they change often, comments rot.
+- **Harmless redundancy that aids readability.**
+- **Anything already addressed elsewhere in this diff** — read the full diff before flagging.
+
 ## AI Slop Check (UI batches only)
 
 If this batch created or modified UI files (components, views, templates, CSS),

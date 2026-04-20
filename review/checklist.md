@@ -162,15 +162,65 @@ the fix, it's ASK.
 
 ## Suppressions — DO NOT flag these
 
-- "X is redundant with Y" when the redundancy is harmless and aids readability (e.g., `present?` redundant with `length > 20`)
-- "Add a comment explaining why this threshold/constant was chosen" — thresholds change during tuning, comments rot
-- "This assertion could be tighter" when the assertion already covers the behavior
-- Suggesting consistency-only changes (wrapping a value in a conditional to match how another constant is guarded)
-- "Regex doesn't handle edge case X" when the input is constrained and X never occurs in practice
-- "Test exercises multiple guards simultaneously" — that's fine, tests don't need to isolate every guard
-- Eval threshold changes (max_actionable, min scores) — these are tuned empirically and change constantly
-- Harmless no-ops (e.g., `.reject` on an element that's never in the array)
-- ANYTHING already addressed in the diff you're reviewing — read the FULL diff before commenting
+Telling a reviewer what *not* to flag is where the prompt engineering value lives.
+Without these boundaries, you get a firehose of speculative warnings that developers
+learn to ignore.
+
+### Universal anti-flags (apply to every specialist)
+
+- **Theoretical risks requiring unlikely preconditions.** If the exploit chain is
+  longer than 2 steps ("if attacker controls X, and then Y happens, and then Z..."),
+  it's speculation. Skip it.
+- **Defense-in-depth when primary defense is adequate.** If the code is already safe,
+  don't demand a second belt.
+- **Issues in unchanged code.** Only flag what this diff introduces or modifies.
+  Pre-existing problems are not in scope.
+- **"Consider using library X"** suggestions when the existing approach works fine.
+- **Style and naming preferences** when reasonable engineers would disagree.
+- **Suggesting consistency-only changes** (wrapping a value in a conditional to match
+  how another constant is guarded).
+- **Harmless no-ops** (e.g., `.reject` on an element that's never in the array).
+- **Anything already addressed in the diff** — read the full diff before commenting.
+
+### Security specialist anti-flags
+
+- Theoretical XSS in contexts where output is escaped by the framework (Rails `h`,
+  React `{}` interpolation, Vue `{{ }}`).
+- SSRF warnings on URLs sourced from config, env vars, or hardcoded constants —
+  only user-controlled URLs are SSRF risks.
+- CSRF on endpoints that use the framework's built-in session-bound CSRF tokens.
+- Timing attacks on comparisons that aren't touching secrets or tokens.
+- "Add rate limiting" on endpoints that already sit behind upstream rate limiting.
+
+### Performance specialist anti-flags
+
+- Micro-optimizations outside hot paths (admin-only routes, one-time migrations,
+  background jobs, setup scripts).
+- Asymptotic concerns on bounded-N collections — N<100 is always fine.
+- "Could cache this" when the value is computed once per request.
+- Preloading suggestions on queries returning <10 rows.
+- Suggesting index additions without evidence the query is slow or frequent.
+
+### Test coverage specialist anti-flags
+
+- Missing tests that would just re-assert the type system ("test that function returns
+  a string").
+- Coverage demands on pure-display components — prefer integration tests at the page level.
+- Testing private/internal methods that are already exercised through public API tests.
+- Branch coverage on branches that only exist because of TypeScript narrowing or
+  language-required defensive checks.
+- "Test exercises multiple guards simultaneously" — tests don't need to isolate every guard.
+
+### Code quality / general anti-flags
+
+- "X is redundant with Y" when the redundancy aids readability (e.g., `present?`
+  redundant with `length > 20`).
+- "Add a comment explaining why this threshold/constant was chosen" — thresholds
+  change during tuning, comments rot.
+- "This assertion could be tighter" when the assertion already covers the behavior.
+- "Regex doesn't handle edge case X" when the input is constrained and X never occurs
+  in practice.
+- Eval threshold changes (max_actionable, min scores) — tuned empirically, change constantly.
 
 ---
 
