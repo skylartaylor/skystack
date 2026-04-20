@@ -843,25 +843,76 @@ Save the review output — it goes into the PR body in Step 8.
 
 ---
 
-## Step 5: CHANGELOG (auto-generate)
+## Step 5: CHANGELOG (auto-generate via subagent)
 
-1. Read `CHANGELOG.md` header to know the format.
+Writing the CHANGELOG requires reading the full branch diff and every commit message. That is heavy context the main thread does not need to retain. Dispatch a subagent to do the work and report back a one-line JSON verdict.
 
-2. Auto-generate the entry from **ALL commits on the branch** (not just recent ones):
-   - Use `git log <base>..HEAD --oneline` to see every commit being shipped
-   - Use `git diff <base>...HEAD` to see the full diff against the base branch
-   - The CHANGELOG entry must be comprehensive of ALL changes going into the PR
-   - If existing CHANGELOG entries on the branch already cover some commits, replace them with one unified entry for the new version
-   - Categorize changes into applicable sections:
+**Inputs you already have:**
+- `<base>` — the base branch detected in Step 0
+- New version string from Step 4 (format `X.Y.Z.W`)
+- Today's date (`YYYY-MM-DD`)
+
+**1. Dispatch a `general-purpose` subagent** with `model: "sonnet"` and this prompt (fill in the placeholders):
+
+```
+You are updating CHANGELOG.md for a release. Do the work, write the file, and emit a last-line JSON verdict.
+
+**Inputs:**
+- Base branch: [BASE_BRANCH]
+- New version: [NEW_VERSION]
+- Today's date: [TODAY_YYYY_MM_DD]
+- Repo root: [REPO_ROOT]
+
+**Steps:**
+1. Read CHANGELOG.md to learn its format and header layout.
+2. Read every commit on the branch: `git log [BASE_BRANCH]..HEAD --oneline` AND the full diff `git diff [BASE_BRANCH]...HEAD`.
+3. Draft a comprehensive entry covering ALL changes going into the PR.
+   - If prior CHANGELOG entries on the branch already cover some of these commits, REPLACE them with one unified entry for the new version.
+   - Categorize into applicable sections only (omit empty ones):
      - `### Added` — new features
      - `### Changed` — changes to existing functionality
      - `### Fixed` — bug fixes
      - `### Removed` — removed features
-   - Write concise, descriptive bullet points
+   - Concise, descriptive bullets. User-facing voice per the project's CHANGELOG style.
+4. Insert the new entry after the file header (line 5), dated today.
+   Format: `## [X.Y.Z.W] - YYYY-MM-DD`
+5. Write CHANGELOG.md directly.
+
+Do NOT ask the user to describe changes. Infer from the diff and commit history.
+
+**Output:**
+Your reply may include a brief human-readable summary, but the FINAL LINE must be exactly one line of JSON and nothing after it:
+
+{"status":"ok","path":"CHANGELOG.md","version":"[NEW_VERSION]","sections":["Added","Fixed"]}
+
+On failure, emit instead:
+
+{"status":"error","reason":"<short reason>"}
+```
+
+**2. Read only the last line** of the subagent's output. Parse it as JSON.
+
+- If `status == "ok"`: continue to Step 5.5. The subagent has already written CHANGELOG.md.
+- If `status == "error"` OR the last line is not valid JSON OR the subagent call failed for any reason: **fall back to inline mode** (below).
+
+**3. Inline fallback** (only if the subagent path failed):
+
+1. Read `CHANGELOG.md` header to know the format.
+2. Auto-generate the entry from **ALL commits on the branch**:
+   - `git log <base>..HEAD --oneline` — every commit being shipped
+   - `git diff <base>...HEAD` — full diff against the base branch
+   - The entry must be comprehensive of ALL changes going into the PR
+   - If existing CHANGELOG entries on the branch already cover some commits, replace them with one unified entry for the new version
+   - Categorize into applicable sections (omit empty ones):
+     - `### Added` — new features
+     - `### Changed` — changes to existing functionality
+     - `### Fixed` — bug fixes
+     - `### Removed` — removed features
+   - Concise, descriptive bullets
    - Insert after the file header (line 5), dated today
    - Format: `## [X.Y.Z.W] - YYYY-MM-DD`
 
-**Do NOT ask the user to describe changes.** Infer from the diff and commit history.
+Do NOT ask the user to describe changes. Infer from the diff and commit history.
 
 ---
 
@@ -1047,6 +1098,12 @@ git push -u origin <branch-name>
 ```
 
 **Direct push mode:** You're pushing directly to the base branch. Output the pushed commit SHAs and confirm success. Skip Step 8.
+
+---
+
+> **You are NOT done.** Pushing feels like a natural stopping point — it isn't.
+> The next steps (PR creation, doc-release handoff, post-ship checks) are mandatory.
+> Do not summarize, do not hand back to the user, do not stop here. Continue to Step 8.
 
 ---
 
