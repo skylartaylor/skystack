@@ -175,7 +175,56 @@ Before reviewing code quality, check: **did they build what was requested — no
    [If missing: list each unaddressed requirement]
    ```
 
-5. This is **INFORMATIONAL** — does not block the review. Proceed to Phase 2.
+5. This is **INFORMATIONAL** — does not block the review. Proceed to Phase 1.7.
+
+---
+
+## Phase 1.7: Risk tier classification
+
+Classify the diff to decide how many specialists to dispatch. A one-line typo fix
+doesn't need 3 parallel specialist subagents. A 500-line change or any touch to
+security-sensitive code does.
+
+```bash
+DIFF_LINES=$(git diff origin/<base> -- . "${NOISE_EXCLUDES[@]}" --shortstat 2>/dev/null \
+  || git diff HEAD -- . "${NOISE_EXCLUDES[@]}" --shortstat 2>/dev/null)
+LINES=$(echo "$DIFF_LINES" | grep -oE '[0-9]+ (insertion|deletion)' | awk '{s+=$1} END {print s+0}')
+CHANGED_FILES=$(git diff origin/<base> -- . "${NOISE_EXCLUDES[@]}" --name-only 2>/dev/null \
+  || git diff HEAD -- . "${NOISE_EXCLUDES[@]}" --name-only 2>/dev/null)
+FILES=$(echo "$CHANGED_FILES" | grep -c . || echo 0)
+echo "LINES: $LINES"
+echo "FILES: $FILES"
+
+# Security-sensitive path detection — ANY match forces FULL tier
+SENSITIVE=$(echo "$CHANGED_FILES" | grep -iE '(^|/)(auth|crypto|security|secrets?)/|/(migrate|migrations)/|prisma/migrations/|db/schema\.|\.env($|\.)|(auth|password|token|secret|credential|cookie|session)[^/]*\.(rb|py|ts|tsx|js|jsx|go|rs|swift|kt|java|php)$' | head -5)
+[ -n "$SENSITIVE" ] && echo "SENSITIVE: yes" && echo "$SENSITIVE" || echo "SENSITIVE: no"
+```
+
+Classify into a tier using these rules (in order — first match wins):
+
+1. **FULL** — if `SENSITIVE: yes`, OR `LINES > 100`, OR `FILES > 20`
+2. **LITE** — if `LINES > 10` (up to 100) AND `FILES <= 20`
+3. **TRIVIAL** — if `LINES <= 10` AND `FILES <= 20`
+
+Action per tier (used in Phase 2b):
+
+| Tier | Specialists dispatched | Rationale |
+|------|------------------------|-----------|
+| TRIVIAL | None — single-pass checklist review in Phase 3 | Small diff, 3 parallel subagents is overkill |
+| LITE | Security + test-coverage (skip performance) | Small enough that perf concerns rarely apply |
+| FULL | All 3 (security, performance, test-coverage) | Full review warranted |
+
+Print the result before presenting the plan:
+
+```
+Review tier: LITE (82 lines, 3 files) — running security + test-coverage specialists
+```
+
+If `SENSITIVE: yes` forced FULL, include a one-line reason:
+
+```
+Review tier: FULL (8 lines, 1 file) — forced by security-sensitive path: app/models/auth_token.rb
+```
 
 ---
 
@@ -204,9 +253,18 @@ Be specific to what you actually saw. Don't list generic categories — list the
 
 ## Phase 2b: Parallel Specialist Review
 
-Dispatch 3 parallel subagents in a single message.
+**Gate by the risk tier from Phase 1.7:**
 
-All three subagents receive:
+- **TRIVIAL tier:** Skip this phase entirely. Go directly to Phase 3 and apply the
+  checklist yourself in a single pass. A 10-line diff does not need 3 parallel
+  specialist subagents.
+- **LITE tier:** Dispatch only the security and test-coverage specialists (skip
+  performance).
+- **FULL tier:** Dispatch all 3 specialists below.
+
+Dispatch the gated specialists in parallel (single message, multiple Agent calls).
+
+All dispatched subagents receive:
 - The diff file path (DIFF_FILE from Phase 1)
 - The checklist.md path (`.claude/skills/review/checklist.md` or the found path)
 - The detected stack
@@ -313,8 +371,15 @@ Then apply your own judgment for that category from the checklist.
 
 ### Code review
 
-The findings list comes from Phase 2b (synthesized specialist output). Use the checklist
-for any categories a specialist did not cover (e.g. if a specialist returned no output).
+**Source of findings depends on the risk tier from Phase 1.7:**
+
+- **TRIVIAL tier:** no specialists were dispatched. Apply the checklist yourself
+  directly against the diff in a single pass.
+- **LITE tier:** findings come from the security + test-coverage specialists in Phase 2b.
+  Apply the performance section of the checklist yourself if anything stands out
+  (usually nothing on small diffs).
+- **FULL tier:** findings come from all 3 specialists in Phase 2b. Use the checklist
+  only for categories a specialist did not cover (e.g., if a specialist returned no output).
 
 Apply the checklist in two passes:
 
