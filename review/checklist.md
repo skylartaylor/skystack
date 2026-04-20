@@ -160,6 +160,34 @@ the fix, it's ASK.
 
 ---
 
+## Review Decision Rubric
+
+After applying auto-fixes and recording user decisions on ASK items, emit one
+overall assessment that downstream skills (e.g., `/publish`) can gate on.
+
+**Severity taxonomy** (from specialist output):
+- **CRITICAL** — security hole, data loss risk, broken functionality
+- **IMPORTANT** — missing tests, real performance issue, pattern violation
+- **MINOR** — style, naming, cosmetic
+
+**Assessment rubric** (count only unaddressed findings — fixed and user-dismissed items don't count):
+
+| Remaining findings | Assessment |
+|--------------------|------------|
+| 0 findings, OR all auto-fixed, OR all ASK items resolved | `clean` |
+| Only MINOR items, OR 1–2 IMPORTANT items, no CRITICAL | `advisory` |
+| Any CRITICAL, OR 3+ IMPORTANT items | `blocked` |
+
+**Bias toward approval.** A single warning in an otherwise-clean diff is `advisory`,
+not `blocked`. The user reads the summary and decides. Only a CRITICAL issue or a
+pile of IMPORTANT ones (3+) should shift the recommendation away from shipping.
+
+Downstream gating (for `/publish`):
+- `clean` or `advisory` → CLEARED (ship is fine, advisory findings shown for context)
+- `blocked` → NOT CLEARED (user should look before shipping)
+
+---
+
 ## Suppressions — DO NOT flag these
 
 Telling a reviewer what *not* to flag is where the prompt engineering value lives.

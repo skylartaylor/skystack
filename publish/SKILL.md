@@ -315,8 +315,8 @@ Parse the output. Find the most recent entry for each skill (review, pm, design,
 - **Design Review (optional):** Use your judgment. Recommend for UI/UX changes. Run with `/design`. Skip for backend-only or infra changes.
 
 **Verdict logic:**
-- **CLEARED**: Dev Review has >= 1 entry within 7 days with status "clean" (or \`skip_dev_review\` is \`true\`)
-- **NOT CLEARED**: Dev Review missing, stale (>7 days), or has open issues
+- **CLEARED**: Dev Review has >= 1 entry within 7 days with status `clean` OR `advisory` (or \`skip_dev_review\` is \`true\`). `advisory` means the reviewer found only minor issues or ≤2 important items — surface them in the summary but don't block shipping (bias toward approval).
+- **NOT CLEARED**: Dev Review missing, stale (>7 days), or has status `blocked` (also treat the legacy `issues_found` status as not cleared for backward compatibility).
 - PM and Design reviews are shown for context but never block shipping
 - If \`skip_dev_review\` config is \`true\`, Dev Review shows "SKIPPED (global)" and verdict is CLEARED
 

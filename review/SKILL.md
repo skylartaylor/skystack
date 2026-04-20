@@ -780,16 +780,36 @@ At the end of this session, log any genuine discoveries for future sessions.
 Only log genuine discoveries — would knowing this save 5+ minutes next time?
 Skip transient errors (network blips, rate limits) and obvious things.
 
-After all fixes are applied (or no issues found), log the review result so `/publish` knows the review ran:
+After all fixes are applied (or no issues found), log the review result so `/publish` knows the review ran.
+
+**Compute the overall assessment** using the Review Decision Rubric in
+`.claude/skills/review/checklist.md`. Count only findings that remain unaddressed
+after auto-fixes and user decisions:
+
+| Remaining findings | Status |
+|--------------------|--------|
+| 0 findings, OR all auto-fixed, OR all ASK items resolved | `clean` |
+| Only MINOR items, OR 1–2 IMPORTANT items, no CRITICAL | `advisory` |
+| Any CRITICAL, OR 3+ IMPORTANT items | `blocked` |
 
 ```bash
 eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 mkdir -p ~/.skystack/projects/$SLUG
-echo '{"skill":"review","timestamp":"TIMESTAMP","status":"STATUS","findings":N,"auto_fixed":M,"via":"standalone"}' >> ~/.skystack/projects/$SLUG/$_BRANCH-reviews.jsonl
+echo '{"skill":"review","timestamp":"TIMESTAMP","status":"STATUS","tier":"TIER","findings":N,"auto_fixed":M,"critical":C,"important":I,"minor":X,"via":"standalone"}' >> ~/.skystack/projects/$SLUG/$_BRANCH-reviews.jsonl
 ```
 
-Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "clean" if 0 findings or all auto-fixed with no skipped, "issues_found" otherwise, N = total findings, M = auto-fixed count. The `via` field indicates the invocation context: use `"standalone"` when /review is run directly by the user. When /review is invoked as part of another skill (e.g., /publish calls the pre-landing review), that skill should write its own log entry with the appropriate `via` value (e.g., `"publish"`).
+Substitute:
+- TIMESTAMP = ISO 8601 datetime
+- STATUS = `clean` | `advisory` | `blocked` per the rubric above
+- TIER = the risk tier from Phase 1.7: `trivial` | `lite` | `full`
+- N = total findings surfaced, M = auto-fixed count
+- C, I, X = counts of unaddressed findings by severity (CRITICAL, IMPORTANT, MINOR)
+
+The `via` field indicates the invocation context: use `"standalone"` when /review is
+run directly by the user. When /review is invoked as part of another skill (e.g.,
+/publish calls the pre-landing review), that skill should write its own log entry
+with the appropriate `via` value (e.g., `"publish"`).
 
 ---
 
