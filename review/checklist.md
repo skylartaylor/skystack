@@ -108,6 +108,7 @@ To do this: use Grep to find all references to the sibling values (e.g., grep fo
 - O(n*m) lookups in views (`Array#find` in a loop instead of `index_by` hash)
 - Ruby-side `.select{}` filtering on DB results that could be a `WHERE` clause (unless intentionally avoiding leading-wildcard `LIKE`)
 - AI slop patterns (generic gradients, vague hero copy, template-default styling) — see full criteria in `pm/code-quality-reviewer-prompt.md` under "AI Slop Check"
+  - Flag by **structure**, not string matches. The slop pattern (gradient background + card overlay + hero copy) re-emerges under different class names and color hexes; line-by-line string checks miss it. Ask: does this layout look like a generic SaaS template, or does it look built for this app?
 
 ---
 
