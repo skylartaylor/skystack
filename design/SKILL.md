@@ -392,7 +392,9 @@ user's final choice.
 **Design knowledge:** Use the aesthetic directions, font recommendations,
 blacklists, and anti-patterns from `designer.md`. Never display these as tables —
 weave them into your proposal naturally. Never recommend blacklisted fonts. Never
-recommend overused fonts (Inter, Roboto, Poppins, etc.) as primary choices.
+recommend overused fonts (Inter, Roboto, Poppins, Space Grotesk, system-ui as primary font, etc.) as primary choices.
+
+**Anti-convergence:** If your design variants in the same project share font, palette, AND layout, at least one variant failed — vary them intentionally.
 
 #### 3C-3. Font & Color Preview Page
 
