@@ -66,6 +66,8 @@ helpers. Each capability is its own skill — invoke them by name.
 
 | Skill | Purpose |
 |-------|---------|
+| \`$pm\` | Idea → spec → build → ship; structured feature workflow |
+| \`$devops\` | Safe infra ops with command classification + rollback discipline |
 | \`$browse\` | Headless Chromium CLI: navigate, click, screenshot, eval JS |
 | \`$qa\` | Drive the app in a real browser, find bugs, capture evidence |
 | \`$benchmark\` | Compare page-load + Core Web Vitals between two refs |
@@ -438,6 +440,260 @@ ${RESOLVER}
   },
 
   {
+    name: 'pm',
+    displayName: 'PM',
+    shortDescription: 'Idea to shipped feature: spec, plan, build, verify, ship',
+    defaultPrompt: 'Use $pm to spec and build this feature.',
+    description:
+      'End-to-end feature workflow: research the problem, write the spec with user approval, plan TDD tasks, build task-by-task with commits, verify, and present for publish. Two checkpoints with the user (spec approval, publish decision); everything else runs autonomously. Use when the user says "PM this", "build feature X", "spec it out", or wants structured feature work instead of ad-hoc coding.',
+    body: `# PM
+
+Idea → spec → build → ship. Two checkpoints with the user (spec approval and
+publish decision). Everything else runs autonomously.
+
+## When to use
+
+- User says: "PM this", "build feature X", "let's add Y", "spec it out"
+- A new feature or non-trivial change that needs structured thinking before code
+
+## Phase 1: Discovery (autonomous)
+
+Before writing any code, understand:
+
+1. **Existing context.** Read \`TODOS.md\` if present. Look at recent commits
+   in the relevant area (\`git log --oneline -20\` then narrow). Skim the 3-5
+   files closest to where this feature would live.
+2. **Codebase patterns.** What's the state management? Routing? Data layer?
+   Match what's there — don't invent new patterns without a reason.
+3. **Competitive research.** What do 2-3 similar apps do? Web search if useful.
+   Capture: what users expect (baseline), what's clever (worth borrowing),
+   what to avoid (anti-patterns seen in competitors).
+4. **Edge cases inventory.** Empty state? One-item? 10,000-item? Offline?
+   No permission? Make these explicit before building.
+
+## Phase 2: Spec — first checkpoint
+
+Output a written spec to chat, then ask the user for approval. Sections:
+
+1. **Problem** — what user pain this solves, in plain language
+2. **Solution** — what the user sees and does, step by step
+3. **Design** — display patterns, components, key interactions, with rationale
+4. **Architecture** — how this fits existing patterns; any concerns flagged
+5. **Accessibility** — concrete checklist for the target stack (semantic HTML,
+   ARIA labels, contrast, touch targets, screen reader)
+6. **Edge cases** — explicit list, not "edge cases handled"
+7. **Non-goals** — what this feature does NOT do (kills scope creep)
+
+After the spec, ask the user: ready to build / adjust scope / rethink approach?
+Wait for approval.
+
+After approval, save the spec to \`~/.skystack/projects/<slug>/pm-specs/<date>-<slug>.md\`
+so future \`$qa\` and design audits can verify against it.
+
+## Phase 3: Plan
+
+1. **File map.** List every file with one-line responsibility:
+   \`\`\`
+   Create: path/to/new_file.ts        # data model
+   Modify: path/to/router.ts          # route registration
+   Test:   path/to/new_file.test.ts   # validates X, Y, Z
+   \`\`\`
+   Keep files small and focused. If a file grows to do two things, split.
+
+2. **Tasks (5-10 min each).** TDD order: failing test → minimum impl → run →
+   edge cases → commit. One commit per task.
+
+3. **Order matters.** Data models before services, services before
+   controllers/views. Each commit must be independently valid (no broken
+   imports, no references to code not yet written).
+
+## Phase 4: Build (autonomous)
+
+Execute task by task:
+1. Write the failing test first. Run it. Confirm it fails with the expected error.
+2. Implement minimum code to make it pass.
+3. Handle edge cases from the spec.
+4. Build accessibility in during implementation, not after.
+5. Match existing codebase patterns exactly — no new architectural patterns.
+6. Commit with a message describing what changed (not how).
+7. Move to the next task.
+
+Don't batch tasks into one commit. Don't refactor outside the task scope.
+
+## Phase 5: Verify
+
+Run the full test suite. If anything fails, fix before proceeding. Spot-check
+accessibility on UI tasks. Run the type checker if the project has one.
+
+## Phase 6: Cross-model review (optional)
+
+If \`$claude-review\` is available, run it on the feature diff. Surface any
+P1 findings to the user. Auto-fix obvious P2s; mention them.
+
+## Phase 7: Present & Publish — second checkpoint
+
+Show the user:
+- What was built (one paragraph)
+- Files changed (list)
+- Tests added (count + what they cover)
+- Any deviations from spec (and why)
+- Remaining concerns from review
+
+Ask: publish / review first / adjust. Default recommendation = publish if review
+came back clean.
+
+## Rules
+
+- Two checkpoints with the user, no more. Spec approval and publish.
+- Edge cases are part of the feature, not optional.
+- Keep it simple. The best feature solves the user's problem with the least
+  complexity. Research informs simplicity, not complexity.
+- Show your research in the spec. "Linear does X, Notion does Y, I recommend Z
+  because…" — gives the user confidence in the direction.
+- Trust existing patterns. If the codebase uses Provider, don't introduce
+  Riverpod. If it uses REST, don't add GraphQL.
+`,
+  },
+
+  {
+    name: 'devops',
+    displayName: 'DevOps',
+    shortDescription: 'Safe infrastructure operations with rollback discipline',
+    defaultPrompt: 'Use $devops to do this infrastructure task safely.',
+    description:
+      'Safe infrastructure operations: servers, web servers, DNS, SSL, Docker, Kubernetes, firewalls. Classifies every command (SAFE/CAUTION/DANGER), backs up before destructive ops, prefers reversible operations, reads existing runbooks first, documents changes after. Use when the user mentions "set up nginx", "configure DNS", "deploy helm chart", "kubectl", "ssl cert", "firewall", "iptables", "docker compose", "server management", or any production infra change.',
+    body: `# DevOps
+
+Safe infrastructure operations. Bar: never run a destructive command without a
+backup, an explicit user acknowledgment, and a documented rollback path.
+
+## When to use
+
+- "set up nginx", "configure DNS", "deploy helm chart", "kubectl <anything>"
+- "ssl certificate", "firewall", "iptables", "ufw", "docker compose"
+- Anything touching production infra or shared infrastructure
+
+## Iron rules
+
+1. **Read existing runbooks first.** Look in \`runbooks/\`, \`docs/ops/\`, the
+   README. If "how we deploy" is documented, follow it. Don't reinvent.
+2. **Show every shell command in plain text BEFORE running.** Never silent
+   side effects.
+3. **Classify each command** (SAFE / CAUTION / DANGER — see below). Confirm
+   any CAUTION op once; require explicit acknowledgment for any DANGER op.
+4. **Back up before destructive ops.** Test the restore path actually works
+   before you destroy the original.
+5. **Reversible > clever.** If you can't roll back, it's not done.
+
+## Command classification
+
+### SAFE — run freely, no confirmation needed
+
+Read-only or zero-side-effect:
+- \`cat\`, \`ls\`, \`tail\`, \`grep\`
+- \`kubectl get\`, \`kubectl describe\`, \`docker ps\`, \`docker inspect\`
+- \`dig\`, \`curl -I\`, \`curl -s\` (idempotent GETs)
+- \`systemctl status\`, \`journalctl\`, \`nginx -t\` (test config without applying)
+
+### CAUTION — show command + ask before running
+
+Reversible side effects:
+- Service restarts: \`systemctl restart\`, \`nginx -s reload\`
+- Config edits to live files (\`nginx.conf\`, \`docker-compose.yml\`)
+- Container starts/stops: \`docker compose up\`, \`docker stop\`
+- DNS records (changes propagate, but TTLs let you roll back)
+- Adding firewall rules with \`ufw allow\`
+
+### DANGER — show command + back up + EXPLICIT acknowledgment
+
+Hard-to-reverse or destructive:
+- \`rm -rf /\`, \`kubectl delete\`, \`docker volume rm\`, \`systemctl disable\`
+- Firewall flushes: \`iptables -F\`
+- DB schema changes, \`DROP TABLE\`, \`TRUNCATE\`, destructive migrations
+- Renaming or deleting filesystems
+- Force-pushing to deployment branches
+
+For DANGER ops, the user types "yes I understand" or equivalent. Don't proceed
+on a one-tap confirmation.
+
+## Workflow
+
+1. **Orient.** What's the target? SSH? Kubernetes? Local Docker? Run
+   diagnostics to confirm you're talking to the right thing:
+   \`\`\`bash
+   uname -a
+   kubectl config current-context  # if k8s
+   docker info                     # if docker
+   \`\`\`
+
+2. **Read existing runbooks** before forming a plan. If they exist, mention
+   what you found and what (if anything) you're departing from.
+
+3. **Plan.** Output the full sequence of commands you'll run, with each one
+   classified. Get approval for any CAUTION or DANGER step before running it.
+
+4. **Execute step by step.** After each CAUTION/DANGER op, verify:
+   - Did the service come back up? (\`systemctl status\`, \`kubectl rollout status\`)
+   - Did the cert issue / renew? (\`openssl s_client\`, \`curl -vI\`)
+   - Did DNS propagate? (\`dig +short @8.8.8.8\`)
+   Don't proceed to step N+1 until step N is confirmed working.
+
+5. **Document.** Append to the runbook (create one if missing) using this format:
+
+   \`\`\`markdown
+   ## YYYY-MM-DD — <one-line summary>
+   **What:** <what was done>
+   **Why:** <reason / ticket / incident link>
+   **Commands:**
+   \\\`\\\`\\\`
+   <copy-pasteable list, in order>
+   \\\`\\\`\\\`
+   **Rollback:** <how to undo, with exact commands>
+   **Verified by:** <how you confirmed it worked>
+   \`\`\`
+
+## Incident tracking
+
+If something breaks during ops:
+- Capture the exact command + timestamp
+- Pull relevant logs: \`journalctl -u <service> --since "5 min ago"\`,
+  \`kubectl logs <pod> --previous\`, \`docker logs <container>\`
+- Stop. Don't keep flailing. Write down 2-3 hypotheses, test ONE at a time.
+- File an incident at \`incidents/YYYY-MM-DD-<slug>.md\`:
+
+\`\`\`markdown
+## Incident: <one-line description>
+**When:** <ISO timestamp> — <duration>
+**Impact:** <who / what was affected>
+
+## Timeline
+- <HH:MM> — <event>
+- <HH:MM> — <event>
+
+## Root cause
+<be specific. "nginx misconfig" is not a root cause.
+"missing upstream block in /etc/nginx/sites-enabled/api.conf
+caused 502s on /api/v1/*" is.>
+
+## Resolution
+<exact commands run to fix it>
+
+## Prevention
+<how to make sure this can't happen again — config check in CI? alert?
+runbook update? deploy gate?>
+\`\`\`
+
+## Anti-patterns (don't do these)
+
+- \`sudo !!\` — never. Type the command in full.
+- Running a script without first reading every line of it.
+- "It worked on staging." Production has different load, different data.
+- Editing config in-place without a backup. Always: \`cp file file.bak.\$(date +%s)\` first.
+- Trusting your shell history when you're tired. Read the actual command before pressing enter.
+`,
+  },
+
+  {
     name: 'skystack-upgrade',
     displayName: 'skystack Upgrade',
     shortDescription: 'Update skystack to the latest version',
@@ -492,10 +748,8 @@ const OBSOLETE = [
   'checkpoint',
   'codex',
   'design',
-  'devops',
   'diagnose',
   'document-release',
-  'pm',
   'publish',
   'research',
   'retro',

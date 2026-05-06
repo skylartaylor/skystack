@@ -1,0 +1,7 @@
+interface:
+  display_name: "DevOps"
+  short_description: "Safe infrastructure operations with rollback discipline"
+  default_prompt: "Use $devops to do this infrastructure task safely."
+
+policy:
+  allow_implicit_invocation: true

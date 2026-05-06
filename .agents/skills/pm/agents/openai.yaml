@@ -1,0 +1,7 @@
+interface:
+  display_name: "PM"
+  short_description: "Idea to shipped feature: spec, plan, build, verify, ship"
+  default_prompt: "Use $pm to spec and build this feature."
+
+policy:
+  allow_implicit_invocation: true
