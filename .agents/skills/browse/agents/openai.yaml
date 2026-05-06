@@ -1,0 +1,7 @@
+interface:
+  display_name: "Browse"
+  short_description: "Headless Chromium CLI for navigation and inspection"
+  default_prompt: "Use $browse to open and inspect a page."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Canary"
+  short_description: "Post-deploy monitoring for live regressions"
+  default_prompt: "Use $canary to watch this deployment for issues."
+
+policy:
+  allow_implicit_invocation: true

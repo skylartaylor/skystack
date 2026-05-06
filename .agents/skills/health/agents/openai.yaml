@@ -1,0 +1,7 @@
+interface:
+  display_name: "Health"
+  short_description: "Code quality dashboard with weighted 0-10 score"
+  default_prompt: "Use $health to score this repository's code quality."
+
+policy:
+  allow_implicit_invocation: true

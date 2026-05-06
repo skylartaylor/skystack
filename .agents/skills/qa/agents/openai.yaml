@@ -1,0 +1,7 @@
+interface:
+  display_name: "QA"
+  short_description: "Real-browser QA testing and evidence capture"
+  default_prompt: "Use $qa to test this user flow in a real browser."
+
+policy:
+  allow_implicit_invocation: true

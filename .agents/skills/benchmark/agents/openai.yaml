@@ -1,0 +1,7 @@
+interface:
+  display_name: "Benchmark"
+  short_description: "Compare page-load + Core Web Vitals across refs"
+  default_prompt: "Use $benchmark to compare this branch against the base branch."
+
+policy:
+  allow_implicit_invocation: true

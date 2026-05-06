@@ -1,0 +1,7 @@
+interface:
+  display_name: "Claude Review"
+  short_description: "External Claude Code branch review"
+  default_prompt: "Use $claude-review to get an external Claude Code review of this branch diff."
+
+policy:
+  allow_implicit_invocation: true

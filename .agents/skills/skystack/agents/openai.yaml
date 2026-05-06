@@ -1,0 +1,7 @@
+interface:
+  display_name: "skystack"
+  short_description: "Headless browser + QA tooling for Codex"
+  default_prompt: "Use $skystack to see what tooling is available."
+
+policy:
+  allow_implicit_invocation: true

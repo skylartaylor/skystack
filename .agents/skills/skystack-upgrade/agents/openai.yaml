@@ -1,0 +1,7 @@
+interface:
+  display_name: "skystack Upgrade"
+  short_description: "Update skystack to the latest version"
+  default_prompt: "Use $skystack-upgrade to update skystack."
+
+policy:
+  allow_implicit_invocation: true
