@@ -16,6 +16,7 @@ helpers. Each capability is its own skill — invoke them by name.
 | Skill | Purpose |
 |-------|---------|
 | `$pm` | Idea → spec → build → ship; structured feature workflow |
+| `$diagnose` | Systematic debugging — root cause first, fix second |
 | `$devops` | Safe infra ops with command classification + rollback discipline |
 | `$browse` | Headless Chromium CLI: navigate, click, screenshot, eval JS |
 | `$qa` | Drive the app in a real browser, find bugs, capture evidence |

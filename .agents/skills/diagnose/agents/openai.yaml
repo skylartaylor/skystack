@@ -1,0 +1,7 @@
+interface:
+  display_name: "Diagnose"
+  short_description: "Systematic debugging — root cause first, fix second"
+  default_prompt: "Use $diagnose to find the root cause before changing code."
+
+policy:
+  allow_implicit_invocation: true
