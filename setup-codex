@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# skystack Codex setup — generate Codex skills and register symlinks when installed under ~/.agents/skills/skystack
+set -euo pipefail
+
+SKYSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"
+SKILLS_DIR="$(dirname "$SKYSTACK_DIR")"
+BROWSE_BIN="$SKYSTACK_DIR/browse/dist/browse"
+MOBILE_BIN="$SKYSTACK_DIR/mobile/dist/mobile"
+
+ensure_playwright_browser() {
+  (
+    cd "$SKYSTACK_DIR"
+    bun --eval 'import { chromium } from "playwright"; const browser = await chromium.launch(); await browser.close();'
+  ) >/dev/null 2>&1
+}
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "setup-codex requires Bun. Install it from https://bun.sh/ and rerun." >&2
+  exit 127
+fi
+
+(
+  cd "$SKYSTACK_DIR"
+  bun run gen:codex-skills
+)
+
+NEEDS_BUILD=0
+if [ ! -x "$BROWSE_BIN" ]; then
+  NEEDS_BUILD=1
+elif [ -n "$(find "$SKYSTACK_DIR/browse/src" -type f -newer "$BROWSE_BIN" -print -quit 2>/dev/null)" ]; then
+  NEEDS_BUILD=1
+elif [ "$SKYSTACK_DIR/package.json" -nt "$BROWSE_BIN" ]; then
+  NEEDS_BUILD=1
+elif [ -f "$SKYSTACK_DIR/bun.lock" ] && [ "$SKYSTACK_DIR/bun.lock" -nt "$BROWSE_BIN" ]; then
+  NEEDS_BUILD=1
+fi
+
+if [ "$NEEDS_BUILD" -eq 1 ]; then
+  echo "Building browse binary..."
+  (
+    cd "$SKYSTACK_DIR"
+    bun install
+    bun build --compile browse/src/cli.ts --outfile browse/dist/browse
+    bun build --compile browse/src/find-browse.ts --outfile browse/dist/find-browse
+    git rev-parse HEAD > browse/dist/.version 2>/dev/null || true
+  )
+fi
+
+if [ ! -x "$BROWSE_BIN" ]; then
+  echo "skystack Codex setup failed: browse binary missing at $BROWSE_BIN" >&2
+  exit 1
+fi
+
+MOBILE_NEEDS_BUILD=0
+if [ ! -x "$MOBILE_BIN" ]; then
+  MOBILE_NEEDS_BUILD=1
+elif [ -n "$(find "$SKYSTACK_DIR/mobile/src" -type f -newer "$MOBILE_BIN" -print -quit 2>/dev/null)" ]; then
+  MOBILE_NEEDS_BUILD=1
+fi
+
+if [ "$MOBILE_NEEDS_BUILD" -eq 1 ]; then
+  echo "Building mobile binary..."
+  (cd "$SKYSTACK_DIR" && bun build --compile mobile/src/cli.ts --outfile mobile/dist/mobile)
+fi
+
+if ! ensure_playwright_browser; then
+  echo "Installing Playwright Chromium..."
+  (cd "$SKYSTACK_DIR" && bunx playwright install chromium)
+fi
+
+if ! ensure_playwright_browser; then
+  echo "skystack Codex setup failed: Playwright Chromium could not be launched" >&2
+  exit 1
+fi
+
+mkdir -p "$HOME/.skystack/projects"
+
+# Codex CLI looks for user-level skills in $CODEX_HOME/skills (defaults to
+# ~/.codex/skills/). Symlink each generated skill there so they appear globally
+# regardless of where skystack itself lives. Verified against codex-cli 0.128.0
+# skill-installer (~/.codex/skills/.system/skill-installer/scripts).
+CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+CODEX_SKILLS_DIR="$CODEX_HOME/skills"
+mkdir -p "$CODEX_SKILLS_DIR"
+
+linked=()
+skipped=()
+for skill_dir in "$SKYSTACK_DIR/.agents/skills"/*/; do
+  [ -f "$skill_dir/SKILL.md" ] || continue
+  skill_name="$(basename "$skill_dir")"
+  target="$CODEX_SKILLS_DIR/$skill_name"
+  source="$SKYSTACK_DIR/.agents/skills/$skill_name"
+
+  if [ -L "$target" ]; then
+    ln -snf "$source" "$target"
+    linked+=("$skill_name")
+  elif [ ! -e "$target" ]; then
+    ln -s "$source" "$target"
+    linked+=("$skill_name")
+  else
+    skipped+=("$skill_name")
+  fi
+done
+
+echo "skystack Codex skills ready."
+if [ ${#linked[@]} -gt 0 ]; then
+  echo "  linked into $CODEX_SKILLS_DIR: ${linked[*]}"
+fi
+if [ ${#skipped[@]} -gt 0 ]; then
+  echo "  skipped (real file/dir already at target): ${skipped[*]}"
+fi
+echo
+echo "Restart Codex CLI to pick up the new skills."
