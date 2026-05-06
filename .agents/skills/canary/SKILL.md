@@ -27,18 +27,15 @@ This is reactive monitoring — not a replacement for proper observability.
 2. **Resolve browse and post-deploy URLs:**
 
 ```bash
-for _d in "$(git rev-parse --show-toplevel 2>/dev/null)" \
-         "$HOME/.codex/skills/skystack" \
-         "$HOME/.agents/skills/skystack" \
-         "$HOME/.claude/skills/skystack"; do
-  [ -x "$_d/browse/dist/browse" ] && SKYSTACK_DIR="$_d" && break
+for _b in \
+  "$HOME/.codex/skills/skystack/bin/browse" \
+  "$HOME/.claude/skills/skystack/browse/dist/browse" \
+  "$(git rev-parse --show-toplevel 2>/dev/null)/browse/dist/browse"; do
+  [ -x "$_b" ] && B="$_b" && break
 done
-[ -z "${SKYSTACK_DIR:-}" ] && { echo "skystack not installed" >&2; exit 1; }
+[ -z "${B:-}" ] && { echo "skystack browse binary not found — run ./setup-codex from the skystack repo" >&2; exit 1; }
 ```
 
-   ```bash
-   B="$SKYSTACK_DIR/browse/dist/browse"
-   ```
 
 3. **Polling loop.** Every 60-120s for the first 10-30 minutes:
    - `$B goto <url>`

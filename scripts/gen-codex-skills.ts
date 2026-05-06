@@ -33,17 +33,20 @@ type Skill = {
   body: string;
 };
 
-// Reusable resolver — every binary-wrapping skill needs to find the install dir.
+// Reusable resolver — finds the browse binary across install scenarios:
+// 1. Codex install: ~/.codex/skills/skystack/bin/browse (chain symlink)
+// 2. Claude Code install: ~/.claude/skills/skystack/browse/dist/browse
+// 3. Skystack dev checkout: <repo>/browse/dist/browse via git toplevel
 // Inlined into each skill body so a single skill is self-contained.
 const RESOLVER = `\
 \`\`\`bash
-for _d in "$(git rev-parse --show-toplevel 2>/dev/null)" \\
-         "$HOME/.codex/skills/skystack" \\
-         "$HOME/.agents/skills/skystack" \\
-         "$HOME/.claude/skills/skystack"; do
-  [ -x "$_d/browse/dist/browse" ] && SKYSTACK_DIR="$_d" && break
+for _b in \\
+  "$HOME/.codex/skills/skystack/bin/browse" \\
+  "$HOME/.claude/skills/skystack/browse/dist/browse" \\
+  "$(git rev-parse --show-toplevel 2>/dev/null)/browse/dist/browse"; do
+  [ -x "$_b" ] && B="$_b" && break
 done
-[ -z "\${SKYSTACK_DIR:-}" ] && { echo "skystack not installed" >&2; exit 1; }
+[ -z "\${B:-}" ] && { echo "skystack browse binary not found — run ./setup-codex from the skystack repo" >&2; exit 1; }
 \`\`\``;
 
 const SKILLS: Skill[] = [
@@ -71,14 +74,14 @@ helpers. Each capability is its own skill — invoke them by name.
 | \`$setup-browser-cookies\` | Import auth cookies from a real browser |
 | \`$skystack-upgrade\` | Update skystack to the latest version |
 
-## Resolving the install path
+## Resolving the browse binary
 
-If you need to invoke a binary directly:
+If you need to invoke the headless browser binary directly:
 
 ${RESOLVER}
 
-After this, \`$SKYSTACK_DIR/browse/dist/browse\` is the browse binary. The
-sub-skills above already include this resolution inline.
+After this, \`$B\` is the absolute path to the browse binary. Each sub-skill
+includes this resolver inline so they remain self-contained.
 
 ## What's NOT here (intentionally)
 
@@ -106,9 +109,7 @@ Headless Chromium CLI built on Playwright. Each command is ~100ms.
 
 ${RESOLVER}
 
-\`\`\`bash
-B="$SKYSTACK_DIR/browse/dist/browse"
-\`\`\`
+After this, \`$B\` is the absolute path to the browse binary.
 
 ## Common commands
 
@@ -177,9 +178,6 @@ Drive a real browser through your app, find bugs, capture evidence.
 
 ${RESOLVER}
 
-   \`\`\`bash
-   B="$SKYSTACK_DIR/browse/dist/browse"
-   \`\`\`
 
 3. **If the flow needs auth:** run \`$setup-browser-cookies\` first to import
    the user's real browser session.
@@ -243,9 +241,6 @@ git refs (typically base branch vs current).
 
 ${RESOLVER}
 
-   \`\`\`bash
-   B="$SKYSTACK_DIR/browse/dist/browse"
-   \`\`\`
 
 2. **Identify the URL(s) to benchmark.** Ask the user for the deployed URL
    on each ref (preview deploys are common; or run a local dev server twice).
@@ -310,9 +305,6 @@ This is reactive monitoring — not a replacement for proper observability.
 
 ${RESOLVER}
 
-   \`\`\`bash
-   B="$SKYSTACK_DIR/browse/dist/browse"
-   \`\`\`
 
 3. **Polling loop.** Every 60-120s for the first 10-30 minutes:
    - \`$B goto <url>\`
@@ -418,9 +410,6 @@ so authenticated pages just work.
 
 ${RESOLVER}
 
-   \`\`\`bash
-   B="$SKYSTACK_DIR/browse/dist/browse"
-   \`\`\`
 
 2. **Run the cookie import command:**
 
@@ -461,14 +450,19 @@ Update skystack to the latest version.
 
 ## Workflow
 
-1. **Find the install:**
+1. **Find the repo root.** The browse binary resolver works backward — given
+   the binary path, two parents up is the skystack repo root:
 
 ${RESOLVER}
+
+   \`\`\`bash
+   REPO=$(dirname "$(dirname "$(dirname "$(readlink -f "$B" 2>/dev/null || realpath "$B")")")")
+   \`\`\`
 
 2. **Pull and rebuild:**
 
    \`\`\`bash
-   cd "$SKYSTACK_DIR"
+   cd "$REPO"
    git fetch origin
    git pull --ff-only origin main
    ./setup-codex
@@ -479,8 +473,8 @@ ${RESOLVER}
 
 ## If the install is read-only
 
-If \`$SKYSTACK_DIR\` is owned by another user (e.g., system-wide install),
-tell the user to upgrade manually:
+If \`$REPO\` is owned by another user (e.g., system-wide install), tell the
+user to upgrade manually:
 
 \`\`\`bash
 cd <path-to-skystack> && git pull && ./setup-codex
@@ -563,6 +557,40 @@ function cleanObsolete(): void {
   }
 }
 
+// Create bin/ chain symlinks inside the umbrella skystack skill so
+// `~/.codex/skills/skystack/bin/browse` resolves all the way to <repo>/browse/dist/browse.
+// Relative targets so the symlinks survive any install location.
+function ensureBinSymlinks(): void {
+  const umbrellaDir = path.join(OUT_ROOT, 'skystack');
+  const binDir = path.join(umbrellaDir, 'bin');
+  // From <repo>/.agents/skills/skystack/bin/<name>, three "../" land at <repo>.
+  const links: Array<[string, string]> = [
+    ['browse', '../../../../browse/dist/browse'],
+    ['find-browse', '../../../../browse/dist/find-browse'],
+    ['mobile', '../../../../mobile/dist/mobile'],
+  ];
+  if (DRY_RUN) {
+    for (const [name] of links) {
+      console.log(`STALE-LINK ${path.relative(ROOT, path.join(binDir, name))}`);
+    }
+    return;
+  }
+  fs.mkdirSync(binDir, { recursive: true });
+  for (const [name, target] of links) {
+    const linkPath = path.join(binDir, name);
+    try {
+      const existing = fs.readlinkSync(linkPath);
+      if (existing === target) continue;
+      fs.unlinkSync(linkPath);
+    } catch {
+      // Doesn't exist yet, or isn't a symlink
+      if (fs.existsSync(linkPath)) fs.rmSync(linkPath, { force: true });
+    }
+    fs.symlinkSync(target, linkPath);
+    console.log(`LINKED ${path.relative(ROOT, linkPath)} -> ${target}`);
+  }
+}
+
 function main(): void {
   if (!fs.existsSync(OUT_ROOT) && !DRY_RUN) {
     fs.mkdirSync(OUT_ROOT, { recursive: true });
@@ -574,6 +602,8 @@ function main(): void {
   for (const skill of SKILLS) {
     changed = writeSkill(skill) || changed;
   }
+
+  ensureBinSymlinks();
 
   if (DRY_RUN && changed) process.exit(1);
 }

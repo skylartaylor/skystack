@@ -23,22 +23,22 @@ helpers. Each capability is its own skill — invoke them by name.
 | `$setup-browser-cookies` | Import auth cookies from a real browser |
 | `$skystack-upgrade` | Update skystack to the latest version |
 
-## Resolving the install path
+## Resolving the browse binary
 
-If you need to invoke a binary directly:
+If you need to invoke the headless browser binary directly:
 
 ```bash
-for _d in "$(git rev-parse --show-toplevel 2>/dev/null)" \
-         "$HOME/.codex/skills/skystack" \
-         "$HOME/.agents/skills/skystack" \
-         "$HOME/.claude/skills/skystack"; do
-  [ -x "$_d/browse/dist/browse" ] && SKYSTACK_DIR="$_d" && break
+for _b in \
+  "$HOME/.codex/skills/skystack/bin/browse" \
+  "$HOME/.claude/skills/skystack/browse/dist/browse" \
+  "$(git rev-parse --show-toplevel 2>/dev/null)/browse/dist/browse"; do
+  [ -x "$_b" ] && B="$_b" && break
 done
-[ -z "${SKYSTACK_DIR:-}" ] && { echo "skystack not installed" >&2; exit 1; }
+[ -z "${B:-}" ] && { echo "skystack browse binary not found — run ./setup-codex from the skystack repo" >&2; exit 1; }
 ```
 
-After this, `$SKYSTACK_DIR/browse/dist/browse` is the browse binary. The
-sub-skills above already include this resolution inline.
+After this, `$B` is the absolute path to the browse binary. Each sub-skill
+includes this resolver inline so they remain self-contained.
 
 ## What's NOT here (intentionally)
 

@@ -12,22 +12,27 @@ Update skystack to the latest version.
 
 ## Workflow
 
-1. **Find the install:**
+1. **Find the repo root.** The browse binary resolver works backward — given
+   the binary path, two parents up is the skystack repo root:
 
 ```bash
-for _d in "$(git rev-parse --show-toplevel 2>/dev/null)" \
-         "$HOME/.codex/skills/skystack" \
-         "$HOME/.agents/skills/skystack" \
-         "$HOME/.claude/skills/skystack"; do
-  [ -x "$_d/browse/dist/browse" ] && SKYSTACK_DIR="$_d" && break
+for _b in \
+  "$HOME/.codex/skills/skystack/bin/browse" \
+  "$HOME/.claude/skills/skystack/browse/dist/browse" \
+  "$(git rev-parse --show-toplevel 2>/dev/null)/browse/dist/browse"; do
+  [ -x "$_b" ] && B="$_b" && break
 done
-[ -z "${SKYSTACK_DIR:-}" ] && { echo "skystack not installed" >&2; exit 1; }
+[ -z "${B:-}" ] && { echo "skystack browse binary not found — run ./setup-codex from the skystack repo" >&2; exit 1; }
 ```
+
+   ```bash
+   REPO=$(dirname "$(dirname "$(dirname "$(readlink -f "$B" 2>/dev/null || realpath "$B")")")")
+   ```
 
 2. **Pull and rebuild:**
 
    ```bash
-   cd "$SKYSTACK_DIR"
+   cd "$REPO"
    git fetch origin
    git pull --ff-only origin main
    ./setup-codex
@@ -38,8 +43,8 @@ done
 
 ## If the install is read-only
 
-If `$SKYSTACK_DIR` is owned by another user (e.g., system-wide install),
-tell the user to upgrade manually:
+If `$REPO` is owned by another user (e.g., system-wide install), tell the
+user to upgrade manually:
 
 ```bash
 cd <path-to-skystack> && git pull && ./setup-codex

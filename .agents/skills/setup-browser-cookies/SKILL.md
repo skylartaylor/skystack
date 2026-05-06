@@ -22,18 +22,15 @@ so authenticated pages just work.
 1. **Resolve browse:**
 
 ```bash
-for _d in "$(git rev-parse --show-toplevel 2>/dev/null)" \
-         "$HOME/.codex/skills/skystack" \
-         "$HOME/.agents/skills/skystack" \
-         "$HOME/.claude/skills/skystack"; do
-  [ -x "$_d/browse/dist/browse" ] && SKYSTACK_DIR="$_d" && break
+for _b in \
+  "$HOME/.codex/skills/skystack/bin/browse" \
+  "$HOME/.claude/skills/skystack/browse/dist/browse" \
+  "$(git rev-parse --show-toplevel 2>/dev/null)/browse/dist/browse"; do
+  [ -x "$_b" ] && B="$_b" && break
 done
-[ -z "${SKYSTACK_DIR:-}" ] && { echo "skystack not installed" >&2; exit 1; }
+[ -z "${B:-}" ] && { echo "skystack browse binary not found — run ./setup-codex from the skystack repo" >&2; exit 1; }
 ```
 
-   ```bash
-   B="$SKYSTACK_DIR/browse/dist/browse"
-   ```
 
 2. **Run the cookie import command:**
 
