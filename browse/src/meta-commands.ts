@@ -79,6 +79,11 @@ export async function handleMetaCommand(
       ].join('\n');
     }
 
+    case 'memory': {
+      const { handleMemoryCommand } = await import('./memory-command');
+      return await handleMemoryCommand(args, bm);
+    }
+
     case 'url': {
       return bm.getCurrentUrl();
     }

@@ -21,6 +21,7 @@ import { handleCookiePickerRoute } from './cookie-picker-routes';
 import { COMMAND_DESCRIPTIONS } from './commands';
 import { SNAPSHOT_FLAGS } from './snapshot';
 import { resolveConfig, ensureStateDir, readVersionHash } from './config';
+import { buildResponse } from './response';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -218,10 +219,7 @@ async function handleCommand(body: any): Promise<Response> {
   const { command, args = [] } = body;
 
   if (!command) {
-    return new Response(JSON.stringify({ error: 'Missing "command" field' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return buildResponse(JSON.stringify({ error: 'Missing "command" field' }), 400, 'application/json');
   }
 
   try {
@@ -235,29 +233,17 @@ async function handleCommand(body: any): Promise<Response> {
       result = await handleMetaCommand(command, args, browserManager, shutdown);
     } else if (command === 'help') {
       const helpText = generateHelpText();
-      return new Response(helpText, {
-        status: 200,
-        headers: { 'Content-Type': 'text/plain' },
-      });
+      return buildResponse(helpText, 200, 'text/plain');
     } else {
-      return new Response(JSON.stringify({
+      return buildResponse(JSON.stringify({
         error: `Unknown command: ${command}`,
         hint: `Available commands: ${[...READ_COMMANDS, ...WRITE_COMMANDS, ...META_COMMANDS].sort().join(', ')}`,
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      }), 400, 'application/json');
     }
 
-    return new Response(result, {
-      status: 200,
-      headers: { 'Content-Type': 'text/plain' },
-    });
+    return buildResponse(result, 200, 'text/plain');
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: wrapError(err) }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return buildResponse(JSON.stringify({ error: wrapError(err) }), 500, 'application/json');
   }
 }
 

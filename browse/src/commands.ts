@@ -27,7 +27,7 @@ export const WRITE_COMMANDS = new Set([
 
 export const META_COMMANDS = new Set([
   'tabs', 'tab', 'newtab', 'closetab',
-  'status', 'stop', 'restart',
+  'status', 'memory', 'stop', 'restart',
   'screenshot', 'pdf', 'responsive', 'prettyscreenshot',
   'chain', 'diff',
   'url', 'snapshot',
@@ -93,6 +93,7 @@ export const COMMAND_DESCRIPTIONS: Record<string, { category: string; descriptio
   'closetab':{ category: 'Tabs', description: 'Close tab', usage: 'closetab [id]' },
   // Server
   'status':  { category: 'Server', description: 'Health check' },
+  'memory':  { category: 'Server', description: 'Snapshot Bun heap, per-tab JS heap, Chromium process metadata, and bounded buffer sizes', usage: 'memory [--json]' },
   'stop':    { category: 'Server', description: 'Shutdown server' },
   'restart': { category: 'Server', description: 'Restart server' },
   // Meta

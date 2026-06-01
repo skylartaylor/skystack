@@ -17,6 +17,7 @@
 
 import { chromium, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Locator, type Frame } from 'playwright';
 import { addConsoleEntry, addNetworkEntry, addDialogEntry, networkBuffer, type DialogEntry } from './buffers';
+import type { MemoryProcess, MemorySnapshot, MemoryStructureStats, MemoryTabSnapshot } from './memory-snapshot';
 
 export interface RefEntry {
   locator: Locator;
@@ -185,6 +186,97 @@ export class BrowserManager {
     } catch {
       return 'about:blank';
     }
+  }
+
+  /**
+   * Diagnostic data for `$B memory`.
+   *
+   * Per-tab values come from CDP Performance.getMetrics. Chromium process
+   * metadata comes from SystemInfo.getProcessInfo when the Playwright build
+   * exposes a browser-wide CDP session.
+   */
+  async getMemorySnapshot(structures: MemoryStructureStats): Promise<MemorySnapshot> {
+    const bunMem = process.memoryUsage();
+    const notes: string[] = [];
+
+    const tabs: MemoryTabSnapshot[] = [];
+    for (const [id, page] of this.pages) {
+      try {
+        const session = await page.context().newCDPSession(page);
+        try {
+          await session.send('Performance.enable').catch(() => undefined);
+          const result = await session.send('Performance.getMetrics') as {
+            metrics?: Array<{ name: string; value: number }>;
+          };
+          const metrics: Record<string, number> = {};
+          for (const metric of result.metrics ?? []) metrics[metric.name] = metric.value;
+          tabs.push({
+            id,
+            url: page.url(),
+            title: await page.title().catch(() => ''),
+            jsHeapUsed: metrics.JSHeapUsedSize ?? 0,
+            jsHeapTotal: metrics.JSHeapTotalSize ?? 0,
+            documents: metrics.Documents ?? 0,
+            nodes: metrics.Nodes ?? 0,
+            listeners: metrics.JSEventListeners ?? 0,
+          });
+        } finally {
+          await session.detach().catch(() => undefined);
+        }
+      } catch {
+        notes.push(`Tab ${id} metrics unavailable; target may have closed during snapshot.`);
+      }
+    }
+
+    let processes: MemoryProcess[] | null = null;
+    const browser = this.browser ?? (this.context ? this.context.browser() : null);
+    if (browser) {
+      try {
+        type BrowserWithCDP = Browser & {
+          newBrowserCDPSession?: () => Promise<{
+            send: (method: string, params?: unknown) => Promise<unknown>;
+            detach: () => Promise<void>;
+          }>;
+        };
+        const maybeFactory = (browser as BrowserWithCDP).newBrowserCDPSession;
+        if (typeof maybeFactory === 'function') {
+          const browserSession = await maybeFactory.call(browser);
+          try {
+            const info = await browserSession.send('SystemInfo.getProcessInfo') as {
+              processInfo?: Array<{ id: number; type: string; cpuTime: number }>;
+            };
+            processes = (info.processInfo ?? []).map(p => ({
+              id: p.id,
+              type: p.type,
+              cpuTime: p.cpuTime,
+            }));
+            notes.push('Per-Chromium-process RSS is not exposed by CDP; process rows include type and CPU time only.');
+          } finally {
+            await browserSession.detach().catch(() => undefined);
+          }
+        } else {
+          notes.push('Playwright build does not expose newBrowserCDPSession; per-process info skipped.');
+        }
+      } catch (err: any) {
+        notes.push(`CDP browser session unavailable: ${err?.message ?? String(err)}`);
+      }
+    } else {
+      notes.push('Browser handle unavailable; per-process info skipped.');
+    }
+
+    return {
+      bunServer: {
+        rss: bunMem.rss,
+        heapUsed: bunMem.heapUsed,
+        heapTotal: bunMem.heapTotal,
+        external: bunMem.external,
+      },
+      tabs,
+      processes,
+      structures,
+      capturedAt: Date.now(),
+      notes,
+    };
   }
 
   // ─── Ref Map ──────────────────────────────────────────────
@@ -570,20 +662,21 @@ export class BrowserManager {
       }
     });
 
-    // Capture response sizes via response finished
+    // Capture response sizes via requestfinished without materializing bodies.
+    // Calling response.body() here copies every response into Bun memory just
+    // to measure length; req.sizes() reads Chromium's already-recorded network
+    // accounting and avoids that long-session memory churn.
     page.on('requestfinished', async (req) => {
       try {
-        const res = await req.response();
-        if (res) {
-          const url = req.url();
-          const body = await res.body().catch(() => null);
-          const size = body ? body.length : 0;
-          for (let i = networkBuffer.length - 1; i >= 0; i--) {
-            const entry = networkBuffer.get(i);
-            if (entry && entry.url === url && !entry.size) {
-              networkBuffer.set(i, { ...entry, size });
-              break;
-            }
+        const sizes = await req.sizes().catch(() => null);
+        if (!sizes) return;
+        const url = req.url();
+        const size = sizes.responseBodySize ?? 0;
+        for (let i = networkBuffer.length - 1; i >= 0; i--) {
+          const entry = networkBuffer.get(i);
+          if (entry && entry.url === url && !entry.size) {
+            networkBuffer.set(i, { ...entry, size });
+            break;
           }
         }
       } catch {}
