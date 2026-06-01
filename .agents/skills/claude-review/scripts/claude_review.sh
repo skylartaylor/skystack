@@ -5,13 +5,18 @@ MODEL="opus[1m]"
 EFFORT="max"
 BASE=""
 FOCUS=""
+WITH_TOOLS="${CLAUDE_REVIEW_WITH_TOOLS:-0}"
+MAX_DIFF_BYTES="${CLAUDE_REVIEW_MAX_DIFF_BYTES:-1500000}"
 
 usage() {
   cat <<'EOF'
-Usage: claude_review.sh [--base BRANCH] [--model MODEL] [--effort LEVEL] [--focus TEXT]
+Usage: claude_review.sh [--base BRANCH] [--model MODEL] [--effort LEVEL] [--focus TEXT] [--with-tools] [--max-diff-bytes N]
 
 Runs a structured, read-only Claude Code review of the current branch diff.
 Defaults: --model 'opus[1m]' --effort max
+
+Default mode is diff-only: Claude receives the generated diff on stdin and no
+repo tools. Use --with-tools only when you want a slower exploratory pass.
 EOF
 }
 
@@ -31,6 +36,14 @@ while [ "$#" -gt 0 ]; do
       ;;
     --focus)
       FOCUS="${2:-}"
+      shift 2
+      ;;
+    --with-tools)
+      WITH_TOOLS=1
+      shift
+      ;;
+    --max-diff-bytes)
+      MAX_DIFF_BYTES="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -117,6 +130,26 @@ if ! grep -q '^diff --git ' "$TMP_DIFF"; then
   exit 0
 fi
 
+if ! [[ "$MAX_DIFF_BYTES" =~ ^[0-9]+$ ]]; then
+  echo "--max-diff-bytes must be a positive integer." >&2
+  exit 2
+fi
+
+DIFF_BYTES="$(wc -c < "$TMP_DIFF" | tr -d '[:space:]')"
+if [ "$DIFF_BYTES" -gt "$MAX_DIFF_BYTES" ]; then
+  {
+    echo "claude-review diff is too large to review safely without timing out."
+    echo "Diff bytes: $DIFF_BYTES"
+    echo "Limit: $MAX_DIFF_BYTES"
+    echo
+    echo "Try one of:"
+    echo "- Narrow the branch diff or ignore/generated files."
+    echo "- Re-run with --max-diff-bytes <larger-number> if this size is intentional."
+    echo "- Re-run with --model sonnet --effort high for a faster pass."
+  } >&2
+  exit 2
+fi
+
 SYSTEM_PROMPT="You are an external code reviewer. Review only for actionable correctness, security, data loss, concurrency, error handling, regression, and missing-test risks. Do not edit files. Do not use ultrareview. Avoid style, naming, formatting, or speculative findings unless they cause real user-facing failure."
 
 USER_PROMPT="Review the repository diff provided via stdin. Start with findings. Use this exact structure:
@@ -146,17 +179,27 @@ if [ -n "$FOCUS" ]; then
 Additional focus: $FOCUS"
 fi
 
-if ! claude -p "$USER_PROMPT" \
-  --model "$MODEL" \
-  --effort "$EFFORT" \
-  --disable-slash-commands \
-  --no-session-persistence \
-  --permission-mode dontAsk \
-  --tools "Read,Bash" \
-  --allowedTools "Read" "Bash(git diff *)" "Bash(git status *)" "Bash(git log *)" "Bash(git show *)" "Bash(git rev-parse *)" "Bash(rg *)" "Bash(sed *)" "Bash(ls *)" "Bash(pwd)" \
-  --append-system-prompt "$SYSTEM_PROMPT" \
-  --output-format json \
-  <"$TMP_DIFF" >"$TMP_OUT" 2>"$TMP_ERR"; then
+CLAUDE_ARGS=(
+  -p "$USER_PROMPT"
+  --model "$MODEL"
+  --effort "$EFFORT"
+  --disable-slash-commands
+  --no-session-persistence
+  --permission-mode dontAsk
+  --append-system-prompt "$SYSTEM_PROMPT"
+  --output-format json
+)
+
+if [ "$WITH_TOOLS" = "1" ]; then
+  CLAUDE_ARGS+=(
+    --tools "Read,Bash"
+    --allowedTools "Read" "Bash(git diff *)" "Bash(git status *)" "Bash(git log *)" "Bash(git show *)" "Bash(git rev-parse *)" "Bash(rg *)" "Bash(sed *)" "Bash(ls *)" "Bash(pwd)"
+  )
+else
+  CLAUDE_ARGS+=(--tools "")
+fi
+
+if ! claude "${CLAUDE_ARGS[@]}" <"$TMP_DIFF" >"$TMP_OUT" 2>"$TMP_ERR"; then
   cat "$TMP_ERR" >&2
   cat "$TMP_OUT"
   exit 1

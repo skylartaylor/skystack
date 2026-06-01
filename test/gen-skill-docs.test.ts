@@ -403,6 +403,26 @@ describe('gen-codex-skills', () => {
     expect(content).not.toContain('\n.agents/skills/claude-review/scripts/claude_review.sh\n');
   });
 
+  test('claude-review defaults to bounded diff-only review', () => {
+    const skill = fs.readFileSync(
+      path.join(ROOT, '.agents', 'skills', 'claude-review', 'SKILL.md'),
+      'utf-8'
+    );
+    const wrapper = fs.readFileSync(
+      path.join(ROOT, '.agents', 'skills', 'claude-review', 'scripts', 'claude_review.sh'),
+      'utf-8'
+    );
+
+    expect(skill).toContain('timeout_ms: 900000');
+    expect(skill).toContain('no repo tools by default');
+    expect(skill).toContain('--max-diff-bytes N');
+    expect(wrapper).toContain('WITH_TOOLS="${CLAUDE_REVIEW_WITH_TOOLS:-0}"');
+    expect(wrapper).toContain('MAX_DIFF_BYTES="${CLAUDE_REVIEW_MAX_DIFF_BYTES:-1500000}"');
+    expect(wrapper).toContain('CLAUDE_ARGS+=(--tools "")');
+    expect(wrapper).toContain('--with-tools');
+    expect(wrapper).toContain('diff is too large');
+  });
+
   test('skystack umbrella exposes redaction helper in bin symlinks', () => {
     const link = path.join(ROOT, '.agents', 'skills', 'skystack', 'bin', 'skystack-redact');
     expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
