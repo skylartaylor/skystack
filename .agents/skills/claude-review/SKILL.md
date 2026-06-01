@@ -1,7 +1,10 @@
 ---
 name: claude-review
-description: Run a structured external code review through the Claude Code CLI from Codex. Use when the user asks for a Claude review, Claude Code review, external reviewer, cross-model review, or second opinion on a branch diff. This skill uses local Claude Code only with a structured prompt, Opus 1M context by default, max effort by default, and does not use ultrareview.
+description: |
+  Run a structured external code review through the Claude Code CLI from Codex. Use when the user asks for a Claude review, Claude Code review, external reviewer, cross-model review, or second opinion on a branch diff. This skill uses local Claude Code only with a structured prompt, Opus 1M context by default, max effort by default, and does not use ultrareview.
 ---
+
+<!-- AUTO-GENERATED. Source: scripts/gen-codex-skills.ts. Edit there, not here. -->
 
 # Claude Review
 
@@ -18,10 +21,19 @@ command -v claude >/dev/null && claude --version
 
 If it is missing, tell the user to install or authenticate Claude Code before retrying.
 
-2. Run the bundled wrapper from the repository root:
+2. Resolve the bundled wrapper from the installed skill, then run it from the
+   repository root you want reviewed:
 
 ```bash
-.agents/skills/claude-review/scripts/claude_review.sh
+CLAUDE_REVIEW=""
+for _s in \
+  "${CODEX_HOME:-$HOME/.codex}/skills/claude-review/scripts/claude_review.sh" \
+  "$HOME/.codex/skills/claude-review/scripts/claude_review.sh" \
+  "$(git rev-parse --show-toplevel 2>/dev/null)/.agents/skills/claude-review/scripts/claude_review.sh"; do
+  [ -x "$_s" ] && CLAUDE_REVIEW="$_s" && break
+done
+[ -z "${CLAUDE_REVIEW:-}" ] && { echo "claude-review wrapper not found — run ./setup-codex from the skystack repo" >&2; exit 1; }
+"$CLAUDE_REVIEW"
 ```
 
 The wrapper:
@@ -32,10 +44,19 @@ The wrapper:
 - Uses `--disable-slash-commands`, `--no-session-persistence`, read-only tools, and a structured review prompt.
 - Prints Claude's review text only.
 
-3. If the user supplied review focus, pass it through:
+3. If the user supplied review focus, resolve the wrapper the same way and pass
+   the focus through:
 
 ```bash
-.agents/skills/claude-review/scripts/claude_review.sh --focus "security and data-loss risks"
+CLAUDE_REVIEW=""
+for _s in \
+  "${CODEX_HOME:-$HOME/.codex}/skills/claude-review/scripts/claude_review.sh" \
+  "$HOME/.codex/skills/claude-review/scripts/claude_review.sh" \
+  "$(git rev-parse --show-toplevel 2>/dev/null)/.agents/skills/claude-review/scripts/claude_review.sh"; do
+  [ -x "$_s" ] && CLAUDE_REVIEW="$_s" && break
+done
+[ -z "${CLAUDE_REVIEW:-}" ] && { echo "claude-review wrapper not found — run ./setup-codex from the skystack repo" >&2; exit 1; }
+"$CLAUDE_REVIEW" --focus "security and data-loss risks"
 ```
 
 4. Present Claude's output faithfully. If you disagree with a finding, verify it against the code before saying so.
@@ -43,7 +64,15 @@ The wrapper:
 ## Options
 
 ```bash
-.agents/skills/claude-review/scripts/claude_review.sh \
+CLAUDE_REVIEW=""
+for _s in \
+  "${CODEX_HOME:-$HOME/.codex}/skills/claude-review/scripts/claude_review.sh" \
+  "$HOME/.codex/skills/claude-review/scripts/claude_review.sh" \
+  "$(git rev-parse --show-toplevel 2>/dev/null)/.agents/skills/claude-review/scripts/claude_review.sh"; do
+  [ -x "$_s" ] && CLAUDE_REVIEW="$_s" && break
+done
+[ -z "${CLAUDE_REVIEW:-}" ] && { echo "claude-review wrapper not found — run ./setup-codex from the skystack repo" >&2; exit 1; }
+"$CLAUDE_REVIEW" \
   --base main \
   --model 'opus[1m]' \
   --effort max \

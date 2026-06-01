@@ -389,3 +389,43 @@ describe('TASTE_MEMORY resolver', () => {
     }
   });
 });
+
+describe('gen-codex-skills', () => {
+  test('claude-review resolves bundled wrapper from installed skill path', () => {
+    const content = fs.readFileSync(
+      path.join(ROOT, '.agents', 'skills', 'claude-review', 'SKILL.md'),
+      'utf-8'
+    );
+
+    expect(content).toContain('${CODEX_HOME:-$HOME/.codex}/skills/claude-review/scripts/claude_review.sh');
+    expect(content).toContain('$(git rev-parse --show-toplevel 2>/dev/null)/.agents/skills/claude-review/scripts/claude_review.sh');
+    expect(content).toContain('"$CLAUDE_REVIEW" --focus');
+    expect(content).not.toContain('\n.agents/skills/claude-review/scripts/claude_review.sh\n');
+  });
+
+  test('skystack umbrella exposes redaction helper in bin symlinks', () => {
+    const link = path.join(ROOT, '.agents', 'skills', 'skystack', 'bin', 'skystack-redact');
+    expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(fs.readlinkSync(link)).toBe('../../../../bin/skystack-redact');
+  });
+});
+
+describe('codex skill reliability', () => {
+  const tmpl = fs.readFileSync(path.join(ROOT, 'codex', 'SKILL.md.tmpl'), 'utf-8');
+
+  test('uses portable codex binary detection', () => {
+    expect(tmpl).toContain('CODEX_BIN=$(command -v codex || echo "")');
+    expect(tmpl).not.toContain('which codex');
+  });
+
+  test('does not combine codex review prompt with --base', () => {
+    expect(tmpl).toContain('codex review "IMPORTANT:');
+    expect(tmpl).not.toContain('codex review --base');
+  });
+
+  test('surfaces nonzero codex exits from every invocation shape', () => {
+    const matches = tmpl.match(/\[codex exit \$_CODEX_EXIT\]/g) || [];
+    expect(matches.length).toBeGreaterThanOrEqual(5);
+    expect(tmpl).toContain('head -20 "$TMPERR"');
+  });
+});
