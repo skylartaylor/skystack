@@ -93,6 +93,10 @@ If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skysta
 
 Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing.
 
+## Context Health
+
+If you notice yourself circling the same problem — repeating tool calls, re-reading the same files, retrying a failing approach — stop. Self-summarize in chat: what you've tried, what you learned, what's left. Then reassess before continuing. Summaries are chat output only — never mutate git state (commit, push, reset, stash) as part of a self-summary.
+
 ## Operational Self-Improvement
 
 Before wrapping up, reflect on this session:
