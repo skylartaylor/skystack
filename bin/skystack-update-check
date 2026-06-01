@@ -8,7 +8,8 @@
 #
 # Env overrides (for testing):
 #   SKYSTACK_DIR          — override auto-detected skystack root
-#   SKYSTACK_REMOTE_URL   — override remote VERSION URL
+#   SKYSTACK_REMOTE_URL   — override remote VERSION URL (branch-pinned fallback)
+#   SKYSTACK_REMOTE_REPO  — override remote git URL for ls-remote SHA resolution
 #   SKYSTACK_STATE_DIR    — override ~/.skystack state directory
 set -euo pipefail
 
@@ -19,10 +20,12 @@ MARKER_FILE="$STATE_DIR/just-upgraded-from"
 SNOOZE_FILE="$STATE_DIR/update-snoozed"
 VERSION_FILE="$SKYSTACK_DIR/VERSION"
 REMOTE_URL="${SKYSTACK_REMOTE_URL:-https://raw.githubusercontent.com/xr843/skystack/main/VERSION}"
+REMOTE_REPO="${SKYSTACK_REMOTE_REPO:-https://github.com/xr843/skystack.git}"
 
-# ─── Force flag (busts cache for standalone /skystack-upgrade) ──
+# ─── Force flag (busts cache + snooze for standalone /skystack-upgrade) ──
 if [ "${1:-}" = "--force" ]; then
   rm -f "$CACHE_FILE"
+  rm -f "$SNOOZE_FILE"
 fi
 
 # ─── Step 0: Check if updates are disabled ────────────────────
@@ -141,7 +144,22 @@ fi
 mkdir -p "$STATE_DIR"
 
 REMOTE=""
-REMOTE="$(curl -sf --max-time 5 "$REMOTE_URL" 2>/dev/null || true)"
+if [ -z "${SKYSTACK_REMOTE_URL:-}" ]; then
+  # Resolve VERSION through a SHA-pinned raw URL. Branch-pinned GitHub raw
+  # URLs can serve stale content shortly after a release; ls-remote returns the
+  # live HEAD SHA and keeps update checks from lying right after a push.
+  _LSR_LINE="$(GIT_TERMINAL_PROMPT=0 GIT_HTTP_LOW_SPEED_LIMIT=1000 GIT_HTTP_LOW_SPEED_TIME=5 \
+    git ls-remote "$REMOTE_REPO" refs/heads/main 2>/dev/null || true)"
+  _REMOTE_SHA="$(echo "$_LSR_LINE" | awk '{print $1}')"
+  if echo "$_REMOTE_SHA" | grep -qE '^[0-9a-f]{40}$'; then
+    _SHA_URL="https://raw.githubusercontent.com/xr843/skystack/${_REMOTE_SHA}/VERSION"
+    REMOTE="$(curl -sf --max-time 5 "$_SHA_URL" 2>/dev/null || true)"
+  fi
+fi
+
+if [ -z "$REMOTE" ]; then
+  REMOTE="$(curl -sf --max-time 5 "$REMOTE_URL" 2>/dev/null || true)"
+fi
 REMOTE="$(echo "$REMOTE" | tr -d '[:space:]')"
 
 # Validate: must look like a version number (reject HTML error pages)
@@ -156,7 +174,16 @@ if [ "$LOCAL" = "$REMOTE" ]; then
   exit 0
 fi
 
-# Versions differ — upgrade available
+# Only report upgrades when REMOTE sorts newer than LOCAL. This prevents stale
+# CDN responses, mirrors, or local development versions ahead of main from
+# producing backwards UPGRADE_AVAILABLE notices.
+_HIGHER="$(printf '%s\n%s\n' "$LOCAL" "$REMOTE" | sort -V | tail -1)"
+if [ "$_HIGHER" != "$REMOTE" ]; then
+  echo "UP_TO_DATE $LOCAL" > "$CACHE_FILE"
+  exit 0
+fi
+
+# Versions differ and remote is newer — upgrade available
 echo "UPGRADE_AVAILABLE $LOCAL $REMOTE" > "$CACHE_FILE"
 if check_snooze "$REMOTE"; then
   exit 0  # snoozed — stay quiet

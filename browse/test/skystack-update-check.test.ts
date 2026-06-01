@@ -447,6 +447,21 @@ describe('skystack-update-check', () => {
     expect(cache).toContain('UP_TO_DATE');
   });
 
+  test('--force clears snooze before re-checking', () => {
+    writeFileSync(join(skystackDir, 'VERSION'), '0.3.3\n');
+    writeFileSync(join(skystackDir, 'REMOTE_VERSION'), '0.4.0\n');
+    writeFileSync(join(stateDir, 'last-update-check'), 'UPGRADE_AVAILABLE 0.3.3 0.4.0');
+    writeSnooze('0.4.0', 3, nowEpoch() - 60);
+
+    const cached = run();
+    expect(cached.stdout).toBe('');
+
+    const forced = run({}, ['--force']);
+    expect(forced.exitCode).toBe(0);
+    expect(forced.stdout).toBe('UPGRADE_AVAILABLE 0.3.3 0.4.0');
+    expect(existsSync(join(stateDir, 'update-snoozed'))).toBe(false);
+  });
+
   // ─── Split TTL tests ─────────────────────────────────────────
 
   test('UP_TO_DATE cache expires after 60 min (not 720)', () => {
@@ -463,5 +478,16 @@ describe('skystack-update-check', () => {
     const { exitCode, stdout } = run();
     expect(exitCode).toBe(0);
     expect(stdout).toBe('UPGRADE_AVAILABLE 0.3.3 0.4.0');
+  });
+
+  test('does not report a backwards remote version as an upgrade', () => {
+    writeFileSync(join(skystackDir, 'VERSION'), '0.4.0\n');
+    writeFileSync(join(skystackDir, 'REMOTE_VERSION'), '0.3.3\n');
+
+    const { exitCode, stdout } = run();
+    expect(exitCode).toBe(0);
+    expect(stdout).toBe('');
+    const cache = readFileSync(join(stateDir, 'last-update-check'), 'utf-8');
+    expect(cache).toContain('UP_TO_DATE 0.4.0');
   });
 });
