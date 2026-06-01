@@ -955,6 +955,7 @@ function ensureBinSymlinks(): void {
     ['browse', '../../../../browse/dist/browse'],
     ['find-browse', '../../../../browse/dist/find-browse'],
     ['mobile', '../../../../mobile/dist/mobile'],
+    ['skystack-redact', '../../../../bin/skystack-redact'],
   ];
   if (DRY_RUN) {
     for (const [name] of links) {

@@ -1,0 +1,121 @@
+#!/usr/bin/env bun
+import * as fs from 'fs';
+import {
+  applyRedactions,
+  exitCodeFor,
+  scan,
+  type Finding,
+  type RepoVisibility,
+  type ScanOptions,
+} from '../lib/redact-engine';
+
+const MAX_STDIN_BYTES = 16 * 1024 * 1024;
+
+function arg(name: string): string | undefined {
+  const i = process.argv.indexOf(name);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+}
+
+function flag(name: string): boolean {
+  return process.argv.includes(name);
+}
+
+function readInput(): string {
+  const file = arg('--from-file');
+  if (file) {
+    const st = fs.statSync(file);
+    if (st.size > MAX_STDIN_BYTES) {
+      process.stderr.write(`skystack-redact: input file too large (${st.size} bytes)\n`);
+      process.exit(3);
+    }
+    return fs.readFileSync(file, 'utf8');
+  }
+
+  const chunks: Buffer[] = [];
+  let total = 0;
+  const buf = Buffer.alloc(65536);
+  while (true) {
+    let n = 0;
+    try {
+      n = fs.readSync(0, buf, 0, buf.length, null);
+    } catch (e: any) {
+      if (e.code === 'EAGAIN') continue;
+      if (e.code === 'EOF') break;
+      throw e;
+    }
+    if (n === 0) break;
+    total += n;
+    if (total > MAX_STDIN_BYTES) {
+      process.stderr.write('skystack-redact: stdin too large\n');
+      process.exit(3);
+    }
+    chunks.push(Buffer.from(buf.subarray(0, n)));
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+function readLines(file: string | undefined): string[] | undefined {
+  if (!file || !fs.existsSync(file)) return undefined;
+  return fs.readFileSync(file, 'utf8')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+}
+
+function buildOpts(): ScanOptions {
+  const vis = (arg('--repo-visibility') as RepoVisibility) || 'unknown';
+  const maxBytes = arg('--max-bytes');
+  return {
+    repoVisibility: ['public', 'private', 'unknown'].includes(vis) ? vis : 'unknown',
+    allowlist: readLines(arg('--allowlist')),
+    selfEmail: arg('--self-email'),
+    repoPublicEmails: readLines(arg('--repo-public-emails')),
+    ...(maxBytes ? { maxBytes: parseInt(maxBytes, 10) } : {}),
+  };
+}
+
+function humanTable(findings: Finding[]): string {
+  if (!findings.length) return '  (no findings)';
+  return findings.map(f =>
+    `  ${f.severity.padEnd(6)} ${f.id.padEnd(24)} ${String(f.line).padStart(4)}:${String(f.col).padEnd(3)} ${f.preview}`
+  ).join('\n');
+}
+
+function main(): void {
+  const opts = buildOpts();
+  const input = readInput();
+
+  const autoIds = arg('--auto-redact');
+  if (autoIds) {
+    const { body, diff, skipped } = applyRedactions(input, autoIds.split(','), opts);
+    process.stdout.write(body);
+    if (diff) process.stderr.write(`${diff}\n`);
+    if (skipped.length) {
+      process.stderr.write(
+        `\nskystack-redact: ${skipped.length} finding(s) could not be auto-redacted; edit manually:\n` +
+        skipped.map(f => `  ${f.id} @ ${f.line}:${f.col}`).join('\n') +
+        '\n'
+      );
+    }
+    process.exit(0);
+  }
+
+  const result = scan(input, opts);
+  const code = exitCodeFor(result);
+
+  if (flag('--json')) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  } else {
+    process.stdout.write(`skystack-redact scan - repo ${result.repoVisibility.toUpperCase()}\n`);
+    if (result.oversize) {
+      process.stdout.write('  BLOCKED - input too large to scan safely (fail-closed)\n');
+    } else {
+      process.stdout.write(`${humanTable(result.findings)}\n`);
+      const { HIGH, MEDIUM, LOW, WARN } = result.counts;
+      process.stdout.write(`  HIGH=${HIGH} MEDIUM=${MEDIUM} LOW=${LOW} WARN=${WARN}\n`);
+    }
+  }
+  process.exit(code);
+}
+
+main();
