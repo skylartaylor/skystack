@@ -43,6 +43,7 @@ The wrapper:
 - Detects the PR base branch with `gh` when available, then falls back to the repo default branch or `main`.
 - Builds a diff from the base branch to the working tree, including staged, unstaged, and untracked file changes.
 - Calls Claude Code with `--model 'opus[1m]'` and `--effort max`.
+- Supports named review profiles: `--opus` for Opus 1M review (default) and `--fable` for Fable review.
 - Uses `--disable-slash-commands`, `--no-session-persistence`, no repo tools by default, and a structured review prompt.
 - Refuses oversized diffs before calling Claude so Codex gets a clear error instead of a silent timeout. Use `--max-diff-bytes N` to raise the limit when intentional.
 - Prints Claude's review text only.
@@ -66,6 +67,10 @@ done
 
 ## Options
 
+If the user asks for a "fable review", pass `--fable`. If they ask for an
+"opus review", pass `--opus` or rely on the default. Use `--model MODEL`
+only for exact Claude Code model aliases or full model names.
+
 ```bash
 CLAUDE_REVIEW=""
 for _s in \
@@ -77,7 +82,7 @@ done
 [ -z "${CLAUDE_REVIEW:-}" ] && { echo "claude-review wrapper not found — run ./setup-codex from the skystack repo" >&2; exit 1; }
 "$CLAUDE_REVIEW" \
   --base main \
-  --model 'opus[1m]' \
+  --fable \
   --effort max \
   --focus "race conditions"
 ```

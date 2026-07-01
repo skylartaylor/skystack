@@ -79,11 +79,34 @@ describe('claude-review wrapper', () => {
       const toolsIndex = args.indexOf('--tools');
       expect(toolsIndex).toBeGreaterThan(-1);
       expect(args[toolsIndex + 1]).toBe('');
+      const modelIndex = args.indexOf('--model');
+      expect(modelIndex).toBeGreaterThan(-1);
+      expect(args[modelIndex + 1]).toBe('opus[1m]');
       expect(args).not.toContain('Read,Bash');
     } finally {
       fs.rmSync(repo.cleanupDir, { recursive: true, force: true });
     }
   }, TEST_TIMEOUT_MS);
+
+  for (const [profile, cliArgs, expectedModel] of [
+    ['fable', ['--fable'], 'fable'],
+    ['reviewer fable', ['--reviewer', 'fable'], 'fable'],
+    ['opus', ['--fable', '--opus'], 'opus[1m]'],
+  ] as const) {
+    test(`${profile} review profile selects ${expectedModel}`, () => {
+      const repo = setupRepo();
+      try {
+        const result = runWrapper([...cliArgs], repo.env, repo.dir);
+        expect(result.exitCode).toBe(0);
+        const args = fs.readFileSync(repo.argsFile, 'utf8').split('\n');
+        const modelIndex = args.indexOf('--model');
+        expect(modelIndex).toBeGreaterThan(-1);
+        expect(args[modelIndex + 1]).toBe(expectedModel);
+      } finally {
+        fs.rmSync(repo.cleanupDir, { recursive: true, force: true });
+      }
+    }, TEST_TIMEOUT_MS);
+  }
 
   test('--with-tools opts into read-only repo tools', () => {
     const repo = setupRepo();

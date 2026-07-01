@@ -10,20 +10,53 @@ MAX_DIFF_BYTES="${CLAUDE_REVIEW_MAX_DIFF_BYTES:-1500000}"
 
 usage() {
   cat <<'EOF'
-Usage: claude_review.sh [--base BRANCH] [--model MODEL] [--effort LEVEL] [--focus TEXT] [--with-tools] [--max-diff-bytes N]
+Usage: claude_review.sh [--base BRANCH] [--opus|--fable|--reviewer opus|fable|--model MODEL] [--effort LEVEL] [--focus TEXT] [--with-tools] [--max-diff-bytes N]
 
 Runs a structured, read-only Claude Code review of the current branch diff.
 Defaults: --model 'opus[1m]' --effort max
+
+Review profiles:
+  --opus              Use Opus 1M review (default)
+  --fable             Use Fable review
+  --reviewer NAME     Use a named review profile: opus or fable
+  --model MODEL       Pass an exact Claude Code model alias or full model name
 
 Default mode is diff-only: Claude receives the generated diff on stdin and no
 repo tools. Use --with-tools only when you want a slower exploratory pass.
 EOF
 }
 
+set_reviewer() {
+  case "$1" in
+    opus)
+      MODEL="opus[1m]"
+      ;;
+    fable)
+      MODEL="fable"
+      ;;
+    *)
+      echo "--reviewer must be one of: opus, fable" >&2
+      exit 2
+      ;;
+  esac
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --base)
       BASE="${2:-}"
+      shift 2
+      ;;
+    --opus)
+      set_reviewer opus
+      shift
+      ;;
+    --fable)
+      set_reviewer fable
+      shift
+      ;;
+    --reviewer)
+      set_reviewer "${2:-}"
       shift 2
       ;;
     --model)

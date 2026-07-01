@@ -415,9 +415,13 @@ describe('gen-codex-skills', () => {
 
     expect(skill).toContain('timeout_ms: 900000');
     expect(skill).toContain('no repo tools by default');
+    expect(skill).toContain('If the user asks for a "fable review", pass `--fable`');
+    expect(skill).toContain('If they ask for an\n"opus review", pass `--opus`');
     expect(skill).toContain('--max-diff-bytes N');
     expect(wrapper).toContain('WITH_TOOLS="${CLAUDE_REVIEW_WITH_TOOLS:-0}"');
     expect(wrapper).toContain('MAX_DIFF_BYTES="${CLAUDE_REVIEW_MAX_DIFF_BYTES:-1500000}"');
+    expect(wrapper).toContain('--opus|--fable|--reviewer opus|fable|--model MODEL');
+    expect(wrapper).toContain('MODEL="fable"');
     expect(wrapper).toContain('CLAUDE_ARGS+=(--tools "")');
     expect(wrapper).toContain('--with-tools');
     expect(wrapper).toContain('diff is too large');
