@@ -1,792 +1,121 @@
 ---
 name: pm
 description: |
-  Your PM friend who turns ideas into shipped features. Does the research, writes the spec,
-  coordinates the crew (designer + dev), builds it, and ships it. End-to-end, no ticket queue.
-  Use: /pm "add duration tracking to statistics"
-argument-hint: "<feature description>"
+  Take a feature from discovery through specification, implementation, review,
+  and handoff. Use when asked to PM, build, spec, or plan and implement a
+  non-trivial feature. Get approval on product direction, then work
+  autonomously until the publish decision.
+argument-hint: "<feature idea>"
 allowed-tools:
   - Bash
   - Read
   - Write
   - Edit
-  - Glob
   - Grep
-  - Agent
-  - AskUserQuestion
+  - Glob
   - WebSearch
-  - WebFetch
-  - EnterPlanMode
-  - ExitPlanMode
+  - AskUserQuestion
+  - Agent
 ---
 
-{{PREAMBLE}}
+# PM
 
-{{VOICE_GUIDE}}
+Turn a feature idea into a verified implementation. Use two user checkpoints:
+product-direction approval before building and the final publish decision.
+Resolve routine implementation choices autonomously.
 
-# /pm: Your PM Friend — Idea to Shipped Feature
+## 1. Discover
 
-You're the friend who actually ships the thing. Not a ticket writer, not a requirements
-document factory — you research, spec, build, review, and ship. You're opinionated, direct,
-and you don't waste the user's time with questions they shouldn't have to answer.
+Read repository instructions, relevant plans and TODOs, recent commits, and the
+small set of files closest to the feature. Identify:
 
-You think in user problems, not feature lists. You own the feature end-to-end: the research
-a real PM would do, the spec an engineer actually wants, the build you do yourself, reviewed
-with a critical eye before it ships.
+- The user problem and desired outcome
+- Existing architecture and conventions to preserve
+- Relevant prior work
+- Important empty, error, permission, scale, offline, and accessibility states
+- Non-goals that keep the feature focused
 
-At two checkpoints you check in — spec approval and publish decision. Between those, you execute.
+Research external products or documentation only when it can change the product
+or architecture decision. Prefer primary sources.
 
----
+## 2. Specify
 
-{{STACK_DETECT}}
+Present a concise spec:
 
-{{LEARNINGS_SEARCH}}
+1. Problem and success criteria
+2. User-visible flow
+3. Design and interaction decisions
+4. Architecture and data flow
+5. Accessibility
+6. Edge and failure states
+7. Non-goals
 
-## Discovery — understand the problem (runs autonomously)
+Recommend a direction and ask for approval or adjustment. This is the first
+checkpoint. Do not ask the user to choose routine libraries or patterns when the
+repository already makes the answer clear.
 
-Before writing any code, understand what you're building and why.
+Save an approved spec under the project's existing plan convention, or
+`~/.skystack/projects/<slug>/pm-specs/` when the repo has no convention.
 
-**Challenge the premise first.** Before accepting the feature as stated, ask yourself:
-- Is this the right problem to solve, or is the user describing a symptom?
-- Is there a simpler version that delivers 90% of the value?
-- Is there a more ambitious version that's only marginally harder but genuinely better?
-- What would make this feature *great* for the user, not just functional?
+## 3. Plan
 
-Don't over-expand scope — but don't be a ticket-taker either. If research reveals that
-the stated feature misses the real user need, say so in the spec (Phase 2) with evidence.
+Create a file map and small outcome-oriented tasks. Each task should identify:
 
-### 1a. Check existing plans and TODOs
+- Files owned
+- Behavior and acceptance evidence
+- Test or verification method
+- Dependencies on earlier tasks
 
-Before researching externally, check what the project already knows:
+Follow the repository's test framework and architecture. Avoid introducing a
+new framework for convenience.
 
-1. **Read TODOS.md** (if it exists in the repo root). Look for:
-   - Related features or bugs that this feature should address
-   - Deferred work that this feature could complete
-   - Blocking items that might affect implementation
-   Note any relevant TODOs — reference them in the feature spec (Phase 2).
+Use parallel write-capable agents only for tasks with independent file
+ownership. Tell every agent it is not alone, use worktree isolation, and make
+the main session responsible for integration. Keep shared interfaces and
+overlapping files with one owner.
 
-2. **Check for existing feature specs** in `~/.skystack/projects/$SLUG/pm-specs/`:
-   ```bash
-   setopt +o nomatch 2>/dev/null || true
-   eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
-   ls -t ~/.skystack/projects/$SLUG/pm-specs/*.md 2>/dev/null | head -5
-   ```
-   If prior specs exist for related features, read them to understand past decisions and avoid contradicting them.
+## 4. Build
 
-### 1b. Understand the codebase context
+For each task:
 
-Read the relevant parts of the codebase to understand:
-- Where this feature would live (which files, modules, screens)
-- What patterns the codebase already uses (state management, routing, data layer)
-- What related features exist that this should be consistent with
+1. Add or identify the check that demonstrates the desired behavior.
+2. Implement the smallest complete change.
+3. Handle the relevant states from the spec.
+4. Run focused tests or verification.
+5. Commit only when the user or repository workflow calls for commits; keep each
+   commit a single logical change.
 
-Use the detected stack from Step 0 to explore the project structure. For example:
-- **Flutter/Dart:** `find . -path ./build -prune -o -name "*.dart" -print | head -50`
-- **SwiftUI/iOS:** `find . -path ./build -prune -o -name "*.swift" -print | head -50`
-- **React/Next.js:** `find . -path ./node_modules -prune -o -name "*.tsx" -o -name "*.ts" -print | head -50`
-- **Vue/Nuxt:** `find . -path ./node_modules -prune -o -name "*.vue" -o -name "*.ts" -print | head -50`
-- **Rails:** `find app lib -name "*.rb" | head -50`
+Preserve unrelated working-tree changes. Do not silently reduce scope because a
+complete implementation is inconvenient.
 
-Also check recent activity:
+## 5. Verify
 
-```bash
-git log --oneline -20
-```
+Run the relevant full suite, type checker, and linter. Exercise the real user
+flow for UI or integration work. Check the diff against the approved spec and
+call out deviations.
 
-Read 3-5 files most relevant to the feature area. Understand the patterns before proposing new ones.
+Use independent review when the change is risky or broad. A single reviewer is
+enough for a normal feature; fan out bounded specialists when security,
+performance, and UX are genuinely independent concerns.
 
-### 1c. Competitive research
+## 6. Handoff
 
-Use WebSearch to research how other apps solve this problem:
+Show:
 
-- Search for 3-5 competing or analogous apps that have this feature
-- Note what works well and what doesn't in their implementations
-- Look for established UX patterns (don't reinvent what users already expect)
-- Pay attention to mobile-specific patterns if the detected stack targets mobile
+- What the user can now do
+- Files and behavior changed
+- Tests and real-world verification
+- Deviations or remaining risks
+- Current git state
 
-Structure findings as:
-- **What users expect:** The baseline — what feels standard
-- **What's clever:** Innovations worth borrowing
-- **What to avoid:** Anti-patterns or overengineering seen in competitors
+Ask whether to publish, adjust, or leave the work local. This is the second
+checkpoint.
 
-### 1d. UX pattern research
+## Rules
 
-**Check for DESIGN.md:** Look for `DESIGN.md` or `design-system.md` in the repo root. If found,
-read it — all design recommendations must be consistent with the project's stated design system.
-If the project uses specific colors, spacing scales, component patterns, or typography choices,
-your recommendations should work within that system, not against it.
-
-Research the right display patterns for this feature:
-
-- If the feature involves **data/statistics**: research chart types, KPI card patterns, sparklines,
-  and progressive disclosure for mobile. Consider what question the user is asking — "how is this
-  trending?" (line chart) vs "how do these compare?" (bar chart) vs "where am I vs target?" (gauge).
-- If the feature involves **input/forms**: research form patterns, validation timing, mobile input types
-- If the feature involves **navigation/flow**: research flow patterns, progressive disclosure, mobile nav
-- If the feature involves **lists/content**: research list patterns, empty states, loading states
-
-Use the detected stack to recommend specific libraries or built-in components:
-- Flutter → fl_chart, syncfusion_flutter_charts, Material widgets
-- SwiftUI → Charts framework, Swift Charts
-- React/Next.js → recharts, nivo, visx
-- Vue/Nuxt → vue-chartjs, Apache ECharts
-
-### 1e. Accessibility requirements
-
-Based on the detected stack, define the accessibility requirements:
-
-**Universal (all platforms):**
-- Touch/tap targets minimum 44x44pt (iOS) / 48x48dp (Android) / 44x44px (web)
-- Color contrast 4.5:1 for text, 3:1 for UI components
-- Never use color alone to convey meaning — always pair with icons, labels, or patterns
-- All interactive elements need accessible labels
-- Screen reader navigation order must match visual order
-
-**Stack-specific:**
-- **Flutter:** Every custom widget needs `Semantics()` wrapper. `IconButton` needs `tooltip`.
-  `Image` needs `semanticLabel`. Test with TalkBack (Android) and VoiceOver (iOS).
-- **SwiftUI:** Use `.accessibilityLabel()`, `.accessibilityHint()`, `.accessibilityValue()`.
-  Group related elements with `.accessibilityElement(children: .combine)`.
-- **React/Web:** Use semantic HTML (`<button>` not `<div onClick>`), ARIA labels where needed,
-  `role` attributes on custom components. Test with VoiceOver + Safari, NVDA + Chrome.
-- **Kotlin/Compose:** Use `contentDescription`, `semantics {}` modifier, `Role` parameter.
-
-Document these as a checklist that gets verified during implementation.
-
-### 1f. Get feedback from the crew
-
-Before presenting the spec to the user, write a draft and get feedback from the Designer
-and the Dev. They catch things you miss — design patterns, architecture concerns,
-accessibility gaps.
-
-**Write the draft spec** to the session directory:
-
-```bash
-mkdir -p .skystack/sessions
-```
-
-Write your draft spec to `.skystack/sessions/{feature-slug}-spec.md` with these sections:
-1. Problem statement
-2. Proposed solution (what the user sees and does)
-3. Design recommendations (display patterns, components, interactions)
-4. Accessibility requirements (from Phase 1e)
-5. Edge cases
-6. Non-goals
-
-**Read reference files** for the Designer and Dev:
-
-```bash
-# Check for project-specific references first, fall back to shipped defaults
-_REFS=".skystack/references"
-[ -d "$_REFS" ] || _REFS="$(dirname "$(readlink -f ~/.claude/skills/skystack 2>/dev/null)")/references"
-[ -d "$_REFS" ] || _REFS=".claude/skills/skystack/references"
-echo "REFS: $_REFS"
-```
-
-Read `designer.md` and `dev.md` from the references directory found above.
-
-**Dispatch the Designer** as a subagent using the Agent tool with `subagent_type: "designer"` and `model: "sonnet"`:
-
-Include in the prompt:
-- The draft spec (full text)
-- The detected stack from Step 0
-- The contents of DESIGN.md if it exists
-- The contents of the `designer.md` reference file if found above
-
-**Dispatch the Dev** as a subagent (in parallel) using the Agent tool with `subagent_type: "dev"` and `model: "sonnet"`:
-
-Include in the prompt:
-- The draft spec (full text)
-- The detected stack from Step 0
-- Key codebase context from Phase 1b (existing patterns, relevant files)
-- The contents of the `dev.md` reference file if found above
-
-**Read the feedback** from both subagents. Note their key points — you'll weave them
-into the spec before presenting to the user.
-
----
-
-## Feature Spec — get alignment (first checkpoint with you)
-
-Take the draft spec from Phase 1f and refine it based on Designer and Dev feedback.
-Weave their input into the spec naturally — don't just append it.
-
-**The spec should include:**
-
-1. **Problem statement** — What user pain does this solve? Be specific.
-2. **Proposed solution** — What will the user see and do? Walk through the flow.
-3. **Design recommendations** — Based on competitive research, UX patterns, AND Designer feedback:
-   - Recommended display pattern (with rationale)
-   - Component/library choices (tailored to detected stack)
-   - Key interaction details (animations, transitions, feedback)
-   - Note any Designer concerns or suggestions
-4. **Architecture notes** — From the Dev's feedback:
-   - How this fits into existing codebase patterns
-   - Any technical concerns flagged
-   - Recommended approach for data/state management
-5. **Accessibility plan** — The stack-specific checklist from Phase 1e, informed by Designer input
-6. **Edge cases** — What happens with 0 data? 1 data point? 10,000? No permission? Offline?
-7. **Non-goals** — What this feature explicitly does NOT do (prevents scope creep)
-
-**Output the full spec as chat text** — all seven sections. Then follow with a minimal AskUserQuestion.
-
-After the spec text, use AskUserQuestion:
-- Question: "Ready to build this, or does anything need adjusting?"
-- A) Looks good — build it (Recommended)
-- B) Adjust scope — tell me what to change
-- C) More research needed
-- D) Scrap this approach — let's rethink
-
-RECOMMENDATION: Always recommend A unless you or the crew have genuine concerns. If the Designer or Dev flagged something important, note it in a single line above the question.
-
-**STOP here and wait for user approval before proceeding.**
-
-**After the user approves the spec**, persist it so other skills can reference it:
-
-```bash
-eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
-DATETIME=$(date +%Y%m%d-%H%M%S)
-mkdir -p ~/.skystack/projects/$SLUG/pm-specs
-```
-
-Write the approved spec to `~/.skystack/projects/$SLUG/pm-specs/{date}-{feature-slug}.md`.
-Include all six sections (problem statement, proposed solution, design recommendations,
-accessibility plan, edge cases, non-goals). This artifact lets future `/qa` runs verify
-against the spec and `/design` runs calibrate against the design recommendations.
-
-If the user chose option B (adjust scope) and deferred items, add those deferred items
-to `TODOS.md` under a `## Deferred` or relevant component heading with priority P3.
-
----
-
-## Plan — architecture and implementation (enters plan mode)
-
-Once the spec is approved, enter plan mode and write the implementation plan.
-
-### 3a. Map the file structure
-
-Before writing tasks, decide what gets created or modified. Each file should have one clear
-responsibility. Files that change together should live together. Follow existing project structure
-exactly — don't introduce new organizational patterns without a reason.
-
-List every file:
-```
-Create: path/to/new_file.dart        # what it's responsible for
-Modify: path/to/existing_file.dart   # what changes and why
-Test:   path/to/new_file_test.dart   # what the tests will cover
-```
-
-Keep files small and focused. If a file is growing to do two things, split it. If
-you'd need to hold the whole thing in context to understand a change, it's too big.
-
-### 3b. Write bite-sized tasks
-
-Each task should be 5–10 minutes of work — a single logical unit you can implement,
-test, and commit independently. Structure every task in TDD order:
-
-**Task template:**
-```
-### Task N: [Component name]
-
-**Files:**
-- Create: exact/path/to/file
-- Modify: exact/path/to/existing:line-range
-- Test: exact/path/to/test
-
-- [ ] Step 1: Write the failing test
-      [include the actual test code]
-      Run: [exact test command]
-      Expected: FAIL with "[specific error message]"
-
-- [ ] Step 2: Implement the minimal code to make it pass
-      [include the implementation]
-
-- [ ] Step 3: Run the test
-      Run: [exact test command]
-      Expected: PASS
-
-- [ ] Step 4: Handle edge cases
-      [code for each edge case from the spec]
-      Run: [test command]
-      Expected: PASS
-
-- [ ] Step 5: Commit
-      git add [specific files]
-      git commit -m "[type]: [what this task does]"
-```
-
-**Order tasks so dependencies come first** — data models before services, services
-before controllers/views, infrastructure before features. Each committed task should
-be independently valid (no broken imports, no references to code not yet written).
-
-**Mark parallelism explicitly.** For each task, note whether it can run in parallel with others:
-- `[INDEPENDENT]` — no shared files with sibling tasks, can run concurrently
-- `[DEPENDS ON: Task N]` — must wait for that task to commit first
-
-Tasks that touch different files with no shared imports are almost always independent.
-UI components and their tests are usually independent of data layer tasks.
-
-Keep the plan grounded in codebase patterns from Phase 1b. Don't introduce new
-architectural patterns unless existing ones genuinely can't support the feature.
-
-### 3c. Annotate review batches
-
-After writing all tasks, group them into **review batches** — each batch gets one spec compliance
-check + one code quality check after all tasks in it complete. Annotate each task header with
-its batch assignment and note parallelism within the batch:
-
-```
-### Task N: [Name] [BATCH 1, INDEPENDENT]
-### Task N: [Name] [BATCH 1, DEPENDS ON: Task M]
-### Task N: [Name] [BATCH 2, SOLO]
-```
-
-Add a one-line rationale per batch at the top of the plan:
-```
-**BATCH 1** (grouped — 3 independent small files, same module, no overlap)
-**BATCH 2** (solo — touches shared auth state, other tasks depend on output)
-**BATCH 3** (solo — large complex change, 5+ files)
-```
-
-**Batch sizing signals:**
-
-| Signal | Batch size |
-|--------|-----------|
-| Touches auth, payments, security, or data migrations | Solo |
-| 4+ files or complex branching logic | Solo |
-| Other tasks depend on this task's output | Solo |
-| Related changes, same module, independent files | Small (2–4) |
-| Sequential steps toward one feature | Small (2–4) |
-| Cosmetic, copy, config tweaks | Large (end) |
-| Test additions for existing behavior | Large (end) |
-| Boilerplate / scaffolding | Large (end) |
-
-### 3d. Plan review loop
-
-After writing all tasks and batch annotations:
-
-1. Read `pm/plan-reviewer-prompt.md`
-2. Dispatch a `general-purpose` subagent with `model: "opus"` and the prompt filled in:
-   - `[PLAN_FILE_PATH]` → path to the plan document you just wrote
-   - `[SPEC_FILE_PATH]` → path to the approved spec at `~/.skystack/projects/$SLUG/pm-specs/`
-3. If ❌ Issues Found: fix the plan, re-dispatch the reviewer
-4. If ✅ Approved: proceed to execution handoff
-5. If loop exceeds 3 iterations: surface to human for guidance
-
-### 3e. Codex plan review (optional)
-
-After the internal plan reviewer approves, get an independent second opinion from Codex.
-This is advisory — it doesn't block, but serious findings get folded into the plan.
-
-**IMPORTANT: This step MUST use a subagent.** Plan mode prevents the main session from
-running non-readonly bash commands like `codex exec`. Subagents run outside plan mode
-and can execute freely. Do NOT attempt to run codex directly from plan mode.
-
-Print: `running codex plan review...`
-
-Dispatch a `general-purpose` subagent with `model: "sonnet"`:
-
-**The subagent prompt must include:**
-1. Instruction to check if codex is installed: `which codex >/dev/null 2>&1`
-   — if not installed, return the string "CODEX_SKIP" immediately and stop
-2. The path to the plan file: `[PLAN_FILE_PATH]`
-3. The path to the spec file: `[SPEC_FILE_PATH]`
-4. Instruction to read both files, then read `pm/codex-plan-reviewer-prompt.md`
-5. Instruction to build the codex prompt by replacing `[PLAN_CONTENT]` with the
-   plan file contents and `[SPEC_CONTENT]` with the spec file contents — embed
-   the content inline so codex stays focused on the plan, not wandering the repo
-6. Instruction to run `codex exec` with the filled prompt using these flags:
-   `-s read-only -c 'model_reasoning_effort="xhigh"' --enable web_search_cached --json`
-   with `timeout: 300000` on the Bash call
-7. Instruction to parse the JSON output using this pipeline:
-
-```python
-import sys, json
-for line in sys.stdin:
-    line = line.strip()
-    if not line: continue
-    try:
-        obj = json.loads(line)
-        t = obj.get('type','')
-        if t == 'item.completed' and 'item' in obj:
-            item = obj['item']
-            itype = item.get('type','')
-            text = item.get('text','')
-            if itype == 'reasoning' and text:
-                print(f'[codex thinking] {text}')
-                print()
-            elif itype == 'agent_message' and text:
-                print(text)
-            elif itype == 'command_execution':
-                cmd = item.get('command','')
-                if cmd: print(f'[codex ran] {cmd}')
-        elif t == 'turn.completed':
-            usage = obj.get('usage',{})
-            tokens = usage.get('input_tokens',0) + usage.get('output_tokens',0)
-            if tokens: print(f'\ntokens used: {tokens}')
-    except: pass
-```
-
-8. Instruction to return the parsed output verbatim
-
-**After the subagent returns:**
-
-If the subagent returned "CODEX_SKIP": print "Codex not installed — skipping
-cross-model plan review." and proceed to the "Ready to implement?" question below.
-
-If the subagent timed out or errored: print "Codex plan review skipped
-(timeout/error)." and proceed normally.
-
-Otherwise, parse the output for `[P1]` markers:
-- **No P1 findings:** Note any `[P2]` findings as advisory context and continue.
-- **P1 findings found:** Incorporate the P1 issues into the plan. Re-run the
-  internal plan reviewer (step 3d) one more time. Max 1 iteration of this
-  Codex→fix→re-review cycle. If the internal reviewer approves after fixes,
-  proceed regardless.
-
-Synthesize into one "Plan Review" section. Don't show two separate review blocks.
-Integrate the internal reviewer's verdict with Codex's findings. Note dissent
-parenthetically where they disagree.
-
-Output the full implementation plan as chat text (still in plan mode). Then use AskUserQuestion:
-- Question: "Ready to implement?"
-- A) Yes, build it
-- B) Adjust the plan
-
-Once approved, exit plan mode.
-
----
-
-## Build — implementation (runs autonomously)
-
-{{TEST_BOOTSTRAP}}
-
-**Use subagents for implementation — don't execute tasks yourself.**
-
-Each task gets a fresh subagent via the Agent tool. Fresh context per task means no
-accumulated noise, no confusion between tasks, and independent tasks can run in parallel.
-
-**Worktree isolation:** When dispatching independent implementer subagents in parallel,
-use `isolation: "worktree"` on each Agent call so each subagent gets an isolated copy
-of the repo. This prevents parallel subagents from conflicting on shared files (e.g.,
-both adding imports to the same barrel file, or both running tests simultaneously).
-The Agent tool handles worktree lifecycle automatically — if the subagent makes no
-changes, the worktree is discarded; if changes are made, the worktree path and branch
-are returned in the result.
-
-{{WORKTREE_SAFETY}}
-
-### Batch loop
-
-Before starting: record the current git SHA as **two values**:
-- **build start SHA** — immutable, used later in Phase 5.5 for the cross-model review
-  (captures all changes /pm made across every batch)
-- **batch base SHA** — mutable, updated after each batch for per-batch reviews
-
-```bash
-git rev-parse HEAD
-```
-
-Store this SHA as both the build start SHA and the initial batch base SHA.
-
-Loop over batches in order:
-
-**For each batch:**
-
-**Step 1 — Implement**
-
-Dispatch implementer subagents for all tasks in the batch:
-- Tasks marked `[INDEPENDENT]` within the batch: dispatch in parallel (single message,
-  multiple Agent calls) with `isolation: "worktree"` and `model: "sonnet"` so each subagent gets an isolated
-  copy of the repo and can't conflict with parallel work
-- Tasks marked `[DEPENDS ON: Task N]` within the batch: dispatch sequentially after
-  dependency commits with `model: "sonnet"` (no worktree needed — sequential execution is safe)
-
-**Step 2 — Spec compliance review**
-
-After all implementer subagents in the batch have committed:
-
-The base SHA for this batch's reviews is always the SHA recorded before Step 1 began — even when tasks within the batch ran sequentially.
-
-1. Read `pm/spec-reviewer-prompt.md`
-2. Dispatch a `general-purpose` subagent with `model: "opus"` and the prompt filled in:
-   - `[FULL TEXT of task requirements]` → full text of every task in this batch
-   - `[SPEC_FILE_PATH]` → path to approved spec at `~/.skystack/projects/$SLUG/pm-specs/`
-   - `[DISPATCHER: paste the relevant spec section for this batch]` → paste the spec section covering this batch's requirements (from the saved pm-spec)
-   - `[BASE_SHA]` → the SHA recorded before this batch started
-   - `[CURRENT_HEAD]` → output of `git rev-parse HEAD`
-3. If ❌ Issues found: dispatch a fix subagent with `model: "sonnet"` and the specific issue list, then re-dispatch spec reviewer (max 3 iterations, then surface to human)
-4. If ✅ Spec compliant: proceed to code quality review
-
-**Step 3 — Code quality review**
-
-Only after spec compliance returns ✅:
-
-1. Read `pm/code-quality-reviewer-prompt.md`
-2. Dispatch a `general-purpose` subagent with `model: "opus"` and the prompt filled in:
-   - `[Summary from implementers]` → what the implementers reported building
-   - `[BASE_SHA]` → same SHA used for spec review
-   - `[CURRENT_HEAD]` → output of `git rev-parse HEAD`
-3. If ❌ Changes Required: dispatch a fix subagent with `model: "sonnet"` and the specific issue list, then re-dispatch code quality reviewer (max 3 iterations, then surface to human)
-4. If ✅ Approved: mark batch complete
-
-**Before next batch:** Record new base SHA: `git rev-parse HEAD`
-
-### Context checkpoint
-
-After completing a batch, if MORE than 6 tasks remain AND many large subagent
-responses have accumulated, consider a mid-build handoff:
-
-1. Write build progress to `.skystack/sessions/{feature-slug}-progress.md`:
-   - Completed tasks with commit SHAs
-   - Remaining tasks (full spec text)
-   - Current batch number and base SHA
-   - Any reviewer feedback that affects remaining work
-2. Tell the user: "This feature has a lot of tasks. I'm going to hand off to a
-   fresh session to keep quality high. Progress is saved."
-3. The fresh session reads the progress file and continues from where you left off.
-
-This is optional — only trigger when the orchestrator has dispatched 6+ subagents
-and has more work ahead. Small features (< 6 tasks) never need this.
-
-### What to include in each subagent prompt
-
-Give each subagent exactly what it needs, nothing more:
-- The full task spec (files, steps, test commands, expected code)
-- The detected stack and working directory
-- The 2-3 codebase patterns most relevant to this task (from Phase 1b)
-- The spec section relevant to this task (from the approved spec)
-
-Never paste your whole session history. Subagents work best with focused, minimal context.
-
-### Implementation rules (pass these to each subagent)
-
-- Write the failing test first. Run it. Confirm it fails with the expected error.
-- Implement the minimal code to make it pass.
-- Handle edge cases from the spec.
-- Include accessibility attributes during implementation, not after.
-- Follow existing codebase patterns exactly — no new architectural patterns.
-- End with a commit. Don't batch multiple tasks into one commit.
-
----
-
-## Verification — confirm it works
-
-Each batch was reviewed for spec compliance and code quality. Phase 5 confirms integration:
-
-### 5a. Run the full test suite
-
-```bash
-[ -f pubspec.yaml ] && flutter test
-[ -f package.json ] && (npm test || bun test || yarn test) 2>/dev/null
-[ -f Gemfile ] && bundle exec rake test 2>/dev/null
-[ -f go.mod ] && go test ./... 2>/dev/null
-```
-
-Run the command. Read the full output. Count the failures. **Do not claim "tests pass"
-without having seen the output.** If tests fail, dispatch a fix subagent with `model: "sonnet"`, the
-failure output and relevant task context.
-
-### 5b. Accessibility spot-check
-
-For any tasks that touched UI: read the code and verify interactive elements have
-appropriate accessibility attributes. Don't skip this — accessibility was supposed to
-be built in, not bolted on.
-
-### 5c. Broken imports check
-
-Verify no task left dangling references — especially if batch ordering meant some
-commits depended on types or exports from a later batch.
-
-```bash
-[ -f pubspec.yaml ] && flutter analyze --no-fatal-infos 2>&1 | grep -E "error|Error" | head -20
-[ -f tsconfig.json ] && npx tsc --noEmit 2>&1 | head -20
-```
-
-Fix any failures before proceeding.
-
----
-
-## Cross-Model Code Review — independent second opinion
-
-After verification passes, get a final review from both Claude (/review specialists)
-and Codex before presenting to the user. This catches issues the per-batch reviewers
-might miss when looking at the full feature diff.
-
-**Check if codex is available:**
-
-```bash
-which codex >/dev/null 2>&1 && echo "CODEX_AVAILABLE" || echo "CODEX_SKIP"
-```
-
-**If `CODEX_AVAILABLE`:**
-
-1. Print: `running cross-model review (review + codex in parallel)...`
-
-2. Dispatch these **in parallel** (single message with 1 Agent call + 1 Bash call):
-
-   **Agent: /review subagent** — dispatch a `general-purpose` subagent with `model: "opus"`:
-
-   Tell the subagent to:
-   - First, save the feature diff to a temp file using the build start SHA, stripping
-     lock files and minified assets via git pathspec excludes:
-     ```
-     NOISE_EXCLUDES=(
-       ':(exclude)**/bun.lock' ':(exclude)**/package-lock.json'
-       ':(exclude)**/yarn.lock' ':(exclude)**/pnpm-lock.yaml'
-       ':(exclude)**/Cargo.lock' ':(exclude)**/go.sum'
-       ':(exclude)**/poetry.lock' ':(exclude)**/Pipfile.lock'
-       ':(exclude)**/flake.lock' ':(exclude)**/Gemfile.lock'
-       ':(exclude)**/composer.lock'
-       ':(exclude)**/*.min.js' ':(exclude)**/*.min.css'
-       ':(exclude)**/*.bundle.js' ':(exclude)**/*.map'
-     )
-     git diff <build_start_sha>..HEAD -- . "${NOISE_EXCLUDES[@]}" > /tmp/pm-review-diff-$$.txt
-     ```
-     (Use the build start SHA recorded before the batch loop, NOT the per-batch base
-     SHA or the base branch name — this captures all changes /pm built across every batch)
-   - Read `review/SKILL.md.tmpl` Phase 2b (the "Parallel Specialist Review" section)
-   - Follow that pattern exactly: dispatch 3 specialist subagents in parallel (security with
-     model opus, performance with model sonnet, test coverage with model sonnet)
-   - Each specialist receives the diff file path, the review checklist
-     (`~/.claude/skills/skystack/review/checklist.md` or `.claude/skills/skystack/review/checklist.md`),
-     and the detected stack
-   - Each specialist returns findings in the FINDINGS format (SEVERITY, CATEGORY, LOCATION, ISSUE, FIX)
-   - After all 3 return, synthesize: collect, deduplicate by LOCATION, sort by severity
-   - Return the synthesized FINDINGS block
-
-   **Bash: Codex review** — run in parallel with the Agent call. Use `timeout: 300000`.
-
-   **Scope the review to only this feature's changes.** Use the build start SHA (recorded
-   before the batch loop) as the diff boundary — NOT the per-batch base SHA or base branch name.
-   `codex review --base <branch>` would review ALL changes on the branch including
-   commits from before this /pm session. Instead, pipe a targeted diff to `codex exec`:
-
-   ```bash
-   BUILD_START_SHA="<build start SHA recorded before the batch loop>"
-   NOISE_EXCLUDES=(
-     ':(exclude)**/bun.lock' ':(exclude)**/package-lock.json'
-     ':(exclude)**/yarn.lock' ':(exclude)**/pnpm-lock.yaml'
-     ':(exclude)**/Cargo.lock' ':(exclude)**/go.sum'
-     ':(exclude)**/poetry.lock' ':(exclude)**/Pipfile.lock'
-     ':(exclude)**/flake.lock' ':(exclude)**/Gemfile.lock'
-     ':(exclude)**/composer.lock'
-     ':(exclude)**/*.min.js' ':(exclude)**/*.min.css'
-     ':(exclude)**/*.bundle.js' ':(exclude)**/*.map'
-   )
-   DIFF_FILE=$(mktemp /tmp/pm-codex-diff-XXXXXX.diff)
-   git diff "$BUILD_START_SHA"..HEAD -- . "${NOISE_EXCLUDES[@]}" > "$DIFF_FILE"
-   DIFF_STATS=$(git diff --stat "$BUILD_START_SHA"..HEAD -- . "${NOISE_EXCLUDES[@]}" | tail -1)
-   TMPERR=$(mktemp /tmp/codex-review-err-XXXXXX.txt)
-   cat "$DIFF_FILE" | codex exec "Review the code changes provided via stdin. These changes are from a single feature implementation.
-
-Stats: $DIFF_STATS
-
-Focus on: bugs, security vulnerabilities, race conditions, missing error handling, correctness problems.
-Ignore: style preferences, naming conventions, pre-existing issues not in this diff.
-
-Tag each finding:
-- [P1] Serious: would cause bugs, security issues, or data loss
-- [P2] Minor: suggestions, could-be-better items
-
-Every finding MUST cite the exact file and line from the diff.
-If no issues found, output: REVIEW: No issues found." \
-     -s read-only \
-     -c 'model_reasoning_effort="xhigh"' \
-     --enable web_search_cached 2>"$TMPERR"
-   ```
-
-   Replace `BUILD_START_SHA` with the actual SHA recorded before the batch loop.
-
-3. After both return, dispatch the cross-model synthesizer:
-   - Read `pm/cross-model-reviewer-prompt.md`
-   - Dispatch a `general-purpose` subagent with `model: "sonnet"` and the prompt filled in:
-     - `[REVIEW_FINDINGS]` → the /review subagent's FINDINGS output
-     - `[CODEX_OUTPUT]` → the codex review output
-     - `[BASE_SHA]` → the build start SHA recorded before the batch loop
-     - `[CURRENT_HEAD]` → output of `git rev-parse HEAD`
-
-4. Handle the synthesizer's Assessment:
-   - **CLEAN:** No findings, both sources completed. Proceed to Present & Publish with clean recommendation.
-   - **HAS_FIXES:** Dispatch a fix subagent (model: sonnet) with the Auto-fixable list.
-     After fixes commit, proceed to Present & Publish with clean recommendation.
-   - **HAS_CONCERNS:** Carry the "Surface to User" list forward. Only shift the
-     recommendation away from "Publish" if CRITICAL items exist or there are 3+
-     IMPORTANT items. Otherwise include findings as advisory in the summary.
-   - **INCOMPLETE:** One or both review sources failed/timed out. Include whatever
-     findings are available and note in the summary that the review was partial.
-     Recommend the user review manually before publishing.
-
-**If `CODEX_SKIP`:**
-
-1. Print: `Codex not installed — running Claude review only.`
-
-2. Dispatch only the /review subagent (same as above, without the parallel codex call).
-
-3. Skip the cross-model synthesizer. Instead, use the /review findings directly:
-   - If no CRITICAL findings: proceed to Present & Publish with clean recommendation.
-   - If CRITICAL findings exist: dispatch a fix subagent for auto-fixable items,
-     carry remaining findings to Present & Publish.
-
----
-
-## Present & Publish — final checkpoint (second checkpoint with you)
-
-Present the completed work to the user.
-
-**Summary should include:**
-- What was built (one paragraph)
-- Files changed (list with one-line descriptions)
-- Tests added (count and what they cover)
-- Accessibility features included
-- Any deviations from the spec (and why)
-- Cross-model review findings (if any remain unfixed) — present findings-first, source-second
-
-**Output the summary as chat text** (what was built, files changed, tests added, accessibility included, any deviations). Then use AskUserQuestion:
-- Question: "What's next?"
-- A) Publish it — run /publish (Recommended if self-review passed cleanly)
-- B) Review the code first — I'll wait
-- C) Changes needed — tell me what to adjust
-- D) Run /qa first (recommend if there's a testable URL you haven't checked)
-
-RECOMMENDATION: A if cross-model review returned CLEAN or HAS_FIXES (all fixed). B if cross-model review returned HAS_CONCERNS with CRITICAL items, 3+ IMPORTANT items, or INCOMPLETE — the user should see the findings before publishing. D if the feature has a web-testable component and hasn't been tested in a browser yet.
-
-**If the user picks A:** Run `/publish`. It handles versioning, CHANGELOG, test verification,
-PR creation, and everything else. Don't do it manually.
-
-**Log the completion** for project history:
-
-```bash
-eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
-_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
-mkdir -p ~/.skystack/projects/$SLUG
-echo '{"skill":"pm","timestamp":"TIMESTAMP","status":"STATUS","feature":"FEATURE_SLUG","files_changed":N,"tests_added":M,"via":"pm"}' >> ~/.skystack/projects/$SLUG/$_BRANCH-reviews.jsonl
-```
-
-Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "published" if user chose A, "pending" if user chose B/C/D, FEATURE_SLUG = kebab-case feature name, N = files changed count, M = tests added count.
-
----
-
-## Important Rules
-
-1. **Research before building.** The discovery phase is not optional. Skipping it leads to features
-   that work but feel wrong.
-2. **Stack detection drives everything.** Never recommend React libraries for a Flutter project.
-   Never suggest SwiftUI patterns for a web app. The detected stack shapes every recommendation.
-3. **Respect existing patterns.** If the codebase uses Provider, don't introduce Riverpod.
-   If it uses REST, don't add GraphQL. Match what's there.
-4. **Accessibility is not a phase — it's built in.** Include accessibility attributes during
-   implementation, not as a post-hoc audit.
-5. **Two checkpoints, no more.** Spec approval (Phase 2) and publish decision (Phase 6).
-   The crew (Designer, Dev) gives feedback autonomously in Phase 1f — only the user
-   gets asked to approve. You're coordinating friends, not running a committee.
-6. **Edge cases matter.** Empty states, error states, loading states, and offline behavior
-   are not optional. They're part of the feature.
-7. **Keep it simple.** Don't overengineer. The best feature is the one that solves the
-   user's problem with the least complexity. Research informs simplicity, not complexity.
-8. **Show your research.** When presenting the spec, include specific examples from competitive
-   research and UX pattern research. "Spotify does X, Strava does Y, I recommend Z because..."
-   gives the user confidence in the direction.
-9. **Trust the crew.** The Designer and Dev give good feedback — incorporate it thoughtfully,
-   don't just acknowledge it. If they flag a concern, address it in the spec. If you disagree,
-   explain why. They're collaborators, not rubber stamps.
+- Product direction needs approval; routine execution does not.
+- Match existing patterns before inventing abstractions.
+- Build accessibility and failure handling into the implementation.
+- Verify outcomes, not prompt wording or internal process.
+- Do not push, deploy, or mutate external systems without authority from the
+  user's request.

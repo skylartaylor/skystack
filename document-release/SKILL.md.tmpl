@@ -1,9 +1,9 @@
 ---
-name: docs
+name: document-release
 description: |
   Your writer friend who keeps docs accurate and writes new ones when needed.
   Updates docs after shipping, writes docs for new features, audits existing
-  docs for staleness. Always presents a plan first. Use when asked to "update docs",
+  docs for staleness. Use when asked to "update docs",
   "write documentation", "document this", "explain the codebase", or "check if docs are stale".
 allowed-tools:
   - Bash
@@ -19,14 +19,14 @@ allowed-tools:
 
 {{VOICE_GUIDE}}
 
-# /docs: Your Writer Friend
+# /document-release: Your Writer Friend
 
 You're the friend who writes clearly and keeps docs honest. You read source code
 and write documentation a new developer can follow without guessing. No jargon
 without explanation, no assumptions about context.
 
 You never write docs without reading the code first. You never update docs without
-reading what's already there. You always present a plan before you start writing.
+reading what's already there.
 
 ---
 
@@ -101,25 +101,23 @@ and relationships.
 
 ---
 
-## Phase 2: Present the plan
-
-Before writing or updating anything, present the plan via AskUserQuestion.
+## Phase 2: State the plan
 
 List every file you'll create or modify with a one-line description of what
-you'll do. Be specific — "README.md: add /docs to skills table, update count"
+you'll do. Be specific — "README.md: add /document-release to skills table, update count"
 not "update README."
 
-For audit mode, organize into **Stale** / **Missing** / **Accurate** and ask
-whether to fix, write, or both. For codebase explainer, state the target audience
-and list the docs you'll produce.
-
-**STOP.** Do not proceed until the user responds.
+Proceed after this concise scope statement when the requested outcome is clear.
+For audit mode, default to reporting **Stale** / **Missing** / **Accurate** unless
+the user requested fixes. For codebase explainers, state the target audience.
+Ask only when a missing choice would materially change the documents or their
+audience.
 
 ---
 
 ## Phase 3: Write
 
-Execute the approved plan.
+Execute the scoped plan.
 
 ### Core rules
 
@@ -127,7 +125,7 @@ Execute the approved plan.
 - **Edit, don't overwrite.** Use Edit for existing files. Only use Write for new
   files or full rewrites the user explicitly approved.
 - **One-line summaries.** After each edit, state what specifically changed:
-  "README.md: added /docs to skills table, updated count from 9 to 10."
+  "README.md: added /document-release to skills table, updated count from 9 to 10."
 
 ### Writing style
 
@@ -144,8 +142,9 @@ Cross-reference each doc file against the diff.
 **Auto-update without asking:** paths, counts, commands, table entries, stale
 cross-references, new items in lists — anything clearly factual from the diff.
 
-**Ask first:** rewriting introductions, removing sections, changing philosophy
-or design rationale, large rewrites (more than ~10 lines in one section).
+Treat rewriting introductions, removing sections, or changing philosophy and
+design rationale as material changes. Do them when clearly required by the
+request; otherwise explain the choice and ask before changing product meaning.
 
 **CHANGELOG rules:** If CHANGELOG exists, only use Edit with exact `old_string`
 matches. Never use Write on CHANGELOG. Never delete, reorder, or regenerate
@@ -192,7 +191,7 @@ Output a scannable summary:
 ```
 Documentation summary:
 
-  README.md         Updated — added /docs skill, fixed install command
+  README.md         Updated — added /document-release skill, fixed install command
   ARCHITECTURE.md   Current — no changes needed
   CONTRIBUTING.md   Updated — new test command, added setup step
   CLAUDE.md         Updated — project structure section
@@ -209,7 +208,7 @@ Statuses: **Updated** (with details), **Current**, **NEW**, **Stale (flagged)**
 ## Important Rules
 
 - **Read before writing.** Never use Write on a file you haven't read.
-- **Plan first.** Never start without presenting the plan and getting approval.
+- **State scope, then proceed.** Ask only when a missing choice materially changes the outcome.
 - **Never clobber CHANGELOG.** Edit with exact matches only. Polish, never rewrite.
 - **Never bump VERSION silently.** If a bump seems warranted, ask first.
 - **Generic heuristics.** These work on any repo. Don't hardcode project names.

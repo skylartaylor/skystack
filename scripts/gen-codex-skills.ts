@@ -11,14 +11,14 @@
  * ported — too much of that content is Claude-specific (AskUserQuestion,
  * parallel subagents, plan mode) and Codex has its own conventions.
  *
- * Skills emitted here wrap binaries or scripts that genuinely add capability
- * to Codex. Pure-AI-workflow skills (pm, design, review, retro, etc.) are NOT
- * ported — Codex's skill-creator already covers those domains, and a verbose
- * Claude port would just burn context.
+ * Claude and Codex skills are separately authored because their tool and
+ * interaction surfaces differ. The canonical product inventory lives in
+ * scripts/skill-catalog.ts.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { CODEX_SKILLS } from './skill-catalog';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const OUT_ROOT = path.join(ROOT, '.agents', 'skills');
@@ -88,9 +88,9 @@ includes this resolver inline so they remain self-contained.
 
 ## What's NOT here (intentionally)
 
-skystack on Claude Code includes workflow skills like \`/pm\`, \`/design\`,
-\`/review\`, \`/retro\` — these are not ported to Codex because Codex's own
-skill-creator covers those domains better, and a mechanical port would burn
+Some Claude-specific workflows — \`/design\`, \`/publish\`, \`/review\`,
+\`/retro\`, and \`/security\` — are intentionally not ported to Codex because
+Codex's own tools cover those domains better, and a mechanical port would burn
 context with Claude-specific content.
 
 For cross-model review from Codex, use \`$claude-review\`.
@@ -1040,10 +1040,12 @@ function writeSkill(skill: Skill): boolean {
   return changed;
 }
 
-function cleanObsolete(): void {
+function cleanObsolete(): boolean {
+  let changed = false;
   for (const name of OBSOLETE) {
     const dir = path.join(OUT_ROOT, name);
     if (!fs.existsSync(dir)) continue;
+    changed = true;
     if (DRY_RUN) {
       console.log(`STALE-REMOVE ${path.relative(ROOT, dir)}`);
     } else {
@@ -1051,12 +1053,13 @@ function cleanObsolete(): void {
       console.log(`REMOVED ${path.relative(ROOT, dir)}`);
     }
   }
+  return changed;
 }
 
 // Create bin/ chain symlinks inside the umbrella skystack skill so
 // `~/.codex/skills/skystack/bin/browse` resolves all the way to <repo>/browse/dist/browse.
 // Relative targets so the symlinks survive any install location.
-function ensureBinSymlinks(): void {
+function ensureBinSymlinks(): boolean {
   const umbrellaDir = path.join(OUT_ROOT, 'skystack');
   const binDir = path.join(umbrellaDir, 'bin');
   // From <repo>/.agents/skills/skystack/bin/<name>, three "../" land at <repo>.
@@ -1066,25 +1069,40 @@ function ensureBinSymlinks(): void {
     ['mobile', '../../../../mobile/dist/mobile'],
     ['skystack-redact', '../../../../bin/skystack-redact'],
   ];
-  if (DRY_RUN) {
-    for (const [name] of links) {
-      console.log(`STALE-LINK ${path.relative(ROOT, path.join(binDir, name))}`);
-    }
-    return;
-  }
-  fs.mkdirSync(binDir, { recursive: true });
+  let changed = false;
   for (const [name, target] of links) {
     const linkPath = path.join(binDir, name);
+    let currentTarget: string | null = null;
     try {
-      const existing = fs.readlinkSync(linkPath);
-      if (existing === target) continue;
-      fs.unlinkSync(linkPath);
+      currentTarget = fs.readlinkSync(linkPath);
     } catch {
-      // Doesn't exist yet, or isn't a symlink
-      if (fs.existsSync(linkPath)) fs.rmSync(linkPath, { force: true });
+      // Missing or not a symlink.
     }
+    if (currentTarget === target) continue;
+
+    changed = true;
+    if (DRY_RUN) {
+      console.log(`STALE-LINK ${path.relative(ROOT, linkPath)}`);
+      continue;
+    }
+
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.rmSync(linkPath, { recursive: true, force: true });
     fs.symlinkSync(target, linkPath);
     console.log(`LINKED ${path.relative(ROOT, linkPath)} -> ${target}`);
+  }
+  return changed;
+}
+
+function assertCatalogMatchesDefinitions(): void {
+  const catalogNames = CODEX_SKILLS.map((skill) => skill.name).sort();
+  const definitionNames = SKILLS.map((skill) => skill.name).sort();
+  if (catalogNames.join('\n') !== definitionNames.join('\n')) {
+    throw new Error(
+      'Codex generator definitions do not match scripts/skill-catalog.ts.\n' +
+      `Catalog: ${catalogNames.join(', ')}\n` +
+      `Generator: ${definitionNames.join(', ')}`,
+    );
   }
 }
 
@@ -1093,14 +1111,14 @@ function main(): void {
     fs.mkdirSync(OUT_ROOT, { recursive: true });
   }
 
-  cleanObsolete();
+  assertCatalogMatchesDefinitions();
 
-  let changed = false;
+  let changed = cleanObsolete();
   for (const skill of SKILLS) {
     changed = writeSkill(skill) || changed;
   }
 
-  ensureBinSymlinks();
+  changed = ensureBinSymlinks() || changed;
 
   if (DRY_RUN && changed) process.exit(1);
 }

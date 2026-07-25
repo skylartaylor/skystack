@@ -2,8 +2,8 @@
 name: design
 description: |
   Your designer friend. Builds design systems from scratch or audits what you've built.
-  Researches the landscape, catches AI slop, fixes visual issues. Always presents a plan
-  before working. Use when asked to "review design", "create design system", "audit the UI",
+  Researches the landscape, catches AI slop, and fixes visual issues when requested.
+  Use when asked to "review design", "create design system", "audit the UI",
   "check for AI slop", or "build DESIGN.md".
 allowed-tools:
   - Bash
@@ -94,23 +94,17 @@ write DESIGN.md from what you find.
 
 ---
 
-## Phase 2: Present the Plan
+## Phase 2: Set the Scope
 
-**Output the plan as chat text** based on the mode you detected, then follow with a minimal AskUserQuestion.
+State the mode, scope, and evidence you will gather in a short chat update, then proceed.
 
-- **Consultation:** Explain you'll research the landscape (optional), propose a complete design system, generate a preview, and write DESIGN.md.
-- **Review:** Explain you'll extract the live design system, audit 10 categories, catch AI slop, and either report findings or fix them.
+- **Consultation:** Research when current product examples would materially improve
+  the result, then propose a coherent design system and preview. Ask only when a
+  real product choice changes the direction.
+- **Review:** Extract the live design system, audit the 10 categories, catch AI
+  slop, and report findings. Fix issues only when the user requested fixes.
 
-Then use AskUserQuestion:
-- **Consultation:** Question: "Want competitive research first, or should I work from my knowledge of the space?"
-  - A) Research first (Recommended)
-  - B) Skip research, go from knowledge
-- **Review:** Question: "How do you want me to handle issues I find?"
-  - A) Audit and fix (Recommended)
-  - B) Report only
-  - C) I want consultation mode instead
-
-**STOP.** Do not proceed until the user responds.
+If the request already answers these questions, do not ask them again.
 
 ---
 
@@ -310,7 +304,7 @@ If the repo has `TODOS.md`, add deferred findings as TODOs and annotate fixed on
 
 ## Important Rules
 
-1. **Always present a plan first.** Never start working without telling the user what you're going to do and getting approval.
+1. **State the scope, then proceed.** Ask only when a real design choice changes the outcome or before an unrequested edit.
 2. **Propose, don't present menus.** Make opinionated recommendations, then let the user adjust.
 3. **Every recommendation needs a rationale.** Never say "I recommend X" without "because Y."
 4. **Coherence over individual choices.** A system where every piece reinforces every other piece beats individually "optimal" but mismatched choices.

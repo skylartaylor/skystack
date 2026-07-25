@@ -1,17 +1,23 @@
 import { describe, test, expect } from 'bun:test';
-import { validateSkill, extractRemoteSlugPatterns, extractWeightsFromTable } from './helpers/skill-parser';
+import { validateSkill, extractRemoteSlugPatterns } from './helpers/skill-parser';
 import { ALL_COMMANDS, COMMAND_DESCRIPTIONS, READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS } from '../browse/src/commands';
 import { SNAPSHOT_FLAGS } from '../browse/src/snapshot';
+import { CLAUDE_SKILLS } from '../scripts/skill-catalog';
 import * as fs from 'fs';
 import * as path from 'path';
 
 const ROOT = path.resolve(import.meta.dir, '..');
+const SKILLS_WITH_PREAMBLE = CLAUDE_SKILLS
+  .filter((skill) =>
+    fs.readFileSync(path.join(ROOT, skill.claudeTemplate), 'utf-8').includes('{{PREAMBLE}}'),
+  )
+  .map((skill) => skill.claudeOutput);
 
 describe('SKILL.md command validation', () => {
   test('all $B commands in SKILL.md are valid browse commands', () => {
     const result = validateSkill(path.join(ROOT, 'SKILL.md'));
     expect(result.invalid).toHaveLength(0);
-    expect(result.valid.length).toBeGreaterThan(0);
+    expect(result.valid).toHaveLength(0);
   });
 
   test('all snapshot flags in SKILL.md are valid', () => {
@@ -175,53 +181,6 @@ describe('Generated SKILL.md freshness', () => {
   });
 });
 
-// --- Update check preamble validation ---
-
-describe('Update check preamble', () => {
-  const skillsWithUpdateCheck = [
-    'SKILL.md', 'browse/SKILL.md', 'qa/SKILL.md',
-    'setup-browser-cookies/SKILL.md',
-    'publish/SKILL.md', 'review/SKILL.md',
-    'retro/SKILL.md',
-    'design/SKILL.md',
-    'document-release/SKILL.md',
-  ];
-
-  for (const skill of skillsWithUpdateCheck) {
-    test(`${skill} update check line ends with || true`, () => {
-      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
-      // The second line of the bash block must end with || true
-      // to avoid exit code 1 when _UPD is empty (up to date)
-      const match = content.match(/\[ -n "\$_UPD" \].*$/m);
-      expect(match).not.toBeNull();
-      expect(match![0]).toContain('|| true');
-    });
-  }
-
-  test('all skills with update check are generated from .tmpl', () => {
-    for (const skill of skillsWithUpdateCheck) {
-      const tmplPath = path.join(ROOT, skill + '.tmpl');
-      expect(fs.existsSync(tmplPath)).toBe(true);
-    }
-  });
-
-  test('update check bash block exits 0 when up to date', () => {
-    // Simulate the exact preamble command from SKILL.md
-    const result = Bun.spawnSync(['bash', '-c',
-      '_UPD=$(echo "" || true); [ -n "$_UPD" ] && echo "$_UPD" || true'
-    ], { stdout: 'pipe', stderr: 'pipe' });
-    expect(result.exitCode).toBe(0);
-  });
-
-  test('update check bash block exits 0 when upgrade available', () => {
-    const result = Bun.spawnSync(['bash', '-c',
-      '_UPD=$(echo "UPGRADE_AVAILABLE 0.3.3 0.4.0" || true); [ -n "$_UPD" ] && echo "$_UPD" || true'
-    ], { stdout: 'pipe', stderr: 'pipe' });
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout.toString().trim()).toBe('UPGRADE_AVAILABLE 0.3.3 0.4.0');
-  });
-});
-
 // --- Part 7: Cross-skill path consistency (A1) ---
 
 // --- Part 7: QA skill structure validation (A2) ---
@@ -229,64 +188,25 @@ describe('Update check preamble', () => {
 describe('QA skill structure validation', () => {
   const qaContent = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
 
-  test('qa/SKILL.md has all 5 phases', () => {
-    const phases = [
-      'Phase 1', 'Orient',
-      'Phase 2', 'Test Plan',
-      'Phase 3', 'Test',
-      'Phase 4', 'Fix',
-      'Phase 5', 'Report',
-    ];
-    for (const phase of phases) {
-      expect(qaContent).toContain(phase);
+  test('keeps a complete outcome-oriented flow', () => {
+    for (const section of ['## Set up', '## Orient', '## Exercise each flow', '## Findings', '## Fixes', '## Report']) {
+      expect(qaContent).toContain(section);
     }
   });
 
-  test('has plan-first flow and report-only mode', () => {
-    // Plan-first
-    expect(qaContent).toContain('Present the Test Plan');
-    expect(qaContent).toContain('Always present a test plan before testing');
-
-    // Report-only as a mode choice
-    expect(qaContent).toContain('Report only');
+  test('runs autonomously unless genuinely blocked', () => {
     expect(qaContent).toContain('report-only');
-
-    // Diff-aware mode
-    expect(qaContent).toContain('diff-aware');
-
-    // Tiers
+    expect(qaContent).toContain('Ask one concise question only when');
+    expect(qaContent).toContain('Do not add a ceremonial test-plan approval');
     expect(qaContent).toContain('--quick');
     expect(qaContent).toContain('--exhaustive');
   });
 
-  test('has all three tiers defined', () => {
-    const tiers = ['Quick', 'Standard', 'Exhaustive'];
-    for (const tier of tiers) {
-      expect(qaContent).toContain(tier);
-    }
-  });
-
-  test('health score weights sum to 100%', () => {
-    const weights = extractWeightsFromTable(qaContent);
-    expect(weights.size).toBeGreaterThan(0);
-
-    let sum = 0;
-    for (const pct of weights.values()) {
-      sum += pct;
-    }
-    expect(sum).toBe(100);
-  });
-
-  test('health score has all 8 categories', () => {
-    const weights = extractWeightsFromTable(qaContent);
-    const expectedCategories = [
-      'Console', 'Links', 'Visual', 'Functional',
-      'UX', 'Performance', 'Content', 'Accessibility',
-    ];
-    for (const cat of expectedCategories) {
-      expect(weights.has(cat)).toBe(true);
-    }
-    expect(weights.size).toBe(8);
+  test('requires interaction evidence and supports mobile', () => {
+    expect(qaContent).toContain('Do not report success based only on page load');
+    expect(qaContent).toContain('Evidence: screenshot, console error, network failure, or state assertion');
+    expect(qaContent).toContain('$M snapshot');
+    expect(qaContent).toContain('Do not substitute browser testing for a native');
   });
 
   test('has tester reference file reading', () => {
@@ -294,11 +214,10 @@ describe('QA skill structure validation', () => {
     expect(qaContent).toContain('references/tester.md');
   });
 
-  test('output structure references report directory layout', () => {
-    expect(qaContent).toContain('qa-report-');
-    expect(qaContent).toContain('baseline.json');
-    expect(qaContent).toContain('screenshots/');
-    expect(qaContent).toContain('.skystack/qa-reports/');
+  test('fixes remain explicitly request-gated and verified', () => {
+    expect(qaContent).toContain('Only enter this section when the user requested fixes');
+    expect(qaContent).toContain('Confirm the root cause');
+    expect(qaContent).toContain('repeat the exact browser or mobile flow');
   });
 });
 
@@ -306,14 +225,11 @@ describe('QA skill structure validation', () => {
 // --- Hardcoded branch name detection in templates ---
 
 describe('No hardcoded branch names in SKILL templates', () => {
-  const tmplFiles = [
-    'publish/SKILL.md.tmpl',
-    'review/SKILL.md.tmpl',
-    'qa/SKILL.md.tmpl',
-    'retro/SKILL.md.tmpl',
-    'document-release/SKILL.md.tmpl',
-    'design/SKILL.md.tmpl',
-  ];
+  const tmplFiles = CLAUDE_SKILLS
+    .filter((skill) =>
+      fs.readFileSync(path.join(ROOT, skill.claudeTemplate), 'utf-8').includes('{{BASE_BRANCH_DETECT}}'),
+    )
+    .map((skill) => skill.claudeTemplate);
 
   // Patterns that indicate hardcoded 'main' in git commands
   const gitMainPatterns = [
@@ -374,74 +290,17 @@ describe('TODOS-format.md reference consistency', () => {
     expect(content).toContain('## Completed');
   });
 
-  test('skills that write TODOs reference TODOS-format.md', () => {
-    const shipContent = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-
-    expect(shipContent).toContain('TODOS-format.md');
-  });
 });
 
-// --- v0.4.1 feature coverage: RECOMMENDATION format, session awareness, enum completeness ---
-
-describe('v0.4.1 preamble features', () => {
-  const skillsWithPreamble = [
-    'SKILL.md', 'browse/SKILL.md', 'qa/SKILL.md',
-    'setup-browser-cookies/SKILL.md',
-    'publish/SKILL.md', 'review/SKILL.md',
-    'retro/SKILL.md',
-    'design/SKILL.md',
-    'document-release/SKILL.md',
-  ];
-
-  for (const skill of skillsWithPreamble) {
-    test(`${skill} contains RECOMMENDATION format`, () => {
+describe('Shared working-context contract', () => {
+  for (const skill of SKILLS_WITH_PREAMBLE) {
+    test(`${skill} keeps context guidance compact and outcome-focused`, () => {
       const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
-      expect(content).toContain('RECOMMENDATION: Choose');
-      expect(content).toContain('AskUserQuestion');
-    });
-
-    test(`${skill} contains session awareness`, () => {
-      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
-      expect(content).toContain('_SESSIONS');
-      expect(content).toContain('RECOMMENDATION');
-    });
-  }
-});
-
-// --- Contributor mode preamble structure validation ---
-
-describe('Contributor mode preamble structure', () => {
-  const skillsWithPreamble = [
-    'SKILL.md', 'browse/SKILL.md', 'qa/SKILL.md',
-    'setup-browser-cookies/SKILL.md',
-    'publish/SKILL.md', 'review/SKILL.md',
-    'retro/SKILL.md',
-    'design/SKILL.md',
-    'document-release/SKILL.md',
-  ];
-
-  for (const skill of skillsWithPreamble) {
-    test(`${skill} has 0-10 rating in contributor mode`, () => {
-      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
-      expect(content).toContain('0 to 10');
-      expect(content).toContain('My rating');
-    });
-
-    test(`${skill} has calibration example`, () => {
-      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
-      expect(content).toContain('Calibration');
-      expect(content).toContain('the bar');
-    });
-
-    test(`${skill} has "what would make this a 10" field`, () => {
-      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
-      expect(content).toContain('What would make this a 10');
-    });
-
-    test(`${skill} uses periodic reflection (not per-command)`, () => {
-      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
-      expect(content).toContain('workflow step');
-      expect(content).not.toContain('After you use skystack-provided CLIs');
+      expect(content).toContain('## Working context');
+      expect(content).toContain('safe, reversible work in scope');
+      expect(content).not.toContain('_SESSIONS');
+      expect(content).not.toContain('Contributor Mode');
+      expect(content).not.toContain('Completeness: X/10');
     });
   }
 });
@@ -478,39 +337,17 @@ describe('Enum & Value Completeness in review checklist', () => {
     expect(enumLine!.trimStart().startsWith('├─') || enumLine!.trimStart().startsWith('└─')).toBe(true);
   });
 
-  test('Fix-First Heuristic exists in checklist and is referenced by review + ship', () => {
+  test('Fix-First Heuristic remains available while workflows gate edits by request', () => {
     expect(checklist).toContain('## Fix-First Heuristic');
     expect(checklist).toContain('AUTO-FIX');
     expect(checklist).toContain('ASK');
 
     const reviewSkill = fs.readFileSync(path.join(ROOT, 'review/SKILL.md'), 'utf-8');
     const shipSkill = fs.readFileSync(path.join(ROOT, 'publish/SKILL.md'), 'utf-8');
-    expect(reviewSkill).toContain('AUTO-FIX');
-    expect(reviewSkill).toContain('[AUTO-FIXED]');
-    expect(shipSkill).toContain('AUTO-FIX');
-    expect(shipSkill).toContain('[AUTO-FIXED]');
+    expect(reviewSkill).toContain('Review is read-only unless the user explicitly asked for fixes');
+    expect(shipSkill).toContain('Fix clear, in-scope issues locally');
+    expect(shipSkill).toContain('Ask only when a finding requires a product');
   });
-});
-
-// --- Preamble spot-check ---
-
-describe('Preamble in generated SKILL.md files', () => {
-  const skillsWithPreamble = [
-    'SKILL.md', 'browse/SKILL.md', 'qa/SKILL.md',
-    'setup-browser-cookies/SKILL.md',
-    'publish/SKILL.md', 'review/SKILL.md',
-    'retro/SKILL.md',
-    'design/SKILL.md',
-    'document-release/SKILL.md',
-  ];
-
-  for (const skill of skillsWithPreamble) {
-    test(`${skill} contains AskUserQuestion format`, () => {
-      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
-      expect(content).toContain('AskUserQuestion Format');
-      expect(content).toContain('Completeness: X/10');
-    });
-  }
 });
 
 // --- Part 7: Planted-bug fixture validation (A4) ---
@@ -604,200 +441,59 @@ describe('skystack-slug', () => {
   });
 });
 
-// --- Test Bootstrap validation ---
-
-describe('Test Bootstrap ({{TEST_BOOTSTRAP}}) integration', () => {
-  test('TEST_BOOTSTRAP resolver produces valid content', () => {
-    const shipContent = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(shipContent).toContain('Test Framework Bootstrap');
-    expect(shipContent).toContain('RUNTIME:ruby');
-    expect(shipContent).toContain('RUNTIME:node');
-    expect(shipContent).toContain('RUNTIME:python');
-    expect(shipContent).toContain('no-test-bootstrap');
-    expect(shipContent).toContain('BOOTSTRAP_DECLINED');
+describe('Lean QA and publish contracts', () => {
+  test('QA fixes are rooted in evidence and followed by an exact retest', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Confirm the root cause');
+    expect(content).toContain('Add a regression test when practical');
+    expect(content).toContain('repeat the exact browser or mobile flow');
   });
 
-  test('TEST_BOOTSTRAP no longer appears in qa/SKILL.md (v3 inlines methodology)', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+  test('publish discovers repository checks instead of embedding framework tutorials', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Discover verification commands from repository instructions');
+    expect(content).toContain('targeted tests for changed behavior');
     expect(content).not.toContain('Test Framework Bootstrap');
+    expect(content).not.toContain('Step 3.4: Test Coverage Audit');
   });
 
-  test('TEST_BOOTSTRAP appears in publish/SKILL.md', () => {
+  test('publish blocks delivery on failures and requires fresh final evidence', () => {
     const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Test Framework Bootstrap');
-    expect(content).toContain('Step 2.5');
+    expect(content).toContain('If verification fails, stop before publishing');
+    expect(content).toContain('Do not claim completion from stale');
+    expect(content).toContain('Never report a push, PR, merge, deployment, or release');
   });
 
-  test('TEST_BOOTSTRAP appears in design/SKILL.md (if present)', () => {
-    const skillPath = path.join(ROOT, 'design', 'SKILL.md');
-    if (!fs.existsSync(skillPath)) return;
-    // design skill may or may not include test bootstrap depending on implementation
-    // This test verifies the file exists and is readable
-    const content = fs.readFileSync(skillPath, 'utf-8');
-    expect(content.length).toBeGreaterThan(0);
-  });
-
-  test('bootstrap includes framework knowledge table', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('vitest');
-    expect(content).toContain('minitest');
-    expect(content).toContain('pytest');
-    expect(content).toContain('cargo test');
-    expect(content).toContain('phpunit');
-    expect(content).toContain('ExUnit');
-  });
-
-  test('bootstrap includes CI/CD pipeline generation', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('.github/workflows/test.yml');
-    expect(content).toContain('GitHub Actions');
-  });
-
-  test('bootstrap includes first real tests step', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('First real tests');
-    expect(content).toContain('git log --since=30.days');
-    expect(content).toContain('Prioritize by risk');
-  });
-
-  test('bootstrap includes vibe coding philosophy', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('vibe coding');
-    expect(content).toContain('100% test coverage');
-  });
-
-  test('WebSearch is in allowed-tools for research-oriented skills', () => {
-    const design = fs.readFileSync(path.join(ROOT, 'design', 'SKILL.md'), 'utf-8');
-    const research = fs.readFileSync(path.join(ROOT, 'research', 'SKILL.md'), 'utf-8');
-    const pm = fs.readFileSync(path.join(ROOT, 'pm', 'SKILL.md'), 'utf-8');
-    expect(design).toContain('WebSearch');
-    expect(research).toContain('WebSearch');
-    expect(pm).toContain('WebSearch');
-  });
-});
-
-// --- Phase 8e.5 regression test validation ---
-
-describe('Phase 4e regression test generation', () => {
-  test('qa/SKILL.md contains regression test section', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('4e. Regression test');
-    expect(content).toContain('Regression: ISSUE-NNN');
-    expect(content).toContain('WTF');
-  });
-
-  test('qa/SKILL.md has self-regulation with WTF heuristic', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Self-regulation');
-    expect(content).toContain('WTF-LIKELIHOOD');
-  });
-
-  test('design has CSS-aware regression test variant (if applicable)', () => {
-    const skillPath = path.join(ROOT, 'design', 'SKILL.md');
-    if (!fs.existsSync(skillPath)) return;
-    const content = fs.readFileSync(skillPath, 'utf-8');
-    // design skill should reference regression testing concepts
-    expect(content.length).toBeGreaterThan(0);
-  });
-
-  test('regression test includes attribution comment', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('// Regression: ISSUE-NNN');
-  });
-});
-
-// --- Step 3.4 coverage audit validation ---
-
-describe('Step 3.4 test coverage audit', () => {
-  test('publish/SKILL.md contains Step 3.4', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Step 3.4: Test Coverage Audit');
-    expect(content).toContain('CODE PATH COVERAGE');
-  });
-
-  test('Step 3.4 includes quality scoring rubric', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('★★★');
-    expect(content).toContain('★★');
-    expect(content).toContain('edge cases AND error paths');
-    expect(content).toContain('happy path only');
-  });
-
-  test('Step 3.4 includes before/after test count', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Count test files before');
-    expect(content).toContain('Count test files after');
-  });
-
-  test('ship PR body includes Test Coverage section', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('## Test Coverage');
-  });
-
-  test('ship rules include test generation rule', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Step 3.4 generates coverage tests');
-    expect(content).toContain('Never commit failing tests');
-  });
-
-  test('Step 3.4 includes vibe coding philosophy', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('vibe coding becomes yolo coding');
-  });
-
-  test('Step 3.4 traces actual codepaths, not just syntax', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Trace every codepath');
-    expect(content).toContain('Trace data flow');
-    expect(content).toContain('Diagram the execution');
-  });
-
-  test('Step 3.4 maps user flows and interaction edge cases', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Map user flows');
-    expect(content).toContain('Interaction edge cases');
-    expect(content).toContain('Double-click');
-    expect(content).toContain('Navigate away');
-    expect(content).toContain('Error states the user can see');
-    expect(content).toContain('Empty/zero/boundary states');
-  });
-
-  test('Step 3.4 diagram includes USER FLOW COVERAGE section', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('USER FLOW COVERAGE');
-    expect(content).toContain('Code paths:');
-    expect(content).toContain('User flows:');
+  test('research-oriented skills retain web search capability', () => {
+    for (const skill of ['design', 'research', 'pm']) {
+      const content = fs.readFileSync(path.join(ROOT, skill, 'SKILL.md'), 'utf-8');
+      expect(content).toContain('WebSearch');
+    }
   });
 });
 
 // --- Retro test health validation ---
 
 describe('Retro test health tracking', () => {
-  test('retro/SKILL.md has test health data gathering commands', () => {
+  test('retro gathers test evidence without equating file count with health', () => {
     const content = fs.readFileSync(path.join(ROOT, 'retro', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('# 9. Test file count');
-    expect(content).toContain('# 10. Regression test commits');
-    expect(content).toContain('# 11. Test files changed');
+    expect(content).toContain('changed test/spec/fixture files');
+    expect(content).toContain('have durable passing');
+    expect(content).toMatch(/Do not infer test health or coverage from file\s+count/);
   });
 
-  test('retro/SKILL.md has Test Health metrics row', () => {
+  test('retro reports verification status and uncertainty', () => {
     const content = fs.readFileSync(path.join(ROOT, 'retro', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Test Health');
-    expect(content).toContain('regression tests');
+    expect(content).toContain('test_files_changed');
+    expect(content).toContain('unrun tests');
+    expect(content).toContain('limitations');
   });
 
-  test('retro/SKILL.md has Test Health narrative section', () => {
+  test('retro rejects vanity productivity metrics', () => {
     const content = fs.readFileSync(path.join(ROOT, 'retro', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('### Test Health');
-    expect(content).toContain('Total test files');
-    expect(content).toContain('vibe coding safe');
-  });
-
-  test('retro JSON schema includes test_health field', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'retro', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('test_health');
-    expect(content).toContain('total_test_files');
-    expect(content).toContain('regression_test_commits');
+    expect(content).toContain('Never calculate LOC/hour');
+    expect(content).toContain('Never equate activity volume with value');
+    expect(content).not.toContain('focus score');
   });
 });
 

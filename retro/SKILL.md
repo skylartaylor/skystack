@@ -1,11 +1,11 @@
 ---
 name: retro
 description: |
-  Weekly engineering retrospective. Analyzes commit history, work patterns,
-  and code quality metrics with persistent history and trend tracking.
-  Team-aware: breaks down per-person contributions with praise and growth areas.
-  Use when asked to "weekly retro", "what did we ship", or "engineering retrospective".
-argument-hint: "[7d|14d|30d|24h|compare]"
+  Evidence-first engineering retrospective for a recent delivery window. Explains
+  what shipped, regressions and quality signals, recurring hotspots, and the most
+  useful next actions. Supports comparison with the prior equivalent window.
+  Use when asked for a "weekly retro", "what did we ship", or "engineering retrospective".
+argument-hint: "[7d|14d|30d|24h|compare [window]]"
 allowed-tools:
   - Bash
   - Read
@@ -16,136 +16,15 @@ allowed-tools:
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
 
-## Preamble (run first)
+## Working context
 
-```bash
-_UPD=$(~/.claude/skills/skystack/bin/skystack-update-check 2>/dev/null || .claude/skills/skystack/bin/skystack-update-check 2>/dev/null || true)
-[ -n "$_UPD" ] && echo "$_UPD" || true
-mkdir -p ~/.skystack/sessions
-touch ~/.skystack/sessions/"$PPID"
-_SESSIONS=$(find ~/.skystack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
-find ~/.skystack/sessions -mmin +120 -type f -delete 2>/dev/null || true
-_CONTRIB=$(~/.claude/skills/skystack/bin/skystack-config get skystack_contributor 2>/dev/null || true)
-_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
-echo "BRANCH: $_BRANCH"
-eval "$(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)" 2>/dev/null || true
-_LEARN_FILE="${SKYSTACK_HOME:-$HOME/.skystack}/projects/${SLUG:-unknown}/learnings.jsonl"
-if [ -f "$_LEARN_FILE" ]; then
-  _LEARN_COUNT=$(wc -l < "$_LEARN_FILE" 2>/dev/null | tr -d ' ')
-  echo "LEARNINGS: $_LEARN_COUNT"
-  [ "$_LEARN_COUNT" -gt 5 ] 2>/dev/null && ~/.claude/skills/skystack/bin/skystack-learnings-search --limit 3 2>/dev/null || true
-fi
-```
-
-If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack/skystack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running skystack v{to} (just updated!)" and continue.
-
-## AskUserQuestion Format
-
-**Two types of AskUserQuestion calls — use the right format for each:**
-
-### Plan approval (review plan, test plan, spec approval, implementation plan)
-
-Output the plan details as **regular chat text first** — never inside the AskUserQuestion call. Then use AskUserQuestion with only a short question and 2-3 clean options. No detail in option descriptions.
-
-Example:
-```
-[chat text output]
-I've read the diff (~180 lines, 4 files). Here's what I'll focus on:
-
-1. **Race condition** — status transition in OrderService isn't atomic
-2. **N+1** — PostsController#index missing includes(:author)
-3. **Test coverage** — BillingService has no tests
-
-[AskUserQuestion]
-Question: "Anything to add or skip?"
-A) Looks good, go
-B) Adjust the focus
-```
-
-### Judgment questions (bugs, design decisions, tradeoffs)
-
-**ALWAYS follow this structure:**
-1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
-2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
-3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts when the delta is small. Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
-4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
-
-Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
-
-Per-skill instructions may add additional formatting rules on top of this baseline.
-
-5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and preferred. Exception: batch-ask patterns where multiple related findings are presented with per-item options (e.g., review findings) are fine as a single call.
-
-## Contributor Mode
-
-If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skystack experience 0 to 10. Not a 10? File a report at `~/.skystack/contributor-logs/{slug}.md` (skip if exists, max 3/session, file inline, tell user "Filed skystack field report: {title}"):
-
-```
-# {Title}
-**What I was trying to do:** {action}
-**What happened instead:** {result}
-**My rating:** {0-10} — {why not a 10}
-**What would make this a 10:** {one sentence}
-**Date:** {YYYY-MM-DD} | **Version:** {version} | **Skill:** /{skill}
-```
-
-Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing.
-
-## Context Health
-
-If you notice yourself circling the same problem — repeating tool calls, re-reading the same files, retrying a failing approach — stop. Self-summarize in chat: what you've tried, what you learned, what's left. Then reassess before continuing. Summaries are chat output only — never mutate git state (commit, push, reset, stash) as part of a self-summary.
-
-## Operational Self-Improvement
-
-Before wrapping up, reflect on this session:
-- Did any commands fail unexpectedly?
-- Did you take a wrong approach and have to backtrack?
-- Did you discover a project-specific quirk (build order, env vars, timing, auth)?
-- Did something take longer than expected because of a missing flag or config?
-
-If yes, log an operational learning for future sessions:
-
-```bash
-~/.claude/skills/skystack/bin/skystack-learnings-log '{"skill":"SKILL_NAME","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
-```
-
-Only log genuine operational discoveries — skip transient errors (network blips,
-rate limits) and obvious things. A good test: would knowing this save 5+ minutes
-in a future session? If yes, log it.
+Read the repository instructions and only the source needed for this request.
+Proceed on safe, reversible work in scope. Ask when a missing decision changes
+the outcome or an action is destructive, externally visible, or hard to undo.
 
 ## Voice
 
-Direct. Concrete. No ceremony.
-
-**Tone:** You're a sharp colleague who types fast. Incomplete sentences sometimes.
-"Wild." "Not great." Parentheticals. Say what you mean — don't pad it.
-
-**Banned AI vocabulary:** Never use these words — they're tells that an AI wrote this:
-delve, crucial, robust, comprehensive, nuanced, multifaceted, furthermore, moreover,
-additionally, pivotal, landscape, tapestry, underscore, foster, showcase, intricate,
-vibrant, fundamental, significant, interplay, utilize, leverage, facilitate, streamline
-
-**Banned filler phrases:**
-"here's the kicker", "here's the thing", "plot twist", "let me break this down",
-"the bottom line", "make no mistake", "can't stress this enough", "at the end of the day",
-"it's worth noting that", "it goes without saying"
-
-**Connect to user outcomes:** Every finding, recommendation, or status update must connect
-to what the real user will experience. Not "this function lacks error handling" but
-"if the API returns 500, the user sees a blank screen with no way to retry."
-
-**No trailing summaries.** Don't recap what you just did. The user can read the output.
-
-**Final test:** Before any output, ask yourself: would a senior engineer say this out loud
-to a colleague? If it sounds like a blog post, rewrite it.
-
-## Detect default branch
-
-Before gathering data, detect the repo's default branch name:
-`gh repo view --json defaultBranchRef -q .defaultBranchRef.name`
-
-If this fails, fall back to `main`. Use the detected name wherever the instructions
-say `origin/<default>` below.
+Be direct and concrete. Connect findings and recommendations to user outcomes.
 
 ## Prior Learnings
 
@@ -160,470 +39,154 @@ about this project's quirks, common pitfalls, and working patterns can save
 time and prevent repeated mistakes. Mark any applied learning with
 "Prior learning applied: [key]" in your output.
 
----
-
-# /retro — Weekly Engineering Retrospective
-
-Generates a weekly engineering retrospective analyzing commit history, work patterns, and code quality metrics. Works solo or with a team — identifies the user running the command, then covers every contributor with per-person praise and growth areas.
-
-## User-invocable
-When the user types `/retro`, run this skill.
+# /retro — Engineering retrospective
+Produce a candid account of delivery over a bounded period. Favor a few supported
+conclusions over exhaustive statistics. Activity does not measure productivity,
+effort, or individual performance.
 
 ## Arguments
-- `/retro` — default: last 7 days
-- `/retro 24h` — last 24 hours
-- `/retro 14d` — last 14 days
-- `/retro 30d` — last 30 days
-- `/retro compare` — compare current window vs prior same-length window
-- `/retro compare 14d` — compare with explicit window
+- `/retro` uses 7 days; `/retro 24h`, `14d`, `30d`, or `2w` sets the window.
+- `/retro compare [window]` compares it with the preceding equal window.
 
-## Instructions
+Accept a positive integer followed by `h`, `d`, or `w`, optionally after `compare`.
+If the argument is invalid, show the accepted forms and stop.
 
-Parse the argument to determine the time window. Default to 7 days if no argument given. Use `--since="N days ago"`, `--since="N hours ago"`, or `--since="N weeks ago"` (for `w` units) for git log queries. All times should be reported in **Pacific time** (use `TZ=America/Los_Angeles` when converting timestamps).
+## 1. Establish the evidence boundary
+Resolve and remember:
 
-**Argument validation:** If the argument doesn't match a number followed by `d`, `h`, or `w`, the word `compare`, or `compare` followed by a number and `d`/`h`/`w`, show this usage and stop:
-```
-Usage: /retro [window]
-  /retro              — last 7 days (default)
-  /retro 24h          — last 24 hours
-  /retro 14d          — last 14 days
-  /retro 30d          — last 30 days
-  /retro compare      — compare this period vs prior period
-  /retro compare 14d  — compare with explicit window
-```
+1. The exact start and end timestamps for the requested window.
+2. The repository's normal display timezone. Use the environment's local timezone
+   unless the user requests another one; name it in the report.
+3. The default branch from `gh repo view --json defaultBranchRef`, then
+   `refs/remotes/origin/HEAD`, then the current branch as fallbacks.
+4. The current user's name and email from `git config`.
+5. The branch ref actually inspected. Prefer `origin/<default>` after a successful
+   fetch, but use the available local ref if the remote is unavailable and disclose it.
+6. The inspected HEAD SHA and whether the working tree is dirty.
 
-### Step 1: Gather Raw Data
+Fetch only the detected default branch. Report a fetch failure and use the available
+ref. In compare mode, use explicit, non-overlapping boundaries for the immediately
+preceding window of equal duration.
 
-First, fetch origin and identify the current user:
-```bash
-git fetch origin <default> --quiet
-# Identify who is running the retro
-git config user.name
-git config user.email
-```
+## 2. Gather a compact evidence set
 
-The name returned by `git config user.name` is **"you"** — the person reading this retro. All other authors are teammates. Use this to orient the narrative: "your" commits vs teammate contributions.
-
-Run ALL of these git commands in parallel (they are independent):
+Inspect the current window on the selected branch with:
 
 ```bash
-# 1. All commits in window with timestamps, subject, hash, AUTHOR, files changed, insertions, deletions
-git log origin/<default> --since="<window>" --format="%H|%aN|%ae|%ai|%s" --shortstat
-
-# 2. Per-commit test vs total LOC breakdown with author
-#    Each commit block starts with COMMIT:<hash>|<author>, followed by numstat lines.
-#    Separate test files (matching test/|spec/|__tests__/) from production files.
-git log origin/<default> --since="<window>" --format="COMMIT:%H|%aN" --numstat
-
-# 3. Commit timestamps for session detection and hourly distribution (with author)
-#    Use TZ=America/Los_Angeles for Pacific time conversion
-TZ=America/Los_Angeles git log origin/<default> --since="<window>" --format="%at|%aN|%ai|%s" | sort -n
-
-# 4. Files most frequently changed (hotspot analysis)
-git log origin/<default> --since="<window>" --format="" --name-only | grep -v '^$' | sort | uniq -c | sort -rn
-
-# 5. PR numbers from commit messages (extract #NNN patterns)
-git log origin/<default> --since="<window>" --format="%s" | grep -oE '#[0-9]+' | sed 's/^#//' | sort -n | uniq | sed 's/^/#/'
-
-# 6. Per-author file hotspots (who touches what)
-git log origin/<default> --since="<window>" --format="AUTHOR:%aN" --name-only
-
-# 7. Per-author commit counts (quick summary)
-git shortlog origin/<default> --since="<window>" -sn --no-merges
-
-# 8. TODOS.md backlog (if available)
-cat TODOS.md 2>/dev/null || true
-
-# 9. Test file count
-find . -name '*.test.*' -o -name '*.spec.*' -o -name '*_test.*' -o -name '*_spec.*' 2>/dev/null | grep -v node_modules | wc -l
-
-# 10. Regression test commits in window
-git log origin/<default> --since="<window>" --oneline --grep="test(qa):" --grep="test(design):" --grep="test: coverage"
-
-# 11. Test files changed in window
-git log origin/<default> --since="<window>" --format="" --name-only | grep -E '\.(test|spec)\.' | sort -u | wc -l
+git log <branch-ref> --since="<start>" --until="<end>" --no-merges \
+  --date=iso-strict --format="COMMIT%n%H%n%aN%n%aE%n%aI%n%s%n%b" --numstat
 ```
 
-### Step 2: Compute Metrics
-
-Calculate and present these metrics in a summary table:
-
-| Metric | Value |
-|--------|-------|
-| Commits to main | N |
-| Contributors | N |
-| PRs merged | N |
-| Total insertions | N |
-| Total deletions | N |
-| Net LOC added | N |
-| Test LOC (insertions) | N |
-| Test LOC ratio | N% |
-| Version range | vX.Y.Z.W → vX.Y.Z.W |
-| Active days | N |
-| Detected sessions | N |
-| Avg LOC/session-hour | N |
-| Test Health | N total tests · M added this period · K regression tests |
-
-Then show a **per-author breakdown** immediately below:
-
-```
-Contributor         Commits   +/-          Top area
-You (garry)              32   +2400/-300   browse/
-alice                    12   +800/-150    app/services/
-bob                       3   +120/-40     tests/
-```
-
-Sort by commits descending. The current user (from `git config user.name`) always appears first, labeled "You (name)".
-
-**Backlog Health (if TODOS.md exists):** Read `TODOS.md` (fetched in Step 1, command 9). Compute:
-- Total open TODOs (exclude items in `## Completed` section)
-- P0/P1 count (critical/urgent items)
-- P2 count (important items)
-- Items completed this period (items in Completed section with dates within the retro window)
-- Items added this period (cross-reference git log for commits that modified TODOS.md within the window)
-
-Include in the metrics table:
-```
-| Backlog Health | N open (X P0/P1, Y P2) · Z completed this period |
-```
-
-If TODOS.md doesn't exist, skip the Backlog Health row.
-
-### Step 3: Commit Time Distribution
-
-Show hourly histogram in Pacific time using bar chart:
-
-```
-Hour  Commits  ████████████████
- 00:    4      ████
- 07:    5      █████
- ...
-```
-
-Identify and call out:
-- Peak hours
-- Dead zones
-- Whether pattern is bimodal (morning/evening) or continuous
-- Late-night coding clusters (after 10pm)
-
-### Step 4: Work Session Detection
-
-Detect sessions using **45-minute gap** threshold between consecutive commits. For each session report:
-- Start/end time (Pacific)
-- Number of commits
-- Duration in minutes
-
-Classify sessions:
-- **Deep sessions** (50+ min)
-- **Medium sessions** (20-50 min)
-- **Micro sessions** (<20 min, typically single-commit fire-and-forget)
-
-Calculate:
-- Total active coding time (sum of session durations)
-- Average session length
-- LOC per hour of active time
-
-### Step 5: Commit Type Breakdown
-
-Categorize by conventional commit prefix (feat/fix/refactor/test/chore/docs). Show as percentage bar:
-
-```
-feat:     20  (40%)  ████████████████████
-fix:      27  (54%)  ███████████████████████████
-refactor:  2  ( 4%)  ██
-```
-
-Flag if fix ratio exceeds 50% — this signals a "ship fast, fix fast" pattern that may indicate review gaps.
-
-### Step 6: Hotspot Analysis
-
-Show top 10 most-changed files. Flag:
-- Files changed 5+ times (churn hotspots)
-- Test files vs production files in the hotspot list
-- VERSION/CHANGELOG frequency (version discipline indicator)
-
-### Step 7: PR Size Distribution
-
-From commit diffs, estimate PR sizes and bucket them:
-- **Small** (<100 LOC)
-- **Medium** (100-500 LOC)
-- **Large** (500-1500 LOC)
-- **XL** (1500+ LOC) — flag these with file counts
-
-### Step 8: Focus Score + Ship of the Week
-
-**Focus score:** Calculate the percentage of commits touching the single most-changed top-level directory (e.g., `app/services/`, `app/views/`). Higher score = deeper focused work. Lower score = scattered context-switching. Report as: "Focus score: 62% (app/services/)"
-
-**Ship of the week:** Auto-identify the single highest-LOC PR in the window. Highlight it:
-- PR number and title
-- LOC changed
-- Why it matters (infer from commit messages and files touched)
-
-### Step 9: Team Member Analysis
-
-For each contributor (including the current user), compute:
-
-1. **Commits and LOC** — total commits, insertions, deletions, net LOC
-2. **Areas of focus** — which directories/files they touched most (top 3)
-3. **Commit type mix** — their personal feat/fix/refactor/test breakdown
-4. **Session patterns** — when they code (their peak hours), session count
-5. **Test discipline** — their personal test LOC ratio
-6. **Biggest ship** — their single highest-impact commit or PR in the window
-
-**For the current user ("You"):** This section gets the deepest treatment. Include all the detail from the solo retro — session analysis, time patterns, focus score. Frame it in first person: "Your peak hours...", "Your biggest ship..."
-
-**For each teammate:** Write 2-3 sentences covering what they worked on and their pattern. Then:
-
-- **Praise** (1-2 specific things): Anchor in actual commits. Not "great work" — say exactly what was good. Examples: "Shipped the entire auth middleware rewrite in 3 focused sessions with 45% test coverage", "Every PR under 200 LOC — disciplined decomposition."
-- **Opportunity for growth** (1 specific thing): Frame as a leveling-up suggestion, not criticism. Anchor in actual data. Examples: "Test ratio was 12% this week — adding test coverage to the payment module before it gets more complex would pay off", "5 fix commits on the same file suggest the original PR could have used a review pass."
-
-**If only one contributor (solo repo):** Skip the team breakdown and proceed as before — the retro is personal.
-
-**If there are Co-Authored-By trailers:** Parse `Co-Authored-By:` lines in commit messages. Credit those authors for the commit alongside the primary author. Note AI co-authors (e.g., `noreply@anthropic.com`) but do not include them as team members — instead, track "AI-assisted commits" as a separate metric.
-
-### Step 10: Week-over-Week Trends (if window >= 14d)
-
-If the time window is 14 days or more, split into weekly buckets and show trends:
-- Commits per week (total and per-author)
-- LOC per week
-- Test ratio per week
-- Fix ratio per week
-- Session count per week
-
-### Step 11: Streak Tracking
-
-Count consecutive days with at least 1 commit to origin/<default>, going back from today. Track both team streak and personal streak:
+Also gather:
 
 ```bash
-# Team streak: all unique commit dates (Pacific time) — no hard cutoff
-TZ=America/Los_Angeles git log origin/<default> --format="%ad" --date=format:"%Y-%m-%d" | sort -u
-
-# Personal streak: only the current user's commits
-TZ=America/Los_Angeles git log origin/<default> --author="<user_name>" --format="%ad" --date=format:"%Y-%m-%d" | sort -u
+git log <branch-ref> --since="<start>" --until="<end>" --no-merges \
+  --format="%H%x09%s" --name-status
+git status --short
+git log <branch-ref> -1 --format="%H%x09%aI%x09%s"
 ```
 
-Count backward from today — how many consecutive days have at least one commit? This queries the full history so streaks of any length are reported accurately. Display both:
-- "Team shipping streak: 47 consecutive days"
-- "Your shipping streak: 32 consecutive days"
+Use the log to identify:
 
-### Step 12: Load History & Compare
+- meaningful deliveries and the commits/files that support them;
+- fixes, reversions, follow-up chains, or other regression signals;
+- changed test/spec/fixture files and test-related commit evidence;
+- frequently revisited files or subsystems;
+- contributors, including the current user, only where attribution helps explain
+  delivery or ownership.
 
-Before saving the new snapshot, check for prior retro history:
+Inspect diffs behind important claims. Read release notes, manifests, CI, or tests
+only when they clarify those claims. Do not infer test health or coverage from file
+count, test LOC, or prefixes. State whether tests changed, have durable passing
+evidence, were run during the retro, or remain unverified.
 
-```bash
-setopt +o nomatch 2>/dev/null || true
-ls -t .context/retros/*.json 2>/dev/null
-```
+Do not run expensive tests just to populate the retro. Run a cheap, project-standard
+check only when it safely resolves an important ambiguity.
 
-**If prior retros exist:** Load the most recent one using the Read tool. Calculate deltas for key metrics and include a **Trends vs Last Retro** section:
-```
-                    Last        Now         Delta
-Test ratio:         22%    →    41%         ↑19pp
-Sessions:           10     →    14          ↑4
-LOC/hour:           200    →    350         ↑75%
-Fix ratio:          54%    →    30%         ↓24pp (improving)
-Commits:            32     →    47          ↑47%
-Deep sessions:      3      →    5           ↑2
-```
+If there are no commits, say so, record the empty window, and suggest a more useful
+window. Do not manufacture analysis.
 
-**If no prior retros exist:** Skip the comparison section and append: "First retro recorded — run again next week to see trends."
+## 3. Analyze only supported signals
 
-### Step 13: Save Retro History
+Answer these questions:
 
-After computing all metrics (including streak) and loading any prior history for comparison, save a JSON snapshot:
+1. What outcomes shipped, and why do they matter?
+2. What broke, required rework, or remains uncertain?
+3. Which files or subsystems show meaningful churn? Separate healthy iteration from
+   suspicious repeated repair; frequency alone is not a defect.
+4. Did production changes have relevant test or verification evidence?
+5. What one to three actions would most improve the next delivery window?
 
-```bash
-mkdir -p .context/retros
-```
+Include a small metrics table only for reliable data, such as commit count,
+contributors, files changed, insertions/deletions, and changed test files. Label
+activity metrics as descriptive. Omit any metric that cannot be computed cleanly.
 
-Determine the next sequence number for today (substitute the actual date for `$(date +%Y-%m-%d)`):
-```bash
-setopt +o nomatch 2>/dev/null || true
-# Count existing retros for today to get next sequence number
-today=$(TZ=America/Los_Angeles date +%Y-%m-%d)
-existing=$(ls .context/retros/${today}-*.json 2>/dev/null | wc -l | tr -d ' ')
-next=$((existing + 1))
-# Save as .context/retros/${today}-${next}.json
-```
+Analyze work-session or time-of-day patterns only when timestamps show a clear
+pattern and the author timezone is meaningful. Commits are a delivery proxy, not
+hours worked. Never calculate LOC/hour, rank contributors, infer effort from commit
+count, diagnose habits from sparse timestamps, or treat streaks as performance.
 
-Use the Write tool to save the JSON file with this schema:
+For multiple contributors, describe shared outcomes and useful ownership context.
+Do not generate scorecards, compulsory praise/criticism per person, or negative
+comparisons between people.
+
+## 4. Compare when requested
+
+Run the same compact collection for the preceding window. Compare like with like
+and show only trustworthy deltas. Focus on changes in delivery mix, regressions,
+verification evidence, and hotspots—not whether more commits means better work.
+
+Use compatible saved history as another reference, preferring fresh git evidence
+when values conflict. Explain major improvements, regressions, and uncertainty.
+Do not show directional arrows for missing or incomparable values.
+
+## 5. Write a concise narrative
+
+Aim for roughly 700–1,200 words, shorter for sparse windows:
+
+1. **Bottom line** — the key conclusion in two or three sentences.
+2. **What shipped** — three to five outcomes with commit or file evidence.
+3. **Delivery and quality signals** — metrics, regressions, tests, and hotspots.
+4. **Compared with the prior period** — only with comparable evidence.
+5. **What to do next** — one to three prioritized actions.
+6. **Evidence notes** — ref/SHA, range, timezone, freshness, tree state, limitations.
+
+Be encouraging where the evidence earns it and blunt where risk is real. Tie claims
+to commits, diffs, files, or verification output. Avoid generic praise, vanity
+metrics, rigid report decoration, and false precision.
+
+## 6. Save compact history
+
+Read the newest `.context/retros/*.json` file if one exists. Use it only when its
+schema and evidence boundary are compatible.
+
+Before returning the retro, create `.context/retros/` if needed and write one JSON
+record for the current window. Use `<local-date>-<sequence>.json`; never overwrite
+an existing record. Save no prior-window record in compare mode.
+
 ```json
 {
-  "date": "2026-03-08",
-  "window": "7d",
-  "metrics": {
-    "commits": 47,
-    "contributors": 3,
-    "prs_merged": 12,
-    "insertions": 3200,
-    "deletions": 800,
-    "net_loc": 2400,
-    "test_loc": 1300,
-    "test_ratio": 0.41,
-    "active_days": 6,
-    "sessions": 14,
-    "deep_sessions": 5,
-    "avg_session_minutes": 42,
-    "loc_per_session_hour": 350,
-    "feat_pct": 0.40,
-    "fix_pct": 0.30,
-    "peak_hour": 22,
-    "ai_assisted_commits": 32
-  },
-  "authors": {
-    "Garry Tan": { "commits": 32, "insertions": 2400, "deletions": 300, "test_ratio": 0.41, "top_area": "browse/" },
-    "Alice": { "commits": 12, "insertions": 800, "deletions": 150, "test_ratio": 0.35, "top_area": "app/services/" }
-  },
-  "version_range": ["1.16.0.0", "1.16.1.0"],
-  "streak_days": 47,
-  "tweetable": "Week of Mar 1: 47 commits (3 contributors), 3.2k LOC, 38% tests, 12 PRs, peak: 10pm",
+  "schema_version": 2,
+  "generated_at": "ISO-8601 timestamp",
+  "repository": "owner/name or local directory",
+  "branch": "inspected ref",
+  "head_sha": "full SHA",
+  "window": {"label": "7d", "start": "ISO timestamp", "end": "ISO timestamp",
+    "timezone": "IANA name or UTC offset", "compare": false},
+  "evidence": {"remote_fresh": true, "working_tree_dirty": false,
+    "commits": 12, "contributors": 1, "files_changed": 18,
+    "test_files_changed": 3, "insertions": 420, "deletions": 110,
+    "limitations": []},
+  "highlights": [{"summary": "Outcome", "commits": ["full SHA"], "files": ["path"]}],
+  "regressions": [],
+  "hotspots": [{"path": "path", "touches": 4, "interpretation": "why it matters"}],
+  "actions": ["Concrete next action"]
 }
 ```
 
-**Note:** Only include the `backlog` field if `TODOS.md` exists. Only include the `test_health` field if test files were found (command 9 returns > 0). If any has no data, omit the field entirely.
-
-Include test health data in the JSON when test files exist:
-```json
-  "test_health": {
-    "total_test_files": 47,
-    "tests_added_this_period": 5,
-    "regression_test_commits": 3,
-    "test_files_changed": 8
-  }
-```
-
-Include backlog data in the JSON when TODOS.md exists:
-```json
-  "backlog": {
-    "total_open": 28,
-    "p0_p1": 2,
-    "p2": 8,
-    "completed_this_period": 3,
-    "added_this_period": 1
-  }
-```
-
-### Step 14: Write the Narrative
-
-Structure the output as:
-
----
-
-**Tweetable summary** (first line, before everything else):
-```
-Week of Mar 1: 47 commits (3 contributors), 3.2k LOC, 38% tests, 12 PRs, peak: 10pm | Streak: 47d
-```
-
-## Engineering Retro: [date range]
-
-### Summary Table
-(from Step 2)
-
-### Trends vs Last Retro
-(from Step 11, loaded before save — skip if first retro)
-
-### Time & Session Patterns
-(from Steps 3-4)
-
-Narrative interpreting what the team-wide patterns mean:
-- When the most productive hours are and what drives them
-- Whether sessions are getting longer or shorter over time
-- Estimated hours per day of active coding (team aggregate)
-- Notable patterns: do team members code at the same time or in shifts?
-
-### Shipping Velocity
-(from Steps 5-7)
-
-Narrative covering:
-- Commit type mix and what it reveals
-- PR size discipline (are PRs staying small?)
-- Fix-chain detection (sequences of fix commits on the same subsystem)
-- Version bump discipline
-
-### Code Quality Signals
-- Test LOC ratio trend
-- Hotspot analysis (are the same files churning?)
-- Any XL PRs that should have been split
-### Test Health
-- Total test files: N (from command 9)
-- Tests added this period: M (from command 11 — test files changed)
-- Regression test commits: list `test(qa):` and `test(design):` and `test: coverage` commits from command 10
-- If prior retro exists and has `test_health`: show delta "Test count: {last} → {now} (+{delta})"
-- If test ratio < 20%: flag as growth area — "100% test coverage is the goal. Tests make vibe coding safe."
-
-### Focus & Highlights
-(from Step 8)
-- Focus score with interpretation
-- Ship of the week callout
-
-### Your Week (personal deep-dive)
-(from Step 9, for the current user only)
-
-This is the section the user cares most about. Include:
-- Their personal commit count, LOC, test ratio
-- Their session patterns and peak hours
-- Their focus areas
-- Their biggest ship
-- **What you did well** (2-3 specific things anchored in commits)
-- **Where to level up** (1-2 specific, actionable suggestions)
-
-### Team Breakdown
-(from Step 9, for each teammate — skip if solo repo)
-
-For each teammate (sorted by commits descending), write a section:
-
-#### [Name]
-- **What they shipped**: 2-3 sentences on their contributions, areas of focus, and commit patterns
-- **Praise**: 1-2 specific things they did well, anchored in actual commits. Be genuine — what would you actually say in a 1:1? Examples:
-  - "Cleaned up the entire auth module in 3 small, reviewable PRs — textbook decomposition"
-  - "Added integration tests for every new endpoint, not just happy paths"
-  - "Fixed the N+1 query that was causing 2s load times on the dashboard"
-- **Opportunity for growth**: 1 specific, constructive suggestion. Frame as investment, not criticism. Examples:
-  - "Test coverage on the payment module is at 8% — worth investing in before the next feature lands on top of it"
-  - "3 of the 5 PRs were 800+ LOC — breaking these up would catch issues earlier and make review easier"
-  - "All commits land between 1-4am — sustainable pace matters for code quality long-term"
-
-**AI collaboration note:** If many commits have `Co-Authored-By` AI trailers (e.g., Claude, Copilot), note the AI-assisted commit percentage as a team metric. Frame it neutrally — "N% of commits were AI-assisted" — without judgment.
-
-### Top 3 Team Wins
-Identify the 3 highest-impact things shipped in the window across the whole team. For each:
-- What it was
-- Who shipped it
-- Why it matters (product/architecture impact)
-
-### 3 Things to Improve
-Specific, actionable, anchored in actual commits. Phrase as "one thing to try next week:" — works equally for solo devs and teams.
-
-### 3 Habits for Next Week
-Small, practical, realistic. Each must be something that takes <5 minutes to adopt. If solo, make all three personal habits. If there are collaborators, at least one can be collaborative (e.g., "review each other's PRs same-day").
-
-### Week-over-Week Trends
-(if applicable, from Step 10)
-
----
-
-## Compare Mode
-
-When the user runs `/retro compare` (or `/retro compare 14d`):
-
-1. Compute metrics for the current window (default 7d) using `--since="7 days ago"`
-2. Compute metrics for the immediately prior same-length window using both `--since` and `--until` to avoid overlap (e.g., `--since="14 days ago" --until="7 days ago"` for a 7d window)
-3. Show a side-by-side comparison table with deltas and arrows
-4. Write a brief narrative highlighting the biggest improvements and regressions
-5. Save only the current-window snapshot to `.context/retros/` (same as a normal retro run); do **not** persist the prior-window metrics.
-
-## Tone
-
-- Encouraging but candid, no coddling
-- Specific and concrete — always anchor in actual commits/code
-- Skip generic praise ("great job!") — say exactly what was good and why
-- Frame improvements as leveling up, not criticism
-- **Praise should feel like something you'd actually say in a 1:1** — specific, earned, genuine
-- **Growth suggestions should feel like investment advice** — "this is worth your time because..." not "you failed at..."
-- Never compare teammates against each other negatively. Each person's section stands on its own.
-- Keep total output around 3000-4500 words (slightly longer to accommodate team sections)
-- Use markdown tables and code blocks for data, prose for narrative
-- Output directly to the conversation — do NOT write to filesystem (except the `.context/retros/` JSON snapshot)
+Omit unavailable optional metrics rather than writing guessed values. Keep
+highlights, regressions, hotspots, actions, and limitations short. The JSON is a
+machine-readable trend record, not a duplicate of the narrative.
 
 ## Log Learnings
 
@@ -640,13 +203,10 @@ At the end of this session, log any genuine discoveries for future sessions.
 Only log genuine discoveries — would knowing this save 5+ minutes next time?
 Skip transient errors (network blips, rate limits) and obvious things.
 
-## Important Rules
+## Rules
 
-- ALL narrative output goes directly to the user in the conversation. The ONLY file written is the `.context/retros/` JSON snapshot.
-- Use `origin/<default>` for all git queries (not local main which may be stale)
-- Convert all timestamps to Pacific time for display (use `TZ=America/Los_Angeles`)
-- If the window has zero commits, say so and suggest a different window
-- Round LOC/hour to nearest 50
-- Treat merge commits as PR boundaries
-- Do not read CLAUDE.md or other docs — this skill is self-contained
-- On first run (no prior retros), skip comparison sections gracefully
+- Narrative goes to the conversation; only the compact JSON history is written.
+- Never alter repository code, configuration, branches, commits, or remotes.
+- Never equate activity volume with value, productivity, quality, or effort.
+- Distinguish direct evidence, reasonable interpretation, and unknowns.
+- Disclose stale refs, incomplete history, dirty-tree effects, and unrun tests.

@@ -45,9 +45,9 @@ includes this resolver inline so they remain self-contained.
 
 ## What's NOT here (intentionally)
 
-skystack on Claude Code includes workflow skills like `/pm`, `/design`,
-`/review`, `/retro` — these are not ported to Codex because Codex's own
-skill-creator covers those domains better, and a mechanical port would burn
+Some Claude-specific workflows — `/design`, `/publish`, `/review`,
+`/retro`, and `/security` — are intentionally not ported to Codex because
+Codex's own tools cover those domains better, and a mechanical port would burn
 context with Claude-specific content.
 
 For cross-model review from Codex, use `$claude-review`.

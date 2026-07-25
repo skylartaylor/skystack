@@ -1,7 +1,10 @@
 ---
 name: publish
 description: |
-  Publish workflow: detect + merge base branch, run tests, review diff, bump VERSION, update CHANGELOG, commit, push, create PR. Use when asked to "publish", "ship", "deploy", "push to main", "create a PR", or "merge and push".
+  Verify and publish repository changes: resolve scope and base, integrate safely,
+  test and review the final diff, create bisectable commits, push, and create or
+  update a pull request when authorized. Use when asked to publish, ship, push,
+  prepare a release, or create/update a PR.
 allowed-tools:
   - Bash
   - Read
@@ -14,128 +17,15 @@ allowed-tools:
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
 
-## Preamble (run first)
+## Working context
 
-```bash
-_UPD=$(~/.claude/skills/skystack/bin/skystack-update-check 2>/dev/null || .claude/skills/skystack/bin/skystack-update-check 2>/dev/null || true)
-[ -n "$_UPD" ] && echo "$_UPD" || true
-mkdir -p ~/.skystack/sessions
-touch ~/.skystack/sessions/"$PPID"
-_SESSIONS=$(find ~/.skystack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
-find ~/.skystack/sessions -mmin +120 -type f -delete 2>/dev/null || true
-_CONTRIB=$(~/.claude/skills/skystack/bin/skystack-config get skystack_contributor 2>/dev/null || true)
-_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
-echo "BRANCH: $_BRANCH"
-eval "$(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)" 2>/dev/null || true
-_LEARN_FILE="${SKYSTACK_HOME:-$HOME/.skystack}/projects/${SLUG:-unknown}/learnings.jsonl"
-if [ -f "$_LEARN_FILE" ]; then
-  _LEARN_COUNT=$(wc -l < "$_LEARN_FILE" 2>/dev/null | tr -d ' ')
-  echo "LEARNINGS: $_LEARN_COUNT"
-  [ "$_LEARN_COUNT" -gt 5 ] 2>/dev/null && ~/.claude/skills/skystack/bin/skystack-learnings-search --limit 3 2>/dev/null || true
-fi
-```
-
-If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/skystack/skystack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running skystack v{to} (just updated!)" and continue.
-
-## AskUserQuestion Format
-
-**Two types of AskUserQuestion calls — use the right format for each:**
-
-### Plan approval (review plan, test plan, spec approval, implementation plan)
-
-Output the plan details as **regular chat text first** — never inside the AskUserQuestion call. Then use AskUserQuestion with only a short question and 2-3 clean options. No detail in option descriptions.
-
-Example:
-```
-[chat text output]
-I've read the diff (~180 lines, 4 files). Here's what I'll focus on:
-
-1. **Race condition** — status transition in OrderService isn't atomic
-2. **N+1** — PostsController#index missing includes(:author)
-3. **Test coverage** — BillingService has no tests
-
-[AskUserQuestion]
-Question: "Anything to add or skip?"
-A) Looks good, go
-B) Adjust the focus
-```
-
-### Judgment questions (bugs, design decisions, tradeoffs)
-
-**ALWAYS follow this structure:**
-1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
-2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
-3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts when the delta is small. Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
-4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
-
-Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
-
-Per-skill instructions may add additional formatting rules on top of this baseline.
-
-5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and preferred. Exception: batch-ask patterns where multiple related findings are presented with per-item options (e.g., review findings) are fine as a single call.
-
-## Contributor Mode
-
-If `_CONTRIB` is `true`: at the end of each major workflow step, rate the skystack experience 0 to 10. Not a 10? File a report at `~/.skystack/contributor-logs/{slug}.md` (skip if exists, max 3/session, file inline, tell user "Filed skystack field report: {title}"):
-
-```
-# {Title}
-**What I was trying to do:** {action}
-**What happened instead:** {result}
-**My rating:** {0-10} — {why not a 10}
-**What would make this a 10:** {one sentence}
-**Date:** {YYYY-MM-DD} | **Version:** {version} | **Skill:** /{skill}
-```
-
-Calibration — this is the bar: `$B js "await fetch(...)"` failing with a SyntaxError because skystack didn't wrap it in async context = worth filing. App bugs, auth failures, or network errors to user's URLs = NOT worth filing.
-
-## Context Health
-
-If you notice yourself circling the same problem — repeating tool calls, re-reading the same files, retrying a failing approach — stop. Self-summarize in chat: what you've tried, what you learned, what's left. Then reassess before continuing. Summaries are chat output only — never mutate git state (commit, push, reset, stash) as part of a self-summary.
-
-## Operational Self-Improvement
-
-Before wrapping up, reflect on this session:
-- Did any commands fail unexpectedly?
-- Did you take a wrong approach and have to backtrack?
-- Did you discover a project-specific quirk (build order, env vars, timing, auth)?
-- Did something take longer than expected because of a missing flag or config?
-
-If yes, log an operational learning for future sessions:
-
-```bash
-~/.claude/skills/skystack/bin/skystack-learnings-log '{"skill":"SKILL_NAME","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
-```
-
-Only log genuine operational discoveries — skip transient errors (network blips,
-rate limits) and obvious things. A good test: would knowing this save 5+ minutes
-in a future session? If yes, log it.
+Read the repository instructions and only the source needed for this request.
+Proceed on safe, reversible work in scope. Ask when a missing decision changes
+the outcome or an action is destructive, externally visible, or hard to undo.
 
 ## Voice
 
-Direct. Concrete. No ceremony.
-
-**Tone:** You're a sharp colleague who types fast. Incomplete sentences sometimes.
-"Wild." "Not great." Parentheticals. Say what you mean — don't pad it.
-
-**Banned AI vocabulary:** Never use these words — they're tells that an AI wrote this:
-delve, crucial, robust, comprehensive, nuanced, multifaceted, furthermore, moreover,
-additionally, pivotal, landscape, tapestry, underscore, foster, showcase, intricate,
-vibrant, fundamental, significant, interplay, utilize, leverage, facilitate, streamline
-
-**Banned filler phrases:**
-"here's the kicker", "here's the thing", "plot twist", "let me break this down",
-"the bottom line", "make no mistake", "can't stress this enough", "at the end of the day",
-"it's worth noting that", "it goes without saying"
-
-**Connect to user outcomes:** Every finding, recommendation, or status update must connect
-to what the real user will experience. Not "this function lacks error handling" but
-"if the API returns 500, the user sees a blank screen with no way to retry."
-
-**No trailing summaries.** Don't recap what you just did. The user can read the output.
-
-**Final test:** Before any output, ask yourself: would a senior engineer say this out loud
-to a colleague? If it sounds like a blog post, rewrite it.
+Be direct and concrete. Connect findings and recommendations to user outcomes.
 
 ## Step 0: Detect base branch
 
@@ -156,1029 +46,156 @@ branch name wherever the instructions say "the base branch."
 
 ---
 
-## Step 0: Trust Ladder
+# Publish
 
-Determine whether this is a first run, a config-changed run, or a confirmed run for this project.
+Take a verified change from its current repository state to the exact delivery
+point the user requested. Work autonomously through safe, reversible local
+actions. External publishing requires user authority: push, create or update a
+PR, merge, deploy, or release only when the request explicitly includes that
+action. If the requested endpoint is ambiguous, ask once before crossing it.
 
-1. **Read trust state:**
+## 1. Establish the delivery contract
 
-```bash
-eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
-mkdir -p ~/.skystack/projects/$SLUG
-cat ~/.skystack/projects/$SLUG/publish-trust.json 2>/dev/null || echo "NO_TRUST_STATE"
-```
+Read the repository instructions (`AGENTS.md`, `CLAUDE.md`, contributing docs,
+and relevant nested instruction files) before changing anything.
 
-2. **Compute config fingerprint.** Hash the publish-relevant sections of CLAUDE.md and any workflow config files:
-
-```bash
-setopt +o nomatch 2>/dev/null || true
-{
-  echo "$SLUG"
-  sed -n '/## Commands/,/^## [^C]/p' CLAUDE.md 2>/dev/null || true
-  sed -n '/## Test Coverage/,/^## [^T]/p' CLAUDE.md 2>/dev/null || true
-  cat .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null || true
-  cat Makefile 2>/dev/null || true
-  cat package.json 2>/dev/null || true
-} | shasum -a 256 | cut -d' ' -f1
-```
-
-Remember this hash as the "current config fingerprint."
-
-3. **Determine trust mode:**
-
-   - If `NO_TRUST_STATE` (no file found): mode is **FIRST_RUN**.
-   - If trust state exists and `config_hash` matches the current config fingerprint: mode is **CONFIRMED**.
-   - If trust state exists but `config_hash` does NOT match: mode is **CONFIG_CHANGED**.
-
-4. **Behave according to the mode:**
-
-   **FIRST_RUN:** Teacher mode. Before proceeding, explain to the user what /publish will do:
-   - Detect and merge the base branch
-   - Run the test suite
-   - Review the diff for issues (auto-fix safe ones, ask about risky ones)
-   - Bump VERSION and update CHANGELOG
-   - Commit in bisectable chunks, push, and create a PR
-   - Ask: "This is your first /publish run for this project. I'll walk you through each step with extra detail. Ready to proceed?" via AskUserQuestion with options: A) Let's go  B) Abort
-   - If the user chooses B, stop.
-
-   **CONFIG_CHANGED:** Re-validate mode. Tell the user: "Your publish configuration has changed since the last confirmed run. Quick dry-run to make sure I still have it right." Show what changed (e.g., "test command changed", "new workflow file detected"). Then ask via AskUserQuestion: A) Looks good, proceed  B) Abort
-   - If the user chooses B, stop.
-
-   **CONFIRMED:** Efficient mode. Say nothing extra. Proceed silently. Brief status updates only.
-
-5. **After a successful publish** (at the very end, after PR creation or direct push), persist the trust state:
+Inspect:
 
 ```bash
-eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
-RUNS=$(python3 -c "import json; d=json.load(open('$HOME/.skystack/projects/$SLUG/publish-trust.json')); print(d.get('runs',0))" 2>/dev/null || echo "0")
-NEW_RUNS=$((RUNS + 1))
-cat > ~/.skystack/projects/$SLUG/publish-trust.json << TRUSTEOF
-{
-  "status": "confirmed",
-  "config_hash": "CONFIG_FINGERPRINT_HERE",
-  "last_confirmed": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "runs": $NEW_RUNS
-}
-TRUSTEOF
+git status --short --branch
+git remote -v
+git branch --show-current
+git log --oneline --decorate -12
 ```
 
-Substitute `CONFIG_FINGERPRINT_HERE` with the actual config fingerprint computed in step 2.
+Determine and remember:
 
----
+- the exact changes in scope;
+- the current branch and base branch;
+- whether the user wants local commits, a push, a PR, a direct-base push, a
+  merge, a deployment, or some combination;
+- which existing modifications are unrelated user work and must remain
+  untouched;
+- repository-specific test, build, version, changelog, and release conventions.
 
-## Prior Learnings
+Use the base branch detected above. For an existing PR, confirm its actual base
+and metadata with `gh pr view`. If scope or destination cannot be determined
+safely, ask. Do not treat every dirty file as part of the publish request.
 
-Load project-specific learnings from previous sessions:
+## 2. Inspect and integrate
+
+Fetch the relevant remote without altering local work:
 
 ```bash
-~/.claude/skills/skystack/bin/skystack-learnings-search --limit 5 2>/dev/null || true
+git fetch origin
 ```
 
-If learnings are returned, use them to inform your approach. Prior learnings
-about this project's quirks, common pitfalls, and working patterns can save
-time and prevent repeated mistakes. Mark any applied learning with
-"Prior learning applied: [key]" in your output.
+Review the full scoped diff and commit range against the base. Include staged,
+unstaged, untracked, and already-committed changes only when they belong to the
+requested delivery.
 
-# Ship: Fully Automated Ship Workflow
+Integrate the current remote base before final verification when needed. Follow
+the repository's documented strategy. Prefer a linear rebase for unpublished
+local commits and a regular merge when rewriting published history would be
+unsafe. Never force-push or stash unrelated work. If integration reports
+conflicts, stop and report the exact files; do not resolve or guess through them
+unless the user directs you.
 
-You are running the `/publish` workflow. This is a **non-interactive, fully automated** workflow. Do NOT ask for confirmation at any step. The user said `/publish` which means DO IT. Run straight through and output the PR URL at the end.
+## 3. Review and verify
 
-**Only stop for:**
-- On the base branch with nothing to ship (abort)
-- Merge conflicts that can't be auto-resolved (stop, show conflicts)
-- Test failures (stop, show failures)
-- Pre-landing review finds ASK items that need user judgment
-- MINOR or MAJOR version bump needed (ask — see Step 4)
-- TODOS.md missing and user wants to create one (ask — see Step 5.5)
-- TODOS.md disorganized and user wants to reorganize (ask — see Step 5.5)
-- Plan items NOT DONE (ask to ship anyway, drop, or stop — see Step 6.6)
-- First run or config changed (trust ladder — see Step 0)
-- Coverage below minimum threshold (ask to override — see Step 3.4.1)
+Read the changed files in context, not only their diff hunks. Check for correctness,
+security or data-loss risks, missing error handling, accidental generated files,
+debug artifacts, secrets, and unintended scope.
 
-**Never stop for:**
-- Uncommitted changes (always include them)
-- Version bump choice (auto-pick MICRO or PATCH — see Step 4)
-- CHANGELOG content (auto-generate from diff)
-- Commit message approval (auto-commit)
-- Multi-file changesets (auto-split into bisectable commits)
-- TODOS.md completed-item detection (auto-mark)
-- Auto-fixable review findings (dead code, N+1, stale comments — fixed automatically)
-- Test coverage gaps (auto-generate and commit, or flag in PR body)
+Fix clear, in-scope issues locally. Ask only when a finding requires a product
+tradeoff, changes intended behavior, or carries meaningful destructive risk.
 
----
+Discover verification commands from repository instructions and project config.
+Run the smallest complete relevant set: targeted tests for changed behavior plus
+the repository's required lint, typecheck, build, or generation checks. If no
+test command exists, say so explicitly.
 
-## Step 1: Pre-flight
+If verification fails, stop before publishing and report the failing command and
+the useful failure output. Do not dismiss a failure as pre-existing without
+reproducing it on the base branch or otherwise proving that claim.
 
-1. Check the current branch and determine the shipping mode:
+After any code, test, generated artifact, dependency, or configuration change,
+rerun the affected verification. Documentation-only release metadata does not
+require rerunning unrelated code tests.
 
-   **If on a feature branch** (not the base branch): normal PR mode. Continue below.
+## 4. Release metadata when applicable
 
-   **If on the base branch or default branch:**
-   - Check for unpushed commits: `git log origin/<base>..HEAD --oneline 2>/dev/null`
-   - Check for local changes: `git diff --stat && git diff --cached --stat`
-   - If **unpushed commits exist OR local changes exist**: enter **direct push mode** — skip Steps 2 (merge), 7 (create PR), and 8 (PR URL). Instead, push directly and output the pushed commit SHAs. Continue below with this mode in mind.
-   - If **nothing to ship** (no unpushed commits, no local changes): **abort**: "Nothing to ship — no unpushed commits or local changes on the base branch."
+Change versions or changelogs only when the repository convention requires it or
+the user requested a release. Infer an unambiguous patch-level bump from the
+repository's policy. Ask when the version choice is meaningful, breaking, or not
+specified by policy.
 
-2. Run `git status` (never use `-uall`). Uncommitted changes are always included — no need to ask.
+Write changelog entries for users, derived from the actual scoped diff and commit
+history. Preserve the repository's format. Do not introduce VERSION,
+CHANGELOG.md, tags, or release machinery into a repository that does not use them.
 
-3. **Feature branch mode:** Run `git diff <base>...HEAD --stat` and `git log <base>..HEAD --oneline` to understand what's being shipped.
-   **Direct push mode:** Run `git log origin/<base>..HEAD --oneline` (or `git diff HEAD --stat` if only local changes) to understand what's being shipped.
+## 5. Commit cleanly
 
-4. Check review readiness:
+Create commits only if the requested delivery includes commits or requires them
+for pushing. Preserve unrelated dirt and stage explicit paths; do not use broad
+staging commands in a dirty worktree.
 
-## Review Readiness Dashboard
+Split the work into logical, bisectable commits:
 
-After completing the review, read the review log and config to display the dashboard.
+- keep an implementation with its tests;
+- separate mechanical moves from behavior changes;
+- separate independent features or fixes;
+- place release metadata with the change it describes, or in a final metadata
+  commit when that is the repository convention;
+- keep a small coherent change in one commit.
+
+Use the repository's commit style. Before each commit, inspect the staged diff.
+After the final commit, confirm the commit range and working-tree state.
+
+## 6. Final verification
+
+Verify the exact state that will be delivered:
 
 ```bash
-eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
-cat ~/.skystack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null || echo "NO_REVIEWS"
-echo "---CONFIG---"
-~/.claude/skills/skystack/bin/skystack-config get skip_dev_review 2>/dev/null || echo "false"
+git status --short --branch
+git log --oneline --decorate <base>..HEAD
+git diff --stat <base>...HEAD
 ```
 
-Parse the output. Find the most recent entry for each skill (review, pm, design, design-review-lite). Ignore entries with timestamps older than 7 days. For Design Review, show whichever is more recent between `design` (full visual audit) and `design-review-lite` (inline check). Append "(FULL)" or "(LITE)" to the status to distinguish. Display:
-
-```
-+====================================================================+
-|                    REVIEW READINESS DASHBOARD                       |
-+====================================================================+
-| Review          | Runs | Last Run            | Status    | Required |
-|-----------------|------|---------------------|-----------|----------|
-| Dev Review      |  1   | 2026-03-16 15:00    | CLEAR     | YES      |
-| PM Review       |  0   | —                   | —         | no       |
-| Design Review   |  0   | —                   | —         | no       |
-+--------------------------------------------------------------------+
-| VERDICT: CLEARED — Dev Review passed                                |
-+====================================================================+
-```
-
-**Review tiers:**
-- **Dev Review (required by default):** The only review that gates shipping. Covers architecture, code quality, tests, security. Run with `/review`. Can be disabled globally with \`skystack-config set skip_dev_review true\` (the "don't bother me" setting).
-- **PM Review (optional):** Use your judgment. Recommend for new features where a product spec was written with `/pm`. Skip for bug fixes, refactors, and cleanup.
-- **Design Review (optional):** Use your judgment. Recommend for UI/UX changes. Run with `/design`. Skip for backend-only or infra changes.
-
-**Verdict logic:**
-- **CLEARED**: Dev Review has >= 1 entry within 7 days with status `clean` OR `advisory` (or \`skip_dev_review\` is \`true\`). `advisory` means the reviewer found only minor issues or ≤2 important items — surface them in the summary but don't block shipping (bias toward approval).
-- **NOT CLEARED**: Dev Review missing, stale (>7 days), or has status `blocked` (also treat the legacy `issues_found` status as not cleared for backward compatibility).
-- PM and Design reviews are shown for context but never block shipping
-- If \`skip_dev_review\` config is \`true\`, Dev Review shows "SKIPPED (global)" and verdict is CLEARED
-
-If the Dev Review is NOT "CLEAR":
-
-1. **Check for a prior override on this branch:**
-   ```bash
-   eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
-   grep '"skill":"publish-review-override"' ~/.skystack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null || echo "NO_OVERRIDE"
-   ```
-   If an override exists, display the dashboard and note "Dev Review check previously accepted — continuing." Do NOT ask again.
-
-2. **If no override exists,** use AskUserQuestion:
-   - Show that Dev Review is missing or has open issues
-   - RECOMMENDATION: Choose C if the change is obviously trivial (< 20 lines, typo fix, config-only); Choose B for larger changes
-   - Options: A) Ship anyway  B) Abort — run /review first  C) Change is too small to need eng review
-   - For Design Review: run `eval $(~/.claude/skills/skystack/bin/skystack-diff-scope <base> 2>/dev/null)`. If `SCOPE_FRONTEND=true` and no design review exists in the dashboard, mention: "Design Review not run — this PR changes frontend code. The lite design check will run automatically in Step 3.5, but consider running /design for a full visual audit post-implementation." Still never block.
-
-3. **If the user chooses A or C,** persist the decision so future `/publish` runs on this branch skip the check:
-   ```bash
-   eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
-   echo '{"skill":"publish-review-override","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","decision":"USER_CHOICE","via":"publish"}' >> ~/.skystack/projects/$SLUG/$BRANCH-reviews.jsonl
-   ```
-   Substitute USER_CHOICE with "ship_anyway" or "not_relevant".
-
----
-
-## Step 2: Merge the base branch (BEFORE tests)
-
-**Direct push mode:** Skip this step — you're already on the base branch.
-
-**Feature branch mode:** Fetch and merge the base branch into the feature branch so tests run against the merged state:
-
-```bash
-git fetch origin <base> && git merge origin/<base> --no-edit
-```
-
-**If there are merge conflicts:** Try to auto-resolve if they are simple (VERSION, schema.rb, CHANGELOG ordering). If conflicts are complex or ambiguous, **STOP** and show them.
-
-**If already up to date:** Continue silently.
-
----
-
-## Step 2.5: Test Framework Bootstrap
-
-## Test Framework Bootstrap
-
-**Detect existing test framework and project runtime:**
-
-```bash
-# Detect project runtime
-[ -f Gemfile ] && echo "RUNTIME:ruby"
-[ -f package.json ] && echo "RUNTIME:node"
-[ -f requirements.txt ] || [ -f pyproject.toml ] && echo "RUNTIME:python"
-[ -f go.mod ] && echo "RUNTIME:go"
-[ -f Cargo.toml ] && echo "RUNTIME:rust"
-[ -f composer.json ] && echo "RUNTIME:php"
-[ -f mix.exs ] && echo "RUNTIME:elixir"
-# Detect sub-frameworks
-[ -f Gemfile ] && grep -q "rails" Gemfile 2>/dev/null && echo "FRAMEWORK:rails"
-[ -f package.json ] && grep -q '"next"' package.json 2>/dev/null && echo "FRAMEWORK:nextjs"
-# Check for existing test infrastructure
-ls jest.config.* vitest.config.* playwright.config.* .rspec pytest.ini pyproject.toml phpunit.xml 2>/dev/null
-ls -d test/ tests/ spec/ __tests__/ cypress/ e2e/ 2>/dev/null
-# Check opt-out marker
-[ -f .skystack/no-test-bootstrap ] && echo "BOOTSTRAP_DECLINED"
-```
-
-**If test framework detected** (config files or test directories found):
-Print "Test framework detected: {name} ({N} existing tests). Skipping bootstrap."
-Read 2-3 existing test files to learn conventions (naming, imports, assertion style, setup patterns).
-Store conventions as prose context for use in Phase 8e.5 or Step 3.4. **Skip the rest of bootstrap.**
-
-**If BOOTSTRAP_DECLINED** appears: Print "Test bootstrap previously declined — skipping." **Skip the rest of bootstrap.**
-
-**If NO runtime detected** (no config files found): Use AskUserQuestion:
-"I couldn't detect your project's language. What runtime are you using?"
-Options: A) Node.js/TypeScript B) Ruby/Rails C) Python D) Go E) Rust F) PHP G) Elixir H) This project doesn't need tests.
-If user picks H → write `.skystack/no-test-bootstrap` and continue without tests.
-
-**If runtime detected but no test framework — bootstrap:**
-
-### B2. Select best practices
-
-Use this knowledge table to choose the right framework for the detected runtime:
-
-| Runtime | Primary recommendation | Alternative |
-|---------|----------------------|-------------|
-| Ruby/Rails | minitest + fixtures + capybara | rspec + factory_bot + shoulda-matchers |
-| Node.js | vitest + @testing-library | jest + @testing-library |
-| Next.js | vitest + @testing-library/react + playwright | jest + cypress |
-| Python | pytest + pytest-cov | unittest |
-| Go | stdlib testing + testify | stdlib only |
-| Rust | cargo test (built-in) + mockall | — |
-| PHP | phpunit + mockery | pest |
-| Elixir | ExUnit (built-in) + ex_machina | — |
-
-### B3. Framework selection
-
-Use AskUserQuestion:
-"I detected this is a [Runtime/Framework] project with no test framework. I researched current best practices. Here are the options:
-A) [Primary] — [rationale]. Includes: [packages]. Supports: unit, integration, smoke, e2e
-B) [Alternative] — [rationale]. Includes: [packages]
-C) Skip — don't set up testing right now
-RECOMMENDATION: Choose A because [reason based on project context]"
-
-If user picks C → write `.skystack/no-test-bootstrap`. Tell user: "If you change your mind later, delete `.skystack/no-test-bootstrap` and re-run." Continue without tests.
-
-If multiple runtimes detected (monorepo) → ask which runtime to set up first, with option to do both sequentially.
-
-### B4. Install and configure
-
-1. Install the chosen packages (npm/bun/gem/pip/etc.)
-2. Create minimal config file
-3. Create directory structure (test/, spec/, etc.)
-4. Create one example test matching the project's code to verify setup works
-
-If package installation fails → debug once. If still failing → revert with `git checkout -- package.json package-lock.json` (or equivalent for the runtime). Warn user and continue without tests.
-
-### B4.5. First real tests
-
-Generate 3-5 real tests for existing code:
-
-1. **Find recently changed files:** `git log --since=30.days --name-only --format="" | sort | uniq -c | sort -rn | head -10`
-2. **Prioritize by risk:** Error handlers > business logic with conditionals > API endpoints > pure functions
-3. **For each file:** Write one test that tests real behavior with meaningful assertions. Never `expect(x).toBeDefined()` — test what the code DOES.
-4. Run each test. Passes → keep. Fails → fix once. Still fails → delete silently.
-5. Generate at least 1 test, cap at 5.
-
-Never import secrets, API keys, or credentials in test files. Use environment variables or test fixtures.
-
-### B5. Verify
-
-```bash
-# Run the full test suite to confirm everything works
-{detected test command}
-```
-
-If tests fail → debug once. If still failing → revert all bootstrap changes and warn user.
-
-### B5.5. CI/CD pipeline
-
-```bash
-# Check CI provider
-ls -d .github/ 2>/dev/null && echo "CI:github"
-ls .gitlab-ci.yml .circleci/ bitrise.yml 2>/dev/null
-```
-
-If `.github/` exists (or no CI detected — default to GitHub Actions):
-Create `.github/workflows/test.yml` with:
-- `runs-on: ubuntu-latest`
-- Appropriate setup action for the runtime (setup-node, setup-ruby, setup-python, etc.)
-- The same test command verified in B5
-- Trigger: push + pull_request
-
-If non-GitHub CI detected → skip CI generation with note: "Detected {provider} — CI pipeline generation supports GitHub Actions only. Add test step to your existing pipeline manually."
-
-### B6. Create TESTING.md
-
-First check: If TESTING.md already exists → read it and update/append rather than overwriting. Never destroy existing content.
-
-Write TESTING.md with:
-- Philosophy: "100% test coverage is the key to great vibe coding. Tests let you move fast, trust your instincts, and ship with confidence — without them, vibe coding is just yolo coding. With tests, it's a superpower."
-- Framework name and version
-- How to run tests (the verified command from B5)
-- Test layers: Unit tests (what, where, when), Integration tests, Smoke tests, E2E tests
-- Conventions: file naming, assertion style, setup/teardown patterns
-
-### B7. Update CLAUDE.md
-
-First check: If CLAUDE.md already has a `## Testing` section → skip. Don't duplicate.
-
-Append a `## Testing` section:
-- Run command and test directory
-- Reference to TESTING.md
-- Test expectations:
-  - 100% test coverage is the goal — tests make vibe coding safe
-  - When writing new functions, write a corresponding test
-  - When fixing a bug, write a regression test
-  - When adding error handling, write a test that triggers the error
-  - When adding a conditional (if/else, switch), write tests for BOTH paths
-  - Never commit code that makes existing tests fail
-
-### B8. Commit
-
-```bash
-git status --porcelain
-```
-
-Only commit if there are changes. Stage all bootstrap files (config, test directory, TESTING.md, CLAUDE.md, .github/workflows/test.yml if created):
-`git commit -m "chore: bootstrap test framework ({framework name})"`
-
----
-
----
-
-## Step 3: Run tests (on merged code)
-
-Discover and run the project's test command. Check in this order:
-
-1. **Read `CLAUDE.md`** — look for a `## Commands` or `## Testing` section with the test command
-2. **Check `package.json`** for a `test` script: `cat package.json 2>/dev/null | grep '"test"'`
-3. **Detect by framework:** `bun test`, `npm test`, `yarn test`, `pytest`, `go test ./...`, `cargo test`, `bundle exec rspec`, `bundle exec rails test`
-
-Run the discovered command and capture output:
-
-```bash
-<test-command> 2>&1 | tee /tmp/publish_tests.txt
-```
-
-**If any test fails:** Show the failures and **STOP**. Do not proceed.
-
-**If all pass:** Continue silently — note the count briefly (e.g., "42 tests passed").
-
-**If no test command found:** Skip and note in the PR body: "No test command detected."
-
-**Parallel execution:** Steps 3 and 3.4 can run simultaneously using the Agent tool.
-Dispatch both as subagents in a single message with two parallel Agent calls:
-
-1. **Test runner subagent** (`model: "haiku"`): Run the discovered test command and report
-   pass/fail with output. If tests fail, report the failures.
-2. **Coverage audit subagent** (`model: "sonnet"`): Perform the full coverage analysis from
-   Step 3.4 (trace codepaths, diagram coverage, identify gaps). Do NOT generate tests yet —
-   just produce the coverage diagram and gap list.
-
-Wait for both to complete. If tests passed AND coverage gaps exist, generate tests
-for the gaps (Step 3.4 item 5). If tests failed, STOP.
-
-If only one subagent is practical (small diff, simple project), run sequentially instead.
-
----
-
-## Step 3.4: Test Coverage Audit
-
-100% coverage is the goal — every untested path is a path where bugs hide and vibe coding becomes yolo coding. Evaluate what was ACTUALLY coded (from the diff), not what was planned.
-
-**0. Before/after test count:**
-
-```bash
-# Count test files before any generation
-find . -name '*.test.*' -o -name '*.spec.*' -o -name '*_test.*' -o -name '*_spec.*' | grep -v node_modules | wc -l
-```
-
-Store this number for the PR body.
-
-**1. Trace every codepath changed** using `git diff origin/<base>...HEAD`:
-
-Read every changed file. For each one, trace how data flows through the code — don't just list functions, actually follow the execution:
-
-1. **Read the diff.** For each changed file, read the full file (not just the diff hunk) to understand context.
-2. **Trace data flow.** Starting from each entry point (route handler, exported function, event listener, component render), follow the data through every branch:
-   - Where does input come from? (request params, props, database, API call)
-   - What transforms it? (validation, mapping, computation)
-   - Where does it go? (database write, API response, rendered output, side effect)
-   - What can go wrong at each step? (null/undefined, invalid input, network failure, empty collection)
-3. **Diagram the execution.** For each changed file, draw an ASCII diagram showing:
-   - Every function/method that was added or modified
-   - Every conditional branch (if/else, switch, ternary, guard clause, early return)
-   - Every error path (try/catch, rescue, error boundary, fallback)
-   - Every call to another function (trace into it — does IT have untested branches?)
-   - Every edge: what happens with null input? Empty array? Invalid type?
-
-This is the critical step — you're building a map of every line of code that can execute differently based on input. Every branch in this diagram needs a test.
-
-**2. Map user flows, interactions, and error states:**
-
-Code coverage isn't enough — you need to cover how real users interact with the changed code. For each changed feature, think through:
-
-- **User flows:** What sequence of actions does a user take that touches this code? Map the full journey (e.g., "user clicks 'Pay' → form validates → API call → success/failure screen"). Each step in the journey needs a test.
-- **Interaction edge cases:** What happens when the user does something unexpected?
-  - Double-click/rapid resubmit
-  - Navigate away mid-operation (back button, close tab, click another link)
-  - Submit with stale data (page sat open for 30 minutes, session expired)
-  - Slow connection (API takes 10 seconds — what does the user see?)
-  - Concurrent actions (two tabs, same form)
-- **Error states the user can see:** For every error the code handles, what does the user actually experience?
-  - Is there a clear error message or a silent failure?
-  - Can the user recover (retry, go back, fix input) or are they stuck?
-  - What happens with no network? With a 500 from the API? With invalid data from the server?
-- **Empty/zero/boundary states:** What does the UI show with zero results? With 10,000 results? With a single character input? With maximum-length input?
-
-Add these to your diagram alongside the code branches. A user flow with no test is just as much a gap as an untested if/else.
-
-**3. Check each branch against existing tests:**
-
-Go through your diagram branch by branch — both code paths AND user flows. For each one, search for a test that exercises it:
-- Function `processPayment()` → look for `billing.test.ts`, `billing.spec.ts`, `test/billing_test.rb`
-- An if/else → look for tests covering BOTH the true AND false path
-- An error handler → look for a test that triggers that specific error condition
-- A call to `helperFn()` that has its own branches → those branches need tests too
-- A user flow → look for an integration or E2E test that walks through the journey
-- An interaction edge case → look for a test that simulates the unexpected action
-
-Quality scoring rubric:
-- ★★★  Tests behavior with edge cases AND error paths
-- ★★   Tests correct behavior, happy path only
-- ★    Smoke test / existence check / trivial assertion (e.g., "it renders", "it doesn't throw")
-
-**4. Output ASCII coverage diagram:**
-
-Include BOTH code paths and user flows in the same diagram:
-
-```
-CODE PATH COVERAGE
-===========================
-[+] src/services/billing.ts
-    │
-    ├── processPayment()
-    │   ├── [★★★ TESTED] Happy path + card declined + timeout — billing.test.ts:42
-    │   ├── [GAP]         Network timeout — NO TEST
-    │   └── [GAP]         Invalid currency — NO TEST
-    │
-    └── refundPayment()
-        ├── [★★  TESTED] Full refund — billing.test.ts:89
-        └── [★   TESTED] Partial refund (checks non-throw only) — billing.test.ts:101
-
-USER FLOW COVERAGE
-===========================
-[+] Payment checkout flow
-    │
-    ├── [★★★ TESTED] Complete purchase — checkout.e2e.ts:15
-    ├── [GAP]         Double-click submit — NO TEST
-    ├── [GAP]         Navigate away during payment — NO TEST
-    └── [★   TESTED] Form validation errors (checks render only) — checkout.test.ts:40
-
-[+] Error states
-    │
-    ├── [★★  TESTED] Card declined message — billing.test.ts:58
-    ├── [GAP]         Network timeout UX (what does user see?) — NO TEST
-    └── [GAP]         Empty cart submission — NO TEST
-
-─────────────────────────────────
-COVERAGE: 5/12 paths tested (42%)
-  Code paths: 3/5 (60%)
-  User flows: 2/7 (29%)
-QUALITY:  ★★★: 2  ★★: 2  ★: 1
-GAPS: 7 paths need tests
-─────────────────────────────────
-```
-
-**Fast path:** All paths covered → "Step 3.4: All new code paths have test coverage ✓" Continue.
-
-**5. Generate tests for uncovered paths:**
-
-If test framework detected (or bootstrapped in Step 2.5):
-- Prioritize error handlers and edge cases first (happy paths are more likely already tested)
-- Read 2-3 existing test files to match conventions exactly
-- Generate unit tests. Mock all external dependencies (DB, API, Redis).
-- Write tests that exercise the specific uncovered path with real assertions
-- Run each test. Passes → commit as `test: coverage for {feature}`
-- Fails → fix once. Still fails → revert, note gap in diagram.
-
-Caps: 30 code paths max, 20 tests generated max (code + user flow combined), 2-min per-test exploration cap.
-
-If no test framework AND user declined bootstrap → diagram only, no generation. Note: "Test generation skipped — no test framework configured."
-
-**Diff is test-only changes:** Skip Step 3.4 entirely: "No new application code paths to audit."
-
-**6. After-count and coverage summary:**
-
-```bash
-# Count test files after generation
-find . -name '*.test.*' -o -name '*.spec.*' -o -name '*_test.*' -o -name '*_spec.*' | grep -v node_modules | wc -l
-```
-
-For PR body: `Tests: {before} → {after} (+{delta} new)`
-Coverage line: `Test Coverage Audit: N new code paths. M covered (X%). K tests generated, J committed.`
-
----
-
-## Step 3.4.1: Coverage Gate
-
-Check if the project defines coverage thresholds in CLAUDE.md. If so, enforce them.
-
-1. **Read CLAUDE.md** and look for a `## Test Coverage` section. If no such section exists, skip this step entirely: "No coverage thresholds configured — skipping coverage gate."
-
-2. **Parse thresholds.** The section should contain lines like:
-   ```
-   Minimum: 60%
-   Target: 80%
-   ```
-   Extract the Minimum and Target percentages. If the format is unrecognizable, skip the gate: "Could not parse coverage thresholds — skipping coverage gate."
-
-3. **Get current coverage.** Run the project's coverage command (look for `coverage` script in package.json, or `--coverage` flag on the test runner). Parse the overall percentage from the output.
-
-   If coverage percentage cannot be determined (command not found, output unparseable), skip the gate: "Coverage percentage undetermined — skipping coverage gate." Do NOT default to 0%.
-
-4. **Apply the three-tier gate:**
-
-   - **Above target** (coverage >= Target%): PASS. Continue silently. Note in PR body: "Coverage: X% (target: Y%)".
-   - **Between minimum and target** (Minimum% <= coverage < Target%): Use AskUserQuestion:
-     - "Coverage is X% — above minimum (M%) but below target (T%). Ship anyway or generate more tests?"
-     - A) Ship as-is (note gap in PR body)
-     - B) Generate more tests (max 2 passes)
-   - **Below minimum** (coverage < Minimum%): Hard gate. Use AskUserQuestion:
-     - "Coverage is X% — below minimum threshold of M%. This requires an override to ship."
-     - A) Override and ship anyway (will be noted in PR body)
-     - B) Generate more tests (max 2 passes)
-     - C) Abort
-
-5. **Test generation passes** (if user chose B above): Generate tests targeting uncovered paths (same approach as Step 3.4 item 5). Re-run coverage after each pass. Maximum 2 generation passes — if still below threshold after 2 passes, report the final coverage and ask the user whether to ship or abort.
-
-6. **Safety valves:**
-   - Maximum 2 test generation passes (prevents infinite loops)
-   - Undetermined coverage = skip the gate, never default to 0%
-   - No `## Test Coverage` section in CLAUDE.md = skip the gate entirely
-   - Coverage command fails = skip the gate with a note
-
----
-
-## Step 3.5: Pre-Landing Review
-
-Review the diff for structural issues that tests don't catch.
-
-0. **Static analysis (semgrep, if available):**
-   ```bash
-   which semgrep >/dev/null 2>&1 && \
-     semgrep scan --config=auto $(git diff origin/<base> --name-only | tr '\n' ' ') --json 2>/dev/null || true
-   ```
-   If semgrep is installed and returns findings, include CRITICAL ones (security, injection, auth bypass) as AUTO-FIX candidates or ASK items alongside the checklist findings below. Skip silently if not installed.
-
-1. Read `.claude/skills/review/checklist.md`. If the file cannot be read, **STOP** and report the error.
-
-2. Run `git diff origin/<base>` to get the full diff (scoped to feature changes against the freshly-fetched base branch).
-
-3. Apply the review checklist in two passes:
-   - **Pass 1 (CRITICAL):** SQL & Data Safety, LLM Output Trust Boundary
-   - **Pass 2 (INFORMATIONAL):** All remaining categories
-
-## Design Review (conditional, diff-scoped)
-
-Check if the diff touches frontend files using `skystack-diff-scope`:
-
-```bash
-eval $(~/.claude/skills/skystack/bin/skystack-diff-scope <base> 2>/dev/null)
-```
-
-**If `SCOPE_FRONTEND=false`:** Skip design review silently. No output.
-
-**If `SCOPE_FRONTEND=true`:**
-
-1. **Check for DESIGN.md.** If `DESIGN.md` or `design-system.md` exists in the repo root, read it. All design findings are calibrated against it — patterns blessed in DESIGN.md are not flagged. If not found, use universal design principles.
-
-2. **Read `.claude/skills/review/design-checklist.md`.** If the file cannot be read, skip design review with a note: "Design checklist not found — skipping design review."
-
-3. **Read each changed frontend file** (full file, not just diff hunks). Frontend files are identified by the patterns listed in the checklist.
-
-4. **Apply the design checklist** against the changed files. For each item:
-   - **[HIGH] mechanical CSS fix** (`outline: none`, `!important`, `font-size < 16px`): classify as AUTO-FIX
-   - **[HIGH/MEDIUM] design judgment needed**: classify as ASK
-   - **[LOW] intent-based detection**: present as "Possible — verify visually or run /design-review"
-
-5. **Include findings** in the review output under a "Design Review" header, following the output format in the checklist. Design findings merge with code review findings into the same Fix-First flow.
-
-6. **Log the result** for the Review Readiness Dashboard:
-
-```bash
-eval $(~/.claude/skills/skystack/bin/skystack-slug 2>/dev/null)
-mkdir -p ~/.skystack/projects/$SLUG
-echo '{"skill":"design-review-lite","timestamp":"TIMESTAMP","status":"STATUS","findings":N,"auto_fixed":M}' >> ~/.skystack/projects/$SLUG/$BRANCH-reviews.jsonl
-```
-
-Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "clean" if 0 findings or "issues_found", N = total findings, M = auto-fixed count.
-
-   Include any design findings alongside the code review findings. They follow the same Fix-First flow below.
-
-## Confidence Calibration
-
-Every finding must include a confidence score. Calibrate honestly:
-
-| Score | Meaning | Display rule |
-|-------|---------|-------------|
-| 9-10  | Verified. Concrete bug, tested. | Show normally |
-| 7-8   | High confidence pattern. | Show normally |
-| 5-6   | Moderate, could be false positive. | Show with caveat |
-| 3-4   | Low confidence. | Suppress to appendix only |
-| 1-2   | Speculation. | Only show if P0 severity |
-
-Finding format: `[SEVERITY] (confidence: N/10) file:line — description`
-
-Never pad confidence to look thorough. A 6/10 that's honest is better than
-a 9/10 that wastes the user's time investigating a false positive.
-
-4. **Classify each finding as AUTO-FIX or ASK** per the Fix-First Heuristic in
-   checklist.md. Critical findings lean toward ASK; informational lean toward AUTO-FIX.
-
-5. **Auto-fix all AUTO-FIX items.** Apply each fix. Output one line per fix:
-   `[AUTO-FIXED] [file:line] Problem → what you did`
-
-6. **If ASK items remain,** present them in ONE AskUserQuestion:
-   - List each with number, severity, problem, recommended fix
-   - Per-item options: A) Fix  B) Skip
-   - Overall RECOMMENDATION
-   - If 3 or fewer ASK items, you may use individual AskUserQuestion calls instead
-
-7. **After all fixes (auto + user-approved):**
-   - If ANY fixes were applied: commit fixed files by name (`git add <fixed-files> && git commit -m "fix: pre-landing review fixes"`), then **STOP** and tell the user to run `/publish` again to re-test.
-   - If no fixes applied (all ASK items skipped, or no issues found): continue to Step 4.
-
-8. Output summary: `Pre-Landing Review: N issues — M auto-fixed, K asked (J fixed, L skipped)`
-
-   If no issues found: `Pre-Landing Review: No issues found.`
-
-Save the review output — it goes into the PR body in Step 8.
-
----
-
-## Step 4: Version bump (auto-decide)
-
-1. Read the current `VERSION` file (4-digit format: `MAJOR.MINOR.PATCH.MICRO`)
-
-2. **Auto-decide the bump level based on the diff:**
-   - Count lines changed (`git diff origin/<base>...HEAD --stat | tail -1`)
-   - **MICRO** (4th digit): < 50 lines changed, trivial tweaks, typos, config
-   - **PATCH** (3rd digit): 50+ lines changed, bug fixes, small-medium features
-   - **MINOR** (2nd digit): **ASK the user** — only for major features or significant architectural changes
-   - **MAJOR** (1st digit): **ASK the user** — only for milestones or breaking changes
-
-3. Compute the new version:
-   - Bumping a digit resets all digits to its right to 0
-   - Example: `0.19.1.0` + PATCH → `0.19.2.0`
-
-4. Write the new version to the `VERSION` file.
-
----
-
-## Step 5: CHANGELOG (auto-generate via subagent)
-
-Writing the CHANGELOG requires reading the full branch diff and every commit message. That is heavy context the main thread does not need to retain. Dispatch a subagent to do the work and report back a one-line JSON verdict.
-
-**Inputs you already have:**
-- `<base>` — the base branch detected in Step 0
-- New version string from Step 4 (format `X.Y.Z.W`)
-- Today's date (`YYYY-MM-DD`)
-
-**1. Dispatch a `general-purpose` subagent** with `model: "sonnet"` and this prompt (fill in the placeholders):
-
-```
-You are updating CHANGELOG.md for a release. Do the work, write the file, and emit a last-line JSON verdict.
-
-**Inputs:**
-- Base branch: [BASE_BRANCH]
-- New version: [NEW_VERSION]
-- Today's date: [TODAY_YYYY_MM_DD]
-- Repo root: [REPO_ROOT]
-
-**Steps:**
-1. Read CHANGELOG.md to learn its format and header layout.
-2. Read every commit on the branch: `git log [BASE_BRANCH]..HEAD --oneline` AND the full diff `git diff [BASE_BRANCH]...HEAD`.
-3. Draft a comprehensive entry covering ALL changes going into the PR.
-   - If prior CHANGELOG entries on the branch already cover some of these commits, REPLACE them with one unified entry for the new version.
-   - Categorize into applicable sections only (omit empty ones):
-     - `### Added` — new features
-     - `### Changed` — changes to existing functionality
-     - `### Fixed` — bug fixes
-     - `### Removed` — removed features
-   - Concise, descriptive bullets. User-facing voice per the project's CHANGELOG style.
-4. Insert the new entry after the file header (line 5), dated today.
-   Format: `## [X.Y.Z.W] - YYYY-MM-DD`
-5. Write CHANGELOG.md directly.
-
-Do NOT ask the user to describe changes. Infer from the diff and commit history.
-
-**Output:**
-Your reply may include a brief human-readable summary, but the FINAL LINE must be exactly one line of JSON and nothing after it:
-
-{"status":"ok","path":"CHANGELOG.md","version":"[NEW_VERSION]","sections":["Added","Fixed"]}
-
-On failure, emit instead:
-
-{"status":"error","reason":"<short reason>"}
-```
-
-**2. Read only the last line** of the subagent's output. Parse it as JSON.
-
-- If `status == "ok"`: continue to Step 5.5. The subagent has already written CHANGELOG.md.
-- If `status == "error"` OR the last line is not valid JSON OR the subagent call failed for any reason: **fall back to inline mode** (below).
-
-**3. Inline fallback** (only if the subagent path failed):
-
-1. Read `CHANGELOG.md` header to know the format.
-2. Auto-generate the entry from **ALL commits on the branch**:
-   - `git log <base>..HEAD --oneline` — every commit being shipped
-   - `git diff <base>...HEAD` — full diff against the base branch
-   - The entry must be comprehensive of ALL changes going into the PR
-   - If existing CHANGELOG entries on the branch already cover some commits, replace them with one unified entry for the new version
-   - Categorize into applicable sections (omit empty ones):
-     - `### Added` — new features
-     - `### Changed` — changes to existing functionality
-     - `### Fixed` — bug fixes
-     - `### Removed` — removed features
-   - Concise, descriptive bullets
-   - Insert after the file header (line 5), dated today
-   - Format: `## [X.Y.Z.W] - YYYY-MM-DD`
-
-Do NOT ask the user to describe changes. Infer from the diff and commit history.
-
----
-
-## Step 5.5: TODOS.md (auto-update)
-
-Cross-reference the project's TODOS.md against the changes being shipped. Mark completed items automatically; prompt only if the file is missing or disorganized.
-
-Read `.claude/skills/review/TODOS-format.md` for the canonical format reference.
-
-**1. Check if TODOS.md exists** in the repository root.
-
-**If TODOS.md does not exist:** Use AskUserQuestion:
-- Message: "skystack recommends maintaining a TODOS.md organized by skill/component, then priority (P0 at top through P4, then Completed at bottom). See TODOS-format.md for the full format. Would you like to create one?"
-- Options: A) Create it now, B) Skip for now
-- If A: Create `TODOS.md` with a skeleton (# TODOS heading + ## Completed section). Continue to step 3.
-- If B: Skip the rest of Step 5.5. Continue to Step 6.
-
-**2. Check structure and organization:**
-
-Read TODOS.md and verify it follows the recommended structure:
-- Items grouped under `## <Skill/Component>` headings
-- Each item has `**Priority:**` field with P0-P4 value
-- A `## Completed` section at the bottom
-
-**If disorganized** (missing priority fields, no component groupings, no Completed section): Use AskUserQuestion:
-- Message: "TODOS.md doesn't follow the recommended structure (skill/component groupings, P0-P4 priority, Completed section). Would you like to reorganize it?"
-- Options: A) Reorganize now (recommended), B) Leave as-is
-- If A: Reorganize in-place following TODOS-format.md. Preserve all content — only restructure, never delete items.
-- If B: Continue to step 3 without restructuring.
-
-**3. Detect completed TODOs:**
-
-This step is fully automatic — no user interaction.
-
-Use the diff and commit history already gathered in earlier steps:
-- `git diff <base>...HEAD` (full diff against the base branch)
-- `git log <base>..HEAD --oneline` (all commits being shipped)
-
-For each TODO item, check if the changes in this PR complete it by:
-- Matching commit messages against the TODO title and description
-- Checking if files referenced in the TODO appear in the diff
-- Checking if the TODO's described work matches the functional changes
-
-**Be conservative:** Only mark a TODO as completed if there is clear evidence in the diff. If uncertain, leave it alone.
-
-**4. Move completed items** to the `## Completed` section at the bottom. Append: `**Completed:** vX.Y.Z (YYYY-MM-DD)`
-
-**5. Output summary:**
-- `TODOS.md: N items marked complete (item1, item2, ...). M items remaining.`
-- Or: `TODOS.md: No completed items detected. M items remaining.`
-- Or: `TODOS.md: Created.` / `TODOS.md: Reorganized.`
-
-**6. Defensive:** If TODOS.md cannot be written (permission error, disk full), warn the user and continue. Never stop the publish workflow for a TODOS failure.
-
-Save this summary — it goes into the PR body in Step 8.
-
----
-
-## Step 6: Commit (bisectable chunks)
-
-**Goal:** Create small, logical commits that work well with `git bisect` and help LLMs understand what changed.
-
-1. Analyze the diff and group changes into logical commits. Each commit should represent **one coherent change** — not one file, but one logical unit.
-
-2. **Commit ordering** (earlier commits first):
-   - **Infrastructure:** migrations, config changes, route additions
-   - **Models & services:** new models, services, concerns (with their tests)
-   - **Controllers & views:** controllers, views, JS/React components (with their tests)
-   - **VERSION + CHANGELOG + TODOS.md:** always in the final commit
-
-3. **Rules for splitting:**
-   - A model and its test file go in the same commit
-   - A service and its test file go in the same commit
-   - A controller, its views, and its test go in the same commit
-   - Migrations are their own commit (or grouped with the model they support)
-   - Config/route changes can group with the feature they enable
-   - If the total diff is small (< 50 lines across < 4 files), a single commit is fine
-
-4. **Each commit must be independently valid** — no broken imports, no references to code that doesn't exist yet. Order commits so dependencies come first.
-
-5. Compose each commit message:
-   - First line: `<type>: <summary>` (type = feat/fix/chore/refactor/docs)
-   - Body: brief description of what this commit contains
-   - Only the **final commit** (VERSION + CHANGELOG) gets the version tag:
-
-```bash
-git commit -m "$(cat <<'EOF'
-chore: bump version and changelog (vX.Y.Z.W)
-EOF
-)"
-```
-
----
-
-## Step 6.5: Verification Gate
-
-**IRON LAW: NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE.**
-
-Before pushing, re-verify if code changed during Steps 3.5-6:
-
-1. **Test verification:** If ANY code changed after Step 3's test run (fixes from review, generated coverage tests — CHANGELOG/VERSION edits don't count), re-run the test suite. Paste fresh output. Stale output from Step 3 is NOT acceptable.
-
-2. **Build verification:** If the project has a build step, run it. Paste output.
-
-3. **Rationalization prevention:**
-   - "Should work now" → RUN IT.
-   - "I'm confident" → Confidence is not evidence.
-   - "I already tested earlier" → Code changed since then. Test again.
-   - "It's a trivial change" → Trivial changes break production.
-
-**If tests fail here:** STOP. Do not push. Fix the issue and return to Step 3.
-
-Claiming work is complete without verification is dishonesty, not efficiency.
-
----
-
-## Step 6.6: Plan Completion Audit
-
-Cross-reference the active plan file against the diff to verify what was planned vs. what was shipped.
-
-**1. Discover the plan file (three tiers):**
-
-   a. **Conversation context:** Check if a plan file path was mentioned earlier in this conversation (Claude Code system messages sometimes include plan paths). If so, use that file.
-
-   b. **Content search by branch name:** Search plan files for references to the current branch:
-   ```bash
-   setopt +o nomatch 2>/dev/null || true
-   _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
-   grep -rl "$_BRANCH" ~/.claude/plans/*.md 2>/dev/null | head -1
-   ```
-
-   c. **Most recent plan (24hr):** If no branch match, find the most recently modified plan file within the last 24 hours:
-   ```bash
-   find ~/.claude/plans -name '*.md' -mtime -1 -exec ls -t {} + 2>/dev/null | head -1
-   ```
-
-   If no plan file is found via any tier, skip this step: "No active plan file found — skipping plan completion audit."
-
-**2. Parse plan items.** Read the plan file. Extract each actionable item (task, requirement, deliverable). Cap at 50 items — if the plan has more than 50, take the first 50 and note: "Plan has N items — auditing the first 50."
-
-**3. Classify each item** by cross-referencing against the diff (`git diff <base>...HEAD`) and the commit history (`git log <base>..HEAD --oneline`):
-
-   - **DONE** — clear evidence in the diff that this item was completed. Cite the evidence (file, function, commit).
-   - **PARTIAL** — some work done, but incomplete. Note what's missing.
-   - **CHANGED** — a different approach was taken to achieve the same goal. Note the alternative.
-   - **NOT DONE** — no evidence in the diff that this item was addressed.
-
-**4. Present as a table:**
-
-```
-## Plan Completion (N/M items done)
-
-DONE: Add user profile endpoint (evidence: src/routes/profile.ts added)
-DONE: Add profile tests (evidence: test/profile.test.ts added)
-PARTIAL: Mobile responsive layout (missing tablet breakpoint)
-CHANGED: Used REST instead of GraphQL (simpler, same outcome)
-NOT DONE: Dark mode support
-```
-
-**5. Gate logic:**
-
-   - All items DONE or CHANGED: proceed silently.
-   - Any PARTIAL items: advisory note only — include in PR body, proceed.
-   - Any NOT DONE items: Use AskUserQuestion:
-     - "N plan items are not done: [list them]. How to proceed?"
-     - A) Ship anyway — I'll create a follow-up TODO for the remaining items
-     - B) These were intentionally dropped — proceed without TODO
-     - C) Stop — I need to finish these first
-   - If user chose A: add the NOT DONE items as a TODO note in the PR body.
-   - If user chose B: note "intentionally dropped" in the PR body.
-   - If user chose C: STOP.
-
-**6. PR body integration:** Save the plan completion table for inclusion under `## Plan Completion` in the PR body (Step 8).
-
----
-
-## Step 7: Push
-
-Push to the remote:
-
-```bash
-git push -u origin <branch-name>
-```
-
-**Direct push mode:** You're pushing directly to the base branch. Output the pushed commit SHAs and confirm success. Skip Step 8.
-
----
-
-> **You are NOT done.** Pushing feels like a natural stopping point — it isn't.
-> The next steps (PR creation, doc-release handoff, post-ship checks) are mandatory.
-> Do not summarize, do not hand back to the user, do not stop here. Continue to Step 8.
-
----
-
-## Step 8: Create PR
-
-**Direct push mode:** Skip — you pushed directly. Output: "Pushed to `<base>` — no PR needed (direct push mode)."
-
-**Feature branch mode:** Create a pull request using `gh`:
-
-```bash
-gh pr create --base <base> --title "<type>: <summary>" --body "$(cat <<'EOF'
-## Summary
-<bullet points from CHANGELOG>
-
-## Test Coverage
-<coverage diagram from Step 3.4, or "All new code paths have test coverage.">
-<If Step 3.4 ran: "Tests: {before} → {after} (+{delta} new)">
-
-## Pre-Landing Review
-<findings from Step 3.5 code review, or "No issues found.">
-
-## Design Review
-<If design review ran: "Design Review (lite): N findings — M auto-fixed, K skipped. AI Slop: clean/N issues.">
-<If no frontend files changed: "No frontend files changed — design review skipped.">
-
-## Plan Completion
-<If plan audit ran: include the plan completion table from Step 6.6>
-<If no plan file found: omit this section>
-
-## TODOS
-<If items marked complete: bullet list of completed items with version>
-<If no items completed: "No TODO items completed in this PR.">
-<If TODOS.md created or reorganized: note that>
-<If TODOS.md doesn't exist and user skipped: omit this section>
-
-## Test plan
-- [x] Tests pass (N tests, 0 failures)
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-EOF
-)"
-```
-
-**Output the PR URL** — this should be the final output the user sees.
-
----
-
-## Log Learnings
-
-At the end of this session, log any genuine discoveries for future sessions.
-
-**Types:** `pattern`, `pitfall`, `preference`, `architecture`, `tool`, `operational`
-**Sources:** `observed` (you saw it), `user-stated` (user told you), `inferred` (you deduced it)
-**Confidence:** 1-10 (8+ = verified, 5-7 = probable, 3-4 = hunch)
-
-```bash
-~/.claude/skills/skystack/bin/skystack-learnings-log '{"skill":"SKILL_NAME","type":"TYPE","key":"short-key","insight":"What you learned","confidence":N,"source":"SOURCE"}'
-```
-
-Only log genuine discoveries — would knowing this save 5+ minutes next time?
-Skip transient errors (network blips, rate limits) and obvious things.
-
-## Important Rules
-
-- **Never skip tests.** If tests fail, stop.
-- **Never skip the pre-landing review.** If checklist.md is unreadable, stop.
-- **Never force push.** Use regular `git push` only.
-- **Never ask for confirmation** except for MINOR/MAJOR version bumps and pre-landing review ASK items (batched into at most one AskUserQuestion).
-- **Always use the 4-digit version format** from the VERSION file.
-- **Date format in CHANGELOG:** `YYYY-MM-DD`
-- **Split commits for bisectability** — each commit = one logical change.
-- **TODOS.md completion detection must be conservative.** Only mark items as completed when the diff clearly shows the work is done.
-- **Step 3.4 generates coverage tests.** They must pass before committing. Never commit failing tests.
-- **The goal is: user says `/publish`, next thing they see is the review + PR URL.**
+Run the relevant test/build checks again if anything affecting their result
+changed since the last successful run. Do not claim completion from stale
+evidence.
+
+## 7. Publish only to the authorized endpoint
+
+- **Local commits only:** stop after verification.
+- **Push requested:** push the current branch normally and confirm the upstream.
+- **PR requested:** push if needed, then create or update the PR against the
+  resolved base. Reuse an existing PR instead of creating a duplicate.
+- **Direct-base push requested:** re-check that the branch and remote destination
+  are exact, then push normally.
+- **Merge, deploy, tag, or release requested:** follow repository instructions
+  and perform only the explicitly authorized actions.
+
+Never force-push. Never merge, deploy, tag, publish a release, or push a different
+branch merely because it seems like the natural next step.
+
+For a PR, derive the title and body from the delivered diff. Include a concise
+summary, exact verification commands and results, and any known risks or skipped
+checks. Do not add tool or model attribution unless the repository requires it.
+
+## 8. Report the resulting state
+
+Report:
+
+- branch, base, and delivered commit SHA(s);
+- files or changes intentionally excluded from scope;
+- every verification command and whether it passed;
+- push destination and upstream state, if pushed;
+- PR URL and status, if created or updated;
+- version, tag, deployment, or release state only if performed;
+- any blocker, failure, or remaining risk.
+
+If stopped, leave the repository recoverable and state exactly what completed
+and what did not. Never report a push, PR, merge, deployment, or release unless
+the corresponding command succeeded.

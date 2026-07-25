@@ -1,61 +1,26 @@
 import { describe, test, expect } from 'bun:test';
 import { COMMAND_DESCRIPTIONS } from '../browse/src/commands';
 import { SNAPSHOT_FLAGS } from '../browse/src/snapshot';
+import { CLAUDE_SKILLS, CODEX_SKILLS, SKILL_CATALOG } from '../scripts/skill-catalog';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 
-// All skills that must have templates — single source of truth
-const ALL_SKILLS = [
-  { dir: '.', name: 'root skystack' },
-  { dir: 'benchmark', name: 'benchmark' },
-  { dir: 'browse', name: 'browse' },
-  { dir: 'codex', name: 'codex' },
-  { dir: 'design', name: 'design' },
-  { dir: 'diagnose', name: 'diagnose' },
-  { dir: 'document-release', name: 'document-release' },
-  { dir: 'pm', name: 'pm' },
-  { dir: 'publish', name: 'publish' },
-  { dir: 'qa', name: 'qa' },
-  { dir: 'research', name: 'research' },
-  { dir: 'retro', name: 'retro' },
-  { dir: 'review', name: 'review' },
-  { dir: 'security', name: 'security' },
-  { dir: 'setup-browser-cookies', name: 'setup-browser-cookies' },
-  { dir: 'skystack-upgrade', name: 'skystack-upgrade' },
-];
-
 describe('gen-skill-docs', () => {
-  test('generated SKILL.md contains all command categories', () => {
+  test('root skill is a router, not an embedded command reference', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    const categories = new Set(Object.values(COMMAND_DESCRIPTIONS).map(d => d.category));
-    for (const cat of categories) {
-      expect(content).toContain(`### ${cat}`);
-    }
+    expect(content).toContain('Route the request to the narrowest matching skill');
+    expect(content).toContain('| `/browse` |');
+    expect(content).not.toContain('### Navigation');
+    expect(content).not.toContain('## Snapshot Flags');
   });
 
-  test('generated SKILL.md contains all commands', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    for (const [cmd, meta] of Object.entries(COMMAND_DESCRIPTIONS)) {
-      const display = meta.usage || cmd;
-      expect(content).toContain(display);
-    }
-  });
-
-  test('command table is sorted alphabetically within categories', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    // Extract command names from the Navigation section as a test
-    const navSection = content.match(/### Navigation\n\|.*\n\|.*\n([\s\S]*?)(?=\n###|\n## )/);
-    expect(navSection).not.toBeNull();
-    const rows = navSection![1].trim().split('\n');
-    const commands = rows.map(r => {
-      const match = r.match(/\| `(\w+)/);
-      return match ? match[1] : '';
-    }).filter(Boolean);
-    const sorted = [...commands].sort();
-    expect(commands).toEqual(sorted);
+  test('browse points to runtime help instead of embedding the full registry', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('$B --help');
+    expect(content).not.toContain('### Server');
   });
 
   test('generated header is present in SKILL.md', () => {
@@ -69,24 +34,16 @@ describe('gen-skill-docs', () => {
     expect(content).toContain('AUTO-GENERATED from SKILL.md.tmpl');
   });
 
-  test('snapshot flags section contains all flags', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    for (const flag of SNAPSHOT_FLAGS) {
-      expect(content).toContain(flag.short);
-      expect(content).toContain(flag.description);
-    }
-  });
-
   test('every skill has a SKILL.md.tmpl template', () => {
-    for (const skill of ALL_SKILLS) {
-      const tmplPath = path.join(ROOT, skill.dir, 'SKILL.md.tmpl');
+    for (const skill of CLAUDE_SKILLS) {
+      const tmplPath = path.join(ROOT, skill.claudeTemplate);
       expect(fs.existsSync(tmplPath)).toBe(true);
     }
   });
 
   test('every skill has a generated SKILL.md with auto-generated header', () => {
-    for (const skill of ALL_SKILLS) {
-      const mdPath = path.join(ROOT, skill.dir, 'SKILL.md');
+    for (const skill of CLAUDE_SKILLS) {
+      const mdPath = path.join(ROOT, skill.claudeOutput);
       expect(fs.existsSync(mdPath)).toBe(true);
       const content = fs.readFileSync(mdPath, 'utf-8');
       expect(content).toContain('AUTO-GENERATED from SKILL.md.tmpl');
@@ -95,11 +52,14 @@ describe('gen-skill-docs', () => {
   });
 
   test('every generated SKILL.md has valid YAML frontmatter', () => {
-    for (const skill of ALL_SKILLS) {
-      const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
+    for (const skill of CLAUDE_SKILLS) {
+      const content = fs.readFileSync(path.join(ROOT, skill.claudeOutput), 'utf-8');
       expect(content.startsWith('---\n')).toBe(true);
       expect(content).toContain('name:');
       expect(content).toContain('description:');
+      const frontmatter = content.split('---', 3)[1] || '';
+      const name = frontmatter.match(/^name:\s*(.+)$/m)?.[1]?.trim();
+      expect(name).toBe(skill.name);
     }
   });
 
@@ -112,16 +72,17 @@ describe('gen-skill-docs', () => {
     expect(result.exitCode).toBe(0);
     const output = result.stdout.toString();
     // Every skill should be FRESH
-    for (const skill of ALL_SKILLS) {
-      const file = skill.dir === '.' ? 'SKILL.md' : `${skill.dir}/SKILL.md`;
-      expect(output).toContain(`FRESH: ${file}`);
+    for (const skill of CLAUDE_SKILLS) {
+      expect(output).toContain(`FRESH: ${skill.claudeOutput}`);
     }
     expect(output).not.toContain('STALE');
+    const reported = output.split('\n').filter((line) => line.startsWith('FRESH: '));
+    expect(reported).toHaveLength(CLAUDE_SKILLS.length);
   });
 
   test('no generated SKILL.md contains unresolved placeholders', () => {
-    for (const skill of ALL_SKILLS) {
-      const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
+    for (const skill of CLAUDE_SKILLS) {
+      const content = fs.readFileSync(path.join(ROOT, skill.claudeOutput), 'utf-8');
       const unresolved = content.match(/\{\{[A-Z_]+\}\}/g);
       expect(unresolved).toBeNull();
     }
@@ -129,81 +90,55 @@ describe('gen-skill-docs', () => {
 
   test('templates contain placeholders', () => {
     const rootTmpl = fs.readFileSync(path.join(ROOT, 'SKILL.md.tmpl'), 'utf-8');
-    expect(rootTmpl).toContain('{{COMMAND_REFERENCE}}');
-    expect(rootTmpl).toContain('{{SNAPSHOT_FLAGS}}');
-    expect(rootTmpl).toContain('{{PREAMBLE}}');
+    expect(rootTmpl).not.toContain('{{COMMAND_REFERENCE}}');
+    expect(rootTmpl).not.toContain('{{SNAPSHOT_FLAGS}}');
+    expect(rootTmpl).not.toContain('{{PREAMBLE}}');
 
     const browseTmpl = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md.tmpl'), 'utf-8');
-    expect(browseTmpl).toContain('{{COMMAND_REFERENCE}}');
-    expect(browseTmpl).toContain('{{SNAPSHOT_FLAGS}}');
-    expect(browseTmpl).toContain('{{PREAMBLE}}');
+    expect(browseTmpl).toContain('{{BROWSE_SETUP}}');
+    expect(browseTmpl).not.toContain('{{COMMAND_REFERENCE}}');
+    expect(browseTmpl).not.toContain('{{SNAPSHOT_FLAGS}}');
   });
 
-  test('generated SKILL.md contains contributor mode check', () => {
+  test('root stays lean and delegates workflow details', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Contributor Mode');
-    expect(content).toContain('skystack_contributor');
-    expect(content).toContain('contributor-logs');
+    expect(content).toContain('do not load unrelated skills');
+    expect(content).not.toContain('AskUserQuestion Format');
+    expect(content).not.toContain('_SESSIONS');
+    expect(content.split('\n').length).toBeLessThan(100);
   });
 
-  test('generated SKILL.md contains session awareness', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('_SESSIONS');
-    expect(content).toContain('RECOMMENDATION');
+  test('generated Claude prompt footprint stays below the modernization budget', () => {
+    const words = CLAUDE_SKILLS.reduce((total, skill) => {
+      const content = fs.readFileSync(path.join(ROOT, skill.claudeOutput), 'utf-8');
+      return total + (content.match(/\S+/g) || []).length;
+    }, 0);
+    expect(words).toBeLessThanOrEqual(30_000);
   });
 
-  test('generated SKILL.md contains branch detection', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('_BRANCH');
-    expect(content).toContain('git branch --show-current');
-  });
-
-  test('generated SKILL.md contains ELI16 simplification rules', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('No raw function names');
-    expect(content).toContain('plain English');
-  });
-
-  test('qa template uses STACK_DETECT and BROWSE_SETUP placeholders', () => {
+  test('qa template keeps capability setup and drops global ceremony', () => {
     const qaTmpl = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md.tmpl'), 'utf-8');
-    expect(qaTmpl).toContain('{{STACK_DETECT}}');
     expect(qaTmpl).toContain('{{BROWSE_SETUP}}');
-    expect(qaTmpl).toContain('{{PREAMBLE}}');
+    expect(qaTmpl).toContain('{{MOBILE_SETUP}}');
+    expect(qaTmpl).not.toContain('{{PREAMBLE}}');
+    expect(qaTmpl).not.toContain('{{VOICE_GUIDE}}');
   });
 
-  test('qa generated file has plan-first flow and report-only mode', () => {
+  test('qa generated file preserves outcome and evidence contracts', () => {
     const qaContent = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
-
-    // Plan-first: presents test plan before testing
-    expect(qaContent).toContain('Present the Test Plan');
-    expect(qaContent).toContain('Always present a test plan before testing');
-
-    // Report-only as a mode, not a separate skill
     expect(qaContent).toContain('report-only');
-    expect(qaContent).toContain('Report only');
-
-    // Has health score
-    expect(qaContent).toContain('health score');
-
-    // Has important rules
-    expect(qaContent).toContain('Important Rules');
-
-    // Has phases
-    expect(qaContent).toContain('Phase 1');
-    expect(qaContent).toContain('Phase 5');
+    expect(qaContent).toContain('Do not add a ceremonial test-plan approval');
+    expect(qaContent).toContain('Evidence: screenshot, console error, network failure, or state assertion');
+    expect(qaContent).toContain('Do not report success based only on page load');
   });
 
-  test('qa has fix-loop tools and phases', () => {
+  test('qa keeps an explicit, request-gated fix loop', () => {
     const qaContent = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
-    // Should have Edit, Glob, Grep in allowed-tools
     expect(qaContent).toContain('Edit');
     expect(qaContent).toContain('Glob');
     expect(qaContent).toContain('Grep');
-    // Should have fix phase (Phase 4 in v3)
-    expect(qaContent).toContain('Phase 4: Fix');
-    expect(qaContent).toContain('Triage');
-    expect(qaContent).toContain('WTF');
-    // Should have tester reference file reading
+    expect(qaContent).toContain('Only enter this section when the user requested fixes');
+    expect(qaContent).toContain('repeat the exact browser or mobile flow');
     expect(qaContent).toContain('tester.md');
   });
 });
@@ -237,13 +172,10 @@ describe('BASE_BRANCH_DETECT resolver', () => {
  * regression we actually shipped and caught in review.
  */
 describe('description quality evals', () => {
-  // Regression: snapshot flags lost value hints (-d <N>, -s <sel>, -o <path>)
-  test('snapshot flags with values include value hints in output', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+  test('snapshot flags with values define value hints in registry metadata', () => {
     for (const flag of SNAPSHOT_FLAGS) {
       if (flag.takesValue) {
         expect(flag.valueHint).toBeDefined();
-        expect(content).toContain(`${flag.short} ${flag.valueHint}`);
       }
     }
   });
@@ -304,89 +236,67 @@ describe('description quality evals', () => {
     }
   });
 
-  // Guard: generated output uses → not ->
-  test('generated SKILL.md uses unicode arrows', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    // Check the Tips section specifically (where we regressed -> from →)
-    const tipsSection = content.slice(content.indexOf('## Tips'));
-    expect(tipsSection).toContain('→');
-    expect(tipsSection).not.toContain('->');
-  });
-});
-
-describe('REVIEW_DASHBOARD resolver', () => {
-  test('review dashboard appears in ship generated file', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'publish', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('reviews.jsonl');
-    expect(content).toContain('REVIEW READINESS DASHBOARD');
-  });
 });
 
 describe('VOICE_GUIDE resolver', () => {
-  test('tier 1 skills get lightweight voice directive', () => {
-    const tier1Skills = ['browse', 'setup-browser-cookies', 'research', 'benchmark'];
-    for (const skill of tier1Skills) {
-      const mdPath = path.join(ROOT, skill, 'SKILL.md');
-      if (!fs.existsSync(mdPath)) continue;
-      const content = fs.readFileSync(mdPath, 'utf-8');
-      expect(content).toContain('Be direct. Short sentences. No filler.');
+  test('voice guidance is generated only for templates that request it', () => {
+    for (const skill of CLAUDE_SKILLS) {
+      const tmpl = fs.readFileSync(path.join(ROOT, skill.claudeTemplate), 'utf-8');
+      const content = fs.readFileSync(path.join(ROOT, skill.claudeOutput), 'utf-8');
+      expect(content.includes('## Voice')).toBe(tmpl.includes('{{VOICE_GUIDE}}'));
+      expect(content).not.toContain('Banned AI vocabulary');
       expect(content).not.toContain('Banned filler phrases');
     }
   });
+});
 
-  test('tier 2 skills get full voice directive with banned vocabulary', () => {
-    const tier2Skills = ['review', 'design', 'codex', 'qa', 'publish', 'pm', 'retro'];
-    for (const skill of tier2Skills) {
-      const mdPath = path.join(ROOT, skill, 'SKILL.md');
-      if (!fs.existsSync(mdPath)) continue;
-      const content = fs.readFileSync(mdPath, 'utf-8');
-      expect(content).toContain('Banned AI vocabulary');
-      expect(content).toContain('Banned filler phrases');
-      expect(content).toContain('Connect to user outcomes');
-    }
-  });
-
-  test('root SKILL.md gets tier 1 (lightweight) voice', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Be direct. Short sentences. No filler.');
-    expect(content).not.toContain('Banned filler phrases');
-  });
-
-  test('every skill with {{VOICE_GUIDE}} is in a tier set', () => {
-    const VOICE_TIER_1 = new Set(['browse', 'setup-browser-cookies', 'skystack-upgrade', 'research', 'benchmark']);
-    const VOICE_TIER_2 = new Set(['pm', 'review', 'design', 'qa', 'publish', 'codex', 'retro', 'document-release', 'diagnose', 'security']);
-    const allTiered = new Set([...VOICE_TIER_1, ...VOICE_TIER_2, 'skystack']);
-
-    for (const skill of ALL_SKILLS) {
-      const tmplPath = path.join(ROOT, skill.dir, 'SKILL.md.tmpl');
-      const tmpl = fs.readFileSync(tmplPath, 'utf-8');
-      if (tmpl.includes('{{VOICE_GUIDE}}')) {
-        const skillName = skill.dir === '.' ? 'skystack' : skill.dir;
-        expect(allTiered.has(skillName)).toBe(true);
+describe('skill catalog integrity', () => {
+  test('skill names are unique and surface metadata is complete', () => {
+    expect(new Set(SKILL_CATALOG.map((skill) => skill.name)).size).toBe(SKILL_CATALOG.length);
+    for (const skill of SKILL_CATALOG) {
+      expect(skill.surfaces.length).toBeGreaterThan(0);
+      expect(new Set(skill.surfaces).size).toBe(skill.surfaces.length);
+      if (skill.surfaces.includes('claude')) {
+        expect(skill.claudeTemplate).toBeDefined();
+        expect(skill.claudeOutput).toBeDefined();
+      } else {
+        expect(skill.claudeTemplate).toBeUndefined();
+        expect(skill.claudeOutput).toBeUndefined();
       }
+      expect(skill.codexGenerated === true).toBe(skill.surfaces.includes('codex'));
     }
+  });
+
+  test('cataloged Claude and Codex files exist', () => {
+    for (const skill of CLAUDE_SKILLS) {
+      expect(fs.existsSync(path.join(ROOT, skill.claudeTemplate))).toBe(true);
+      expect(fs.existsSync(path.join(ROOT, skill.claudeOutput))).toBe(true);
+    }
+    for (const skill of CODEX_SKILLS) {
+      expect(fs.existsSync(path.join(ROOT, '.agents', 'skills', skill.name, 'SKILL.md'))).toBe(true);
+      expect(
+        fs.existsSync(path.join(ROOT, '.agents', 'skills', skill.name, 'agents', 'openai.yaml')),
+      ).toBe(true);
+    }
+  });
+
+  test('Codex dry-run is clean when generated files and links are fresh', () => {
+    const result = Bun.spawnSync(['bun', 'run', 'scripts/gen-codex-skills.ts', '--dry-run'], {
+      cwd: ROOT,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.toString()).not.toContain('STALE');
   });
 });
 
 describe('TASTE_MEMORY resolver', () => {
-  test('taste memory section appears in skills that use it', () => {
-    const tasteSkills = ['design', 'review', 'codex', 'qa'];
-    for (const skill of tasteSkills) {
-      const content = fs.readFileSync(path.join(ROOT, skill, 'SKILL.md'), 'utf-8');
-      expect(content).toContain('Taste Memory');
-      expect(content).toContain('taste.json');
-      expect(content).toContain('Staleness check');
-      expect(content).toContain('Updating taste after user choices');
-    }
-  });
-
-  test('skills without {{TASTE_MEMORY}} do not contain taste section', () => {
-    const noTasteSkills = ['browse', 'publish', 'retro', 'research'];
-    for (const skill of noTasteSkills) {
-      const mdPath = path.join(ROOT, skill, 'SKILL.md');
-      if (!fs.existsSync(mdPath)) continue;
-      const content = fs.readFileSync(mdPath, 'utf-8');
-      expect(content).not.toContain('## Taste Memory');
+  test('taste memory is generated only for templates that request it', () => {
+    for (const skill of CLAUDE_SKILLS) {
+      const tmpl = fs.readFileSync(path.join(ROOT, skill.claudeTemplate), 'utf-8');
+      const content = fs.readFileSync(path.join(ROOT, skill.claudeOutput), 'utf-8');
+      expect(content.includes('## Taste Memory')).toBe(tmpl.includes('{{TASTE_MEMORY}}'));
     }
   });
 });
@@ -464,12 +374,10 @@ describe('codex skill reliability', () => {
     }
   });
 
-  test('does not combine codex review prompt with --base', () => {
-    expect(tmpl).toContain(
-      '_skystack_codex_timeout_wrapper 330 "$CODEX_BIN" -m gpt-5.6-sol -s read-only'
-    );
-    expect(tmpl).toContain('--search review "IMPORTANT:');
-    expect(tmpl).not.toContain('codex review --base');
+  test('uses the current exec review interface with explicit base scope', () => {
+    expect(tmpl).toContain('"$CODEX_BIN" --search exec');
+    expect(tmpl).toContain('review --base "<base branch>"');
+    expect(tmpl).not.toContain('"$CODEX_BIN" review --base');
   });
 
   test('resolves the newest Codex binary in every self-contained invocation', () => {
@@ -478,25 +386,25 @@ describe('codex skill reliability', () => {
     expect(tmpl).not.toContain('_skystack_codex_command');
     expect(tmpl).not.toContain('CODEX_RUNNER:');
     expect(tmpl).toContain('CODEX_BIN="$(_skystack_codex_resolve)"');
-    expect(tmpl).toContain('_skystack_codex_timeout_wrapper 330 "$CODEX_BIN" -m gpt-5.6-sol');
-    expect(tmpl).toContain('_skystack_codex_timeout_wrapper 600 "$CODEX_BIN" --search exec');
+    expect((tmpl.match(/_skystack_codex_resolve/g) || []).length).toBeGreaterThanOrEqual(3);
     expect(probeContent).toContain('/opt/homebrew/bin/codex');
     expect(probeContent).toContain('0\\.142\\.2');
   });
 
   test('pins review to GPT-5.6 Sol Ultra with read-only tool use', () => {
     expect(tmpl).toContain('-m gpt-5.6-sol');
-    expect(tmpl).toContain('-c \'review_model="gpt-5.6-sol"\'');
     expect(tmpl).toContain('-c \'model_reasoning_effort="ultra"\'');
     expect(tmpl).toContain('-s read-only');
-    expect(tmpl).toContain('All modes keep repository tools enabled');
+    expect(tmpl).toContain('--ephemeral');
+    expect(tmpl).toContain('--ignore-user-config');
     expect(tmpl).toContain('"$CODEX_BIN" --search exec');
+    expect(tmpl).not.toContain('workspace-write');
     expect(tmpl).not.toContain('--enable web_search_cached');
   });
 
   test('surfaces nonzero codex exits from every invocation shape', () => {
-    const matches = tmpl.match(/\[codex exit \$_CODEX_EXIT\]/g) || [];
-    expect(matches.length).toBeGreaterThanOrEqual(5);
-    expect(tmpl).toContain('head -20 "$TMPERR"');
+    expect((tmpl.match(/_STATUS=\$\?/g) || []).length).toBeGreaterThanOrEqual(2);
+    expect((tmpl.match(/exit "\$_STATUS"/g) || []).length).toBeGreaterThanOrEqual(2);
+    expect(tmpl).toContain('Surface the exact useful error');
   });
 });

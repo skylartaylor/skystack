@@ -7,16 +7,17 @@
  */
 
 import { validateSkill } from '../test/helpers/skill-parser';
+import { CLAUDE_SKILLS } from './skill-catalog';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 
-const TEMPLATES = [
-  { tmpl: path.join(ROOT, 'SKILL.md.tmpl'), output: 'SKILL.md' },
-  { tmpl: path.join(ROOT, 'browse', 'SKILL.md.tmpl'), output: 'browse/SKILL.md' },
-];
+const TEMPLATES = CLAUDE_SKILLS.map((skill) => ({
+  tmpl: path.join(ROOT, skill.claudeTemplate),
+  output: skill.claudeOutput,
+}));
 
 function regenerateAndValidate() {
   // Regenerate
@@ -68,6 +69,7 @@ for (const { tmpl } of TEMPLATES) {
 const SOURCE_FILES = [
   path.join(ROOT, 'browse', 'src', 'commands.ts'),
   path.join(ROOT, 'browse', 'src', 'snapshot.ts'),
+  path.join(ROOT, 'scripts', 'skill-catalog.ts'),
 ];
 
 for (const src of SOURCE_FILES) {
