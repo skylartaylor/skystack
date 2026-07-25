@@ -62,6 +62,13 @@ function nowEpoch(): number {
 }
 
 describe('skystack-update-check', () => {
+  test('defaults to the public skystack repository', () => {
+    const script = readFileSync(SCRIPT, 'utf8');
+    expect(script).toContain('https://github.com/skylartaylor/skystack.git');
+    expect(script).toContain('https://raw.githubusercontent.com/skylartaylor/skystack/');
+    expect(script).not.toContain('xr843/skystack');
+  });
+
   // ─── Path A: No VERSION file ────────────────────────────────
   test('exits 0 with no output when VERSION file is missing', () => {
     const { exitCode, stdout } = run();

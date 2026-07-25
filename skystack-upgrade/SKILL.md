@@ -122,7 +122,7 @@ If `$STASH_OUTPUT` contains "Saved working directory", warn the user: "Note: loc
 ```bash
 PARENT=$(dirname "$INSTALL_DIR")
 TMP_DIR=$(mktemp -d)
-git clone --depth 1 https://github.com/garrytan/skystack.git "$TMP_DIR/skystack"
+git clone --depth 1 https://github.com/skylartaylor/skystack.git "$TMP_DIR/skystack"
 mv "$INSTALL_DIR" "$INSTALL_DIR.bak"
 mv "$TMP_DIR/skystack" "$INSTALL_DIR"
 cd "$INSTALL_DIR" && ./setup

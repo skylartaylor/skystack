@@ -19,8 +19,8 @@ CACHE_FILE="$STATE_DIR/last-update-check"
 MARKER_FILE="$STATE_DIR/just-upgraded-from"
 SNOOZE_FILE="$STATE_DIR/update-snoozed"
 VERSION_FILE="$SKYSTACK_DIR/VERSION"
-REMOTE_URL="${SKYSTACK_REMOTE_URL:-https://raw.githubusercontent.com/xr843/skystack/main/VERSION}"
-REMOTE_REPO="${SKYSTACK_REMOTE_REPO:-https://github.com/xr843/skystack.git}"
+REMOTE_URL="${SKYSTACK_REMOTE_URL:-https://raw.githubusercontent.com/skylartaylor/skystack/main/VERSION}"
+REMOTE_REPO="${SKYSTACK_REMOTE_REPO:-https://github.com/skylartaylor/skystack.git}"
 
 # ─── Force flag (busts cache + snooze for standalone /skystack-upgrade) ──
 if [ "${1:-}" = "--force" ]; then
@@ -152,7 +152,7 @@ if [ -z "${SKYSTACK_REMOTE_URL:-}" ]; then
     git ls-remote "$REMOTE_REPO" refs/heads/main 2>/dev/null || true)"
   _REMOTE_SHA="$(echo "$_LSR_LINE" | awk '{print $1}')"
   if echo "$_REMOTE_SHA" | grep -qE '^[0-9a-f]{40}$'; then
-    _SHA_URL="https://raw.githubusercontent.com/xr843/skystack/${_REMOTE_SHA}/VERSION"
+    _SHA_URL="https://raw.githubusercontent.com/skylartaylor/skystack/${_REMOTE_SHA}/VERSION"
     REMOTE="$(curl -sf --max-time 5 "$_SHA_URL" 2>/dev/null || true)"
   fi
 fi
