@@ -1,38 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MODEL="opus[1m]"
+MODEL="claude-opus-5"
 EFFORT="max"
 BASE=""
 FOCUS=""
-WITH_TOOLS="${CLAUDE_REVIEW_WITH_TOOLS:-0}"
+WITH_TOOLS="${CLAUDE_REVIEW_WITH_TOOLS:-1}"
 MAX_DIFF_BYTES="${CLAUDE_REVIEW_MAX_DIFF_BYTES:-1500000}"
 
 usage() {
   cat <<'EOF'
-Usage: claude_review.sh [--base BRANCH] [--opus|--fable|--reviewer opus|fable|--model MODEL] [--effort LEVEL] [--focus TEXT] [--with-tools] [--max-diff-bytes N]
+Usage: claude_review.sh [--base BRANCH] [--opus|--fable|--reviewer opus|fable|--model MODEL] [--effort LEVEL] [--focus TEXT] [--with-tools|--no-tools] [--max-diff-bytes N]
 
 Runs a structured, read-only Claude Code review of the current branch diff.
-Defaults: --model 'opus[1m]' --effort max
+Defaults: --model claude-opus-5 --effort max with read-only repo tools
 
 Review profiles:
-  --opus              Use Opus 1M review (default)
-  --fable             Use Fable review
+  --opus              Use Claude Opus 5 review (default)
+  --fable             Use Claude Fable 5 review
   --reviewer NAME     Use a named review profile: opus or fable
   --model MODEL       Pass an exact Claude Code model alias or full model name
 
-Default mode is diff-only: Claude receives the generated diff on stdin and no
-repo tools. Use --with-tools only when you want a slower exploratory pass.
+Claude always receives the generated diff on stdin. Read-only repo tools are
+enabled by default for verification; use --no-tools for a strict diff-only pass.
 EOF
 }
 
 set_reviewer() {
   case "$1" in
     opus)
-      MODEL="opus[1m]"
+      MODEL="claude-opus-5"
       ;;
     fable)
-      MODEL="fable"
+      MODEL="claude-fable-5"
       ;;
     *)
       echo "--reviewer must be one of: opus, fable" >&2
@@ -73,6 +73,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --with-tools)
       WITH_TOOLS=1
+      shift
+      ;;
+    --no-tools)
+      WITH_TOOLS=0
       shift
       ;;
     --max-diff-bytes)
@@ -183,7 +187,7 @@ if [ "$DIFF_BYTES" -gt "$MAX_DIFF_BYTES" ]; then
   exit 2
 fi
 
-SYSTEM_PROMPT="You are an external code reviewer. Review only for actionable correctness, security, data loss, concurrency, error handling, regression, and missing-test risks. Do not edit files. Do not use ultrareview. Avoid style, naming, formatting, or speculative findings unless they cause real user-facing failure."
+SYSTEM_PROMPT="You are an external code reviewer. Review only for actionable correctness, security, data loss, concurrency, error handling, regression, and missing-test risks. Do not edit files. Do not use ultrareview. Avoid style, naming, formatting, or speculative findings unless they cause real user-facing failure. If repository tools are enabled, prefer RTK for noisy shell output: rtk summary for tests/builds, rtk log for logs, rtk find/grep for broad inspection, and rtk git diff/log/status for git output; use raw commands only when exact full output is needed."
 
 USER_PROMPT="Review the repository diff provided via stdin. Start with findings. Use this exact structure:
 
@@ -226,7 +230,7 @@ CLAUDE_ARGS=(
 if [ "$WITH_TOOLS" = "1" ]; then
   CLAUDE_ARGS+=(
     --tools "Read,Bash"
-    --allowedTools "Read" "Bash(git diff *)" "Bash(git status *)" "Bash(git log *)" "Bash(git show *)" "Bash(git rev-parse *)" "Bash(rg *)" "Bash(sed *)" "Bash(ls *)" "Bash(pwd)"
+    --allowedTools "Read" "Bash(git diff *)" "Bash(git status *)" "Bash(git log *)" "Bash(git show *)" "Bash(git rev-parse *)" "Bash(rtk git diff *)" "Bash(rtk git status *)" "Bash(rtk git log *)" "Bash(rtk git show *)" "Bash(rtk git rev-parse *)" "Bash(rg *)" "Bash(rtk grep *)" "Bash(rtk find *)" "Bash(rtk summary *)" "Bash(rtk log *)" "Bash(sed *)" "Bash(ls *)" "Bash(rtk ls *)" "Bash(pwd)"
   )
 else
   CLAUDE_ARGS+=(--tools "")
@@ -249,8 +253,15 @@ with open(path, "r", encoding="utf-8") as f:
 try:
     data = json.loads(raw)
 except json.JSONDecodeError:
-    print(raw, end="")
-    sys.exit(0)
+    start = raw.find("{")
+    if start == -1:
+        print(raw, end="")
+        sys.exit(0)
+    try:
+        data = json.loads(raw[start:])
+    except json.JSONDecodeError:
+        print(raw, end="")
+        sys.exit(0)
 
 result = data.get("result")
 if isinstance(result, str):

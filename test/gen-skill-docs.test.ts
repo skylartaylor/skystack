@@ -403,7 +403,7 @@ describe('gen-codex-skills', () => {
     expect(content).not.toContain('\n.agents/skills/claude-review/scripts/claude_review.sh\n');
   });
 
-  test('claude-review defaults to bounded diff-only review', () => {
+  test('claude-review defaults to bounded tool-enabled review', () => {
     const skill = fs.readFileSync(
       path.join(ROOT, '.agents', 'skills', 'claude-review', 'SKILL.md'),
       'utf-8'
@@ -414,16 +414,20 @@ describe('gen-codex-skills', () => {
     );
 
     expect(skill).toContain('timeout_ms: 900000');
-    expect(skill).toContain('no repo tools by default');
+    expect(skill).toContain('read-only repo tools by default');
     expect(skill).toContain('If the user asks for a "fable review", pass `--fable`');
     expect(skill).toContain('If they ask for an\n"opus review", pass `--opus`');
     expect(skill).toContain('--max-diff-bytes N');
-    expect(wrapper).toContain('WITH_TOOLS="${CLAUDE_REVIEW_WITH_TOOLS:-0}"');
+    expect(wrapper).toContain('WITH_TOOLS="${CLAUDE_REVIEW_WITH_TOOLS:-1}"');
     expect(wrapper).toContain('MAX_DIFF_BYTES="${CLAUDE_REVIEW_MAX_DIFF_BYTES:-1500000}"');
     expect(wrapper).toContain('--opus|--fable|--reviewer opus|fable|--model MODEL');
-    expect(wrapper).toContain('MODEL="fable"');
+    expect(wrapper).toContain('MODEL="claude-opus-5"');
+    expect(wrapper).toContain('MODEL="claude-fable-5"');
     expect(wrapper).toContain('CLAUDE_ARGS+=(--tools "")');
+    expect(wrapper).toContain('if ! claude "${CLAUDE_ARGS[@]}"');
+    expect(wrapper).not.toContain('build_claude_command');
     expect(wrapper).toContain('--with-tools');
+    expect(wrapper).toContain('--no-tools');
     expect(wrapper).toContain('diff is too large');
   });
 

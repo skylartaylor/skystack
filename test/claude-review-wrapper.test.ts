@@ -69,29 +69,27 @@ function runWrapper(args: string[], env: Record<string, string>, cwd: string) {
 }
 
 describe('claude-review wrapper', () => {
-  test('defaults to diff-only mode with no Claude repo tools', () => {
+  test('defaults to Opus 5 with read-only Claude repo tools', () => {
     const repo = setupRepo();
     try {
       const result = runWrapper([], repo.env, repo.dir);
       expect(result.exitCode).toBe(0);
       expect(result.stdout.toString()).toContain('ok');
       const args = fs.readFileSync(repo.argsFile, 'utf8').split('\n');
-      const toolsIndex = args.indexOf('--tools');
-      expect(toolsIndex).toBeGreaterThan(-1);
-      expect(args[toolsIndex + 1]).toBe('');
       const modelIndex = args.indexOf('--model');
       expect(modelIndex).toBeGreaterThan(-1);
-      expect(args[modelIndex + 1]).toBe('opus[1m]');
-      expect(args).not.toContain('Read,Bash');
+      expect(args[modelIndex + 1]).toBe('claude-opus-5');
+      expect(args).toContain('Read,Bash');
+      expect(args).toContain('--allowedTools');
     } finally {
       fs.rmSync(repo.cleanupDir, { recursive: true, force: true });
     }
   }, TEST_TIMEOUT_MS);
 
   for (const [profile, cliArgs, expectedModel] of [
-    ['fable', ['--fable'], 'fable'],
-    ['reviewer fable', ['--reviewer', 'fable'], 'fable'],
-    ['opus', ['--fable', '--opus'], 'opus[1m]'],
+    ['fable', ['--fable'], 'claude-fable-5'],
+    ['reviewer fable', ['--reviewer', 'fable'], 'claude-fable-5'],
+    ['opus', ['--fable', '--opus'], 'claude-opus-5'],
   ] as const) {
     test(`${profile} review profile selects ${expectedModel}`, () => {
       const repo = setupRepo();
@@ -108,7 +106,7 @@ describe('claude-review wrapper', () => {
     }, TEST_TIMEOUT_MS);
   }
 
-  test('--with-tools opts into read-only repo tools', () => {
+  test('--with-tools explicitly keeps read-only repo tools enabled', () => {
     const repo = setupRepo();
     try {
       const result = runWrapper(['--with-tools'], repo.env, repo.dir);
@@ -116,6 +114,28 @@ describe('claude-review wrapper', () => {
       const args = fs.readFileSync(repo.argsFile, 'utf8').split('\n');
       expect(args).toContain('Read,Bash');
       expect(args).toContain('--allowedTools');
+      expect(args).toContain('Bash(rtk git diff *)');
+      expect(args).toContain('Bash(rtk grep *)');
+      expect(args).toContain('Bash(rtk summary *)');
+      expect(args).toContain('Bash(rtk log *)');
+      const systemPromptIndex = args.indexOf('--append-system-prompt');
+      expect(systemPromptIndex).toBeGreaterThan(-1);
+      expect(args[systemPromptIndex + 1]).toContain('prefer RTK for noisy shell output');
+    } finally {
+      fs.rmSync(repo.cleanupDir, { recursive: true, force: true });
+    }
+  }, TEST_TIMEOUT_MS);
+
+  test('--no-tools opts into strict diff-only mode', () => {
+    const repo = setupRepo();
+    try {
+      const result = runWrapper(['--no-tools'], repo.env, repo.dir);
+      expect(result.exitCode).toBe(0);
+      const args = fs.readFileSync(repo.argsFile, 'utf8').split('\n');
+      const toolsIndex = args.indexOf('--tools');
+      expect(toolsIndex).toBeGreaterThan(-1);
+      expect(args[toolsIndex + 1]).toBe('');
+      expect(args).not.toContain('Read,Bash');
     } finally {
       fs.rmSync(repo.cleanupDir, { recursive: true, force: true });
     }
