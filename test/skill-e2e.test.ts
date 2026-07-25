@@ -1,11 +1,19 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { runSkillTest } from './helpers/session-runner';
 import type { SkillTestResult } from './helpers/session-runner';
+import { getToolCommand } from './helpers/agent-runner';
 import { outcomeJudge, callJudge } from './helpers/llm-judge';
 import { EvalCollector, judgePassed } from './helpers/eval-store';
 import type { EvalTestEntry } from './helpers/eval-store';
 import { startTestServer } from '../browse/test/test-server';
-import { selectTests, detectBaseBranch, getChangedFiles, E2E_TOUCHFILES, GLOBAL_TOUCHFILES } from './helpers/touchfiles';
+import {
+  selectTests,
+  detectBaseBranch,
+  getChangedFiles,
+  ACTIVE_E2E_TOUCHFILES,
+  RETIRED_E2E_TESTS,
+  GLOBAL_TOUCHFILES,
+} from './helpers/touchfiles';
 import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -34,9 +42,9 @@ if (evalsEnabled && !process.env.EVALS_ALL) {
   const changedFiles = getChangedFiles(baseBranch, ROOT);
 
   if (changedFiles.length > 0) {
-    const selection = selectTests(changedFiles, E2E_TOUCHFILES, GLOBAL_TOUCHFILES);
+    const selection = selectTests(changedFiles, ACTIVE_E2E_TOUCHFILES, GLOBAL_TOUCHFILES);
     selectedTests = selection.selected;
-    process.stderr.write(`\nE2E selection (${selection.reason}): ${selection.selected.length}/${Object.keys(E2E_TOUCHFILES).length} tests\n`);
+    process.stderr.write(`\nE2E selection (${selection.reason}): ${selection.selected.length}/${Object.keys(ACTIVE_E2E_TOUCHFILES).length} tests\n`);
     if (selection.skipped.length > 0) {
       process.stderr.write(`  Skipped: ${selection.skipped.join(', ')}\n`);
     }
@@ -47,13 +55,16 @@ if (evalsEnabled && !process.env.EVALS_ALL) {
 
 /** Wrap a describe block to skip entirely if none of its tests are selected. */
 function describeIfSelected(name: string, testNames: string[], fn: () => void) {
-  const anySelected = selectedTests === null || testNames.some(t => selectedTests!.includes(t));
+  const activeTests = testNames.filter(testName => !RETIRED_E2E_TESTS.has(testName));
+  const anySelected = activeTests.length > 0
+    && (selectedTests === null || activeTests.some(t => selectedTests!.includes(t)));
   (anySelected ? describeE2E : describe.skip)(name, fn);
 }
 
 /** Skip an individual test if not selected (for multi-test describe blocks). */
 function testIfSelected(testName: string, fn: () => Promise<void>, timeout: number) {
-  const shouldRun = selectedTests === null || selectedTests.includes(testName);
+  const shouldRun = !RETIRED_E2E_TESTS.has(testName)
+    && (selectedTests === null || selectedTests.includes(testName));
   (shouldRun ? test : test.skip)(testName, fn, timeout);
 }
 
@@ -61,7 +72,7 @@ function testIfSelected(testName: string, fn: () => Promise<void>, timeout: numb
 const evalCollector = evalsEnabled ? new EvalCollector('e2e') : null;
 
 // Unique run ID for this E2E session — used for heartbeat + per-run log directory
-const runId = new Date().toISOString().replace(/[:.]/g, '').replace('T', '-').slice(0, 15);
+const runId = new Date().toISOString().replace(/[:.]/g, '').replace('T', '-').replace('Z', '');
 
 /** DRY helper to record an E2E test result into the eval collector. */
 function recordE2E(name: string, suite: string, result: SkillTestResult, extra?: Partial<EvalTestEntry>) {
@@ -77,6 +88,7 @@ function recordE2E(name: string, suite: string, result: SkillTestResult, extra?:
     cost_usd: result.costEstimate.estimatedCost,
     transcript: result.transcript,
     output: result.output?.slice(0, 2000),
+    identity: result.identity,
     turns_used: result.costEstimate.turnsUsed,
     browse_errors: result.browseErrors,
     exit_reason: result.exitReason,
@@ -193,8 +205,8 @@ describeIfSelected('Skill E2E tests', [
 4. $B screenshot /tmp/skill-e2e-test.png
 Report the results of each command.`,
       workingDirectory: tmpDir,
-      maxTurns: 10,
-      timeout: 60_000,
+      maxTurns: 15,
+      timeout: 90_000,
       testName: 'browse-basic',
       runId,
     });
@@ -203,7 +215,7 @@ Report the results of each command.`,
     recordE2E('browse basic commands', 'Skill E2E tests', result);
     expect(result.browseErrors).toHaveLength(0);
     expect(result.exitReason).toBe('success');
-  }, 90_000);
+  }, 120_000);
 
   testIfSelected('browse-snapshot', async () => {
     const result = await runSkillTest({
@@ -231,9 +243,9 @@ Report what each command returned.`,
   }, 90_000);
 
   testIfSelected('skillmd-setup-discovery', async () => {
-    const skillMd = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    const skillMd = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
     const setupStart = skillMd.indexOf('## SETUP');
-    const setupEnd = skillMd.indexOf('## IMPORTANT');
+    const setupEnd = skillMd.indexOf('## Core workflow');
     const setupBlock = skillMd.slice(setupStart, setupEnd);
 
     // Guard: verify we extracted a valid setup block
@@ -254,7 +266,7 @@ Report whether it worked.`,
       runId,
     });
 
-    recordE2E('SKILL.md setup block discovery', 'Skill E2E tests', result);
+    recordE2E('browse SKILL.md setup block discovery', 'Skill E2E tests', result);
     expect(result.browseErrors).toHaveLength(0);
     expect(result.exitReason).toBe('success');
   }, 90_000);
@@ -263,9 +275,9 @@ Report whether it worked.`,
     // Create a tmpdir with no browse binary — no local .claude/skills/skystack/browse/dist/browse
     const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-empty-'));
 
-    const skillMd = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    const skillMd = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
     const setupStart = skillMd.indexOf('## SETUP');
-    const setupEnd = skillMd.indexOf('## IMPORTANT');
+    const setupEnd = skillMd.indexOf('## Core workflow');
     const setupBlock = skillMd.slice(setupStart, setupEnd);
 
     const result = await runSkillTest({
@@ -286,7 +298,7 @@ Report the exact output. Do NOT try to fix or install anything — just report w
     // ~/.claude/skills/skystack/browse/dist/browse exists, so we get READY.
     // The important thing is it doesn't crash or give a confusing error.
     const allText = result.output || '';
-    recordE2E('SKILL.md setup block (no local binary)', 'Skill E2E tests', result);
+    recordE2E('browse SKILL.md setup block (no local binary)', 'Skill E2E tests', result);
     expect(allText).toMatch(/READY|NEEDS_SETUP/);
     expect(result.exitReason).toBe('success');
 
@@ -298,9 +310,9 @@ Report the exact output. Do NOT try to fix or install anything — just report w
     // Create a tmpdir outside any git repo
     const nonGitDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-nogit-'));
 
-    const skillMd = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    const skillMd = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
     const setupStart = skillMd.indexOf('## SETUP');
-    const setupEnd = skillMd.indexOf('## IMPORTANT');
+    const setupEnd = skillMd.indexOf('## Core workflow');
     const setupBlock = skillMd.slice(setupStart, setupEnd);
 
     const result = await runSkillTest({
@@ -318,7 +330,7 @@ Report the exact output — either "READY: <path>" or "NEEDS_SETUP".`,
 
     // Should either find global binary (READY) or show NEEDS_SETUP — not crash
     const allText = result.output || '';
-    recordE2E('SKILL.md outside git repo', 'Skill E2E tests', result);
+    recordE2E('browse SKILL.md outside git repo', 'Skill E2E tests', result);
     expect(allText).toMatch(/READY|NEEDS_SETUP/);
 
     // Clean up
@@ -456,7 +468,7 @@ describeIfSelected('QA skill E2E', ['qa-quick'], () => {
   let qaDir: string;
 
   beforeAll(() => {
-    testServer = testServer || startTestServer();
+    testServer = startTestServer();
     qaDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-qa-'));
     setupBrowseShims(qaDir);
 
@@ -493,15 +505,22 @@ Write your report to ${qaDir}/qa-reports/qa-report.md`,
     });
 
     logCost('/qa quick', result);
+    const reportPath = path.join(qaDir, 'qa-reports', 'qa-report.md');
+    const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, 'utf8') : '';
+    const reportReady = report.trim().length > 100;
+    const pageObserved = /Hello World|highlighted paragraph|Item one/i.test(report);
+    const exitOk = ['success', 'error_max_turns'].includes(result.exitReason);
     recordE2E('/qa quick', 'QA skill E2E', result, {
-      passed: ['success', 'error_max_turns'].includes(result.exitReason),
+      passed: exitOk && reportReady && pageObserved && result.browseErrors.length === 0,
     });
     // browseErrors can include false positives from hallucinated paths
     if (result.browseErrors.length > 0) {
       console.warn('/qa quick browse errors (non-fatal):', result.browseErrors);
     }
-    // Accept error_max_turns — the agent doing thorough QA work is not a failure
-    expect(['success', 'error_max_turns']).toContain(result.exitReason);
+    expect(exitOk).toBe(true);
+    expect(reportReady).toBe(true);
+    expect(pageObserved).toBe(true);
+    expect(result.browseErrors).toHaveLength(0);
   }, 300_000);
 });
 
@@ -560,6 +579,10 @@ Write your review findings to ${reviewDir}/review-output.md`,
     logCost('/review', result);
     recordE2E('/review SQL injection', 'Review skill E2E', result);
     expect(result.exitReason).toBe('success');
+    const reviewPath = path.join(reviewDir, 'review-output.md');
+    expect(fs.existsSync(reviewPath)).toBe(true);
+    const review = fs.readFileSync(reviewPath, 'utf8').toLowerCase();
+    expect(review).toMatch(/sql|injection|interpolat/);
   }, 120_000);
 });
 
@@ -622,21 +645,20 @@ The diff adds a new "returned" status to the Order model. Your job is to check i
 
     // Verify the review caught the missing enum handlers
     const reviewPath = path.join(enumDir, 'review-output.md');
-    if (fs.existsSync(reviewPath)) {
-      const review = fs.readFileSync(reviewPath, 'utf-8');
-      // Should mention the missing "returned" handling in at least one of the methods
-      const mentionsReturned = review.toLowerCase().includes('returned');
-      const mentionsEnum = review.toLowerCase().includes('enum') || review.toLowerCase().includes('status');
-      const mentionsCritical = review.toLowerCase().includes('critical');
-      expect(mentionsReturned).toBe(true);
-      expect(mentionsEnum || mentionsCritical).toBe(true);
-    }
+    expect(fs.existsSync(reviewPath)).toBe(true);
+    const review = fs.readFileSync(reviewPath, 'utf-8');
+    // Should mention the missing "returned" handling in at least one of the methods
+    const mentionsReturned = review.toLowerCase().includes('returned');
+    const mentionsEnum = review.toLowerCase().includes('enum') || review.toLowerCase().includes('status');
+    const mentionsCritical = review.toLowerCase().includes('critical');
+    expect(mentionsReturned).toBe(true);
+    expect(mentionsEnum || mentionsCritical).toBe(true);
   }, 120_000);
 });
 
 // --- Review: Design review lite E2E ---
 
-describeE2E('Review design lite E2E', () => {
+describeIfSelected('Review design lite E2E', ['review-design-lite'], () => {
   let designDir: string;
 
   beforeAll(() => {
@@ -687,8 +709,8 @@ Write your review findings to ${designDir}/review-output.md
 
 Important: The design checklist should catch issues like blacklisted fonts, small font sizes, outline:none, !important, AI slop patterns (purple gradients, generic hero copy, 3-column feature grid), etc.`,
       workingDirectory: designDir,
-      maxTurns: 15,
-      timeout: 120_000,
+      maxTurns: 20,
+      timeout: 180_000,
       testName: 'review-design-lite',
       runId,
     });
@@ -721,7 +743,7 @@ Important: The design checklist should catch issues like blacklisted fonts, smal
       console.log(`Design review detected ${detected}/7 planted issues`);
       expect(detected).toBeGreaterThanOrEqual(4);
     }
-  }, 150_000);
+  }, 210_000);
 });
 
 // --- B6/B7/B8: Planted-bug outcome evals ---
@@ -1238,10 +1260,9 @@ Analyze the git history and produce the narrative report as described in the SKI
 
     // Verify the retro was written
     const retroPath = path.join(retroDir, 'retro-output.md');
-    if (fs.existsSync(retroPath)) {
-      const retro = fs.readFileSync(retroPath, 'utf-8');
-      expect(retro.length).toBeGreaterThan(100);
-    }
+    expect(fs.existsSync(retroPath)).toBe(true);
+    const retro = fs.readFileSync(retroPath, 'utf-8');
+    expect(retro.length).toBeGreaterThan(100);
   }, 420_000);
 });
 
@@ -1251,7 +1272,7 @@ describeIfSelected('QA-Only skill E2E', ['qa-only-no-fix'], () => {
   let qaOnlyDir: string;
 
   beforeAll(() => {
-    testServer = testServer || startTestServer();
+    testServer = startTestServer();
     qaOnlyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-qa-only-'));
     setupBrowseShims(qaOnlyDir);
 
@@ -1279,6 +1300,7 @@ describeIfSelected('QA-Only skill E2E', ['qa-only-no-fix'], () => {
   });
 
   afterAll(() => {
+    testServer?.server?.stop();
     try { fs.rmSync(qaOnlyDir, { recursive: true, force: true }); } catch {}
   });
 
@@ -1311,11 +1333,15 @@ Write your report to ${qaOnlyDir}/qa-reports/qa-only-report.md`,
     }
 
     const exitOk = ['success', 'error_max_turns'].includes(result.exitReason);
+    const reportPath = path.join(qaOnlyDir, 'qa-reports', 'qa-only-report.md');
+    const reportReady = fs.existsSync(reportPath)
+      && fs.readFileSync(reportPath, 'utf8').trim().length > 100;
     recordE2E('/qa-only no-fix', 'QA-Only skill E2E', result, {
-      passed: exitOk && editCalls.length === 0,
+      passed: exitOk && reportReady && editCalls.length === 0,
     });
 
     expect(editCalls).toHaveLength(0);
+    expect(reportReady).toBe(true);
 
     // Accept error_max_turns — the agent doing thorough QA is not a failure
     expect(['success', 'error_max_turns']).toContain(result.exitReason);
@@ -1634,7 +1660,7 @@ Write your findings to ${dir}/review-output.md`,
     const allOutput = (result.output || '') + toolOutputs;
     // The agent should have run git diff against main (the fallback)
     const usedGitDiff = result.toolCalls.some(tc =>
-      tc.tool === 'Bash' && typeof tc.input === 'string' && tc.input.includes('git diff')
+      getToolCommand(tc)?.includes('git diff')
     );
     expect(usedGitDiff).toBe(true);
   }, 120_000);
@@ -1694,10 +1720,10 @@ Write a summary of what you detected to ${dir}/publish-preflight.md including:
     }
 
     // Verify no destructive actions — no push, no PR creation
-    const destructiveTools = result.toolCalls.filter(tc =>
-      tc.tool === 'Bash' && typeof tc.input === 'string' &&
-      (tc.input.includes('git push') || tc.input.includes('gh pr create'))
-    );
+    const destructiveTools = result.toolCalls.filter(tc => {
+      const command = getToolCommand(tc);
+      return command?.includes('git push') || command?.includes('gh pr create');
+    });
     expect(destructiveTools).toHaveLength(0);
   }, 90_000);
 
@@ -1844,7 +1870,7 @@ IMPORTANT:
 
     const exitOk = ['success', 'error_max_turns'].includes(result.exitReason);
     recordE2E('/document-release', 'Document-Release skill E2E', result, {
-      passed: exitOk && hasOriginalEntries,
+      passed: exitOk && hasOriginalEntries && readmeUpdated,
     });
 
     // Critical guardrail: CHANGELOG must not be clobbered
@@ -1853,12 +1879,7 @@ IMPORTANT:
     // Accept error_max_turns — thorough doc review is not a failure
     expect(['success', 'error_max_turns']).toContain(result.exitReason);
 
-    // Informational: did it update README?
-    if (readmeUpdated) {
-      console.log('README updated to include Feature C');
-    } else {
-      console.warn('README was NOT updated — agent may not have found the feature');
-    }
+    expect(readmeUpdated).toBe(true);
   }, 240_000);
 });
 

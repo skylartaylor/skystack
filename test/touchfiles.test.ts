@@ -12,8 +12,13 @@ import {
   matchGlob,
   selectTests,
   detectBaseBranch,
+  getChangedFiles,
   E2E_TOUCHFILES,
   LLM_JUDGE_TOUCHFILES,
+  ACTIVE_E2E_TOUCHFILES,
+  ACTIVE_LLM_JUDGE_TOUCHFILES,
+  RETIRED_E2E_TESTS,
+  RETIRED_LLM_TESTS,
   GLOBAL_TOUCHFILES,
 } from './helpers/touchfiles';
 
@@ -61,12 +66,12 @@ describe('matchGlob', () => {
 
 describe('selectTests', () => {
   test('browse/src change selects browse and qa tests', () => {
-    const result = selectTests(['browse/src/commands.ts'], E2E_TOUCHFILES);
+    const result = selectTests(['browse/src/commands.ts'], ACTIVE_E2E_TOUCHFILES);
     expect(result.selected).toContain('browse-basic');
     expect(result.selected).toContain('browse-snapshot');
     expect(result.selected).toContain('qa-quick');
     expect(result.selected).toContain('qa-fix-loop');
-    expect(result.selected).toContain('design-review-fix');
+    expect(result.selected).not.toContain('design-review-fix');
     expect(result.reason).toBe('diff');
     // Should NOT include unrelated tests
     expect(result.selected).not.toContain('plan-ceo-review');
@@ -74,71 +79,103 @@ describe('selectTests', () => {
     expect(result.selected).not.toContain('document-release');
   });
 
-  test('skill-specific change selects only that skill and related tests', () => {
-    const result = selectTests(['plan-ceo-review/SKILL.md'], E2E_TOUCHFILES);
-    expect(result.selected).toContain('plan-ceo-review');
-    expect(result.selected).toContain('plan-ceo-review-selective');
-    expect(result.selected.length).toBe(2);
-    expect(result.skipped.length).toBe(Object.keys(E2E_TOUCHFILES).length - 2);
+  test('retired skill changes select no paid tests', () => {
+    const result = selectTests(['plan-ceo-review/SKILL.md'], ACTIVE_E2E_TOUCHFILES);
+    expect(result.selected).toEqual([]);
+    expect(result.skipped.length).toBe(Object.keys(ACTIVE_E2E_TOUCHFILES).length);
   });
 
   test('global touchfile triggers ALL tests', () => {
-    const result = selectTests(['test/helpers/session-runner.ts'], E2E_TOUCHFILES);
-    expect(result.selected.length).toBe(Object.keys(E2E_TOUCHFILES).length);
+    const result = selectTests(['test/helpers/session-runner.ts'], ACTIVE_E2E_TOUCHFILES);
+    expect(result.selected.length).toBe(Object.keys(ACTIVE_E2E_TOUCHFILES).length);
     expect(result.skipped.length).toBe(0);
     expect(result.reason).toContain('global');
   });
 
+  test('provider runner changes trigger ALL tests', () => {
+    for (const file of [
+      'test/helpers/agent-runner.ts',
+      'test/helpers/claude-runner.ts',
+      'test/helpers/codex-runner.ts',
+    ]) {
+      const result = selectTests([file], ACTIVE_E2E_TOUCHFILES);
+      expect(result.selected.length).toBe(Object.keys(ACTIVE_E2E_TOUCHFILES).length);
+      expect(result.reason).toContain('global');
+    }
+  });
+
   test('gen-skill-docs.ts is a global touchfile', () => {
-    const result = selectTests(['scripts/gen-skill-docs.ts'], E2E_TOUCHFILES);
-    expect(result.selected.length).toBe(Object.keys(E2E_TOUCHFILES).length);
-    expect(result.reason).toContain('global');
+    for (const file of [
+      'scripts/skill-catalog.ts',
+      'scripts/gen-codex-skills.ts',
+      'scripts/gen-skill-docs.ts',
+    ]) {
+      const result = selectTests([file], ACTIVE_E2E_TOUCHFILES);
+      expect(result.selected.length).toBe(Object.keys(ACTIVE_E2E_TOUCHFILES).length);
+      expect(result.reason).toContain('global');
+    }
   });
 
   test('unrelated file selects nothing', () => {
-    const result = selectTests(['README.md'], E2E_TOUCHFILES);
+    const result = selectTests(['README.md'], ACTIVE_E2E_TOUCHFILES);
     expect(result.selected).toEqual([]);
-    expect(result.skipped.length).toBe(Object.keys(E2E_TOUCHFILES).length);
+    expect(result.skipped.length).toBe(Object.keys(ACTIVE_E2E_TOUCHFILES).length);
   });
 
   test('empty changed files selects nothing', () => {
-    const result = selectTests([], E2E_TOUCHFILES);
+    const result = selectTests([], ACTIVE_E2E_TOUCHFILES);
     expect(result.selected).toEqual([]);
   });
 
   test('multiple changed files union their selections', () => {
     const result = selectTests(
       ['plan-ceo-review/SKILL.md', 'retro/SKILL.md.tmpl'],
-      E2E_TOUCHFILES,
+      ACTIVE_E2E_TOUCHFILES,
     );
-    expect(result.selected).toContain('plan-ceo-review');
-    expect(result.selected).toContain('plan-ceo-review-selective');
     expect(result.selected).toContain('retro');
     expect(result.selected).toContain('retro-base-branch');
-    expect(result.selected.length).toBe(4);
-  });
-
-  test('works with LLM_JUDGE_TOUCHFILES', () => {
-    const result = selectTests(['qa/SKILL.md'], LLM_JUDGE_TOUCHFILES);
-    expect(result.selected).toContain('qa/SKILL.md workflow');
-    expect(result.selected).toContain('qa/SKILL.md health rubric');
     expect(result.selected.length).toBe(2);
   });
 
-  test('SKILL.md.tmpl root template only selects root-dependent tests', () => {
-    const result = selectTests(['SKILL.md.tmpl'], E2E_TOUCHFILES);
-    // Should select the 7 tests that depend on root SKILL.md
-    expect(result.selected).toContain('skillmd-setup-discovery');
-    expect(result.selected).toContain('contributor-mode');
-    expect(result.selected).toContain('session-awareness');
-    // Should NOT select unrelated tests
+  test('works with LLM_JUDGE_TOUCHFILES', () => {
+    const result = selectTests(['qa/SKILL.md'], ACTIVE_LLM_JUDGE_TOUCHFILES);
+    expect(result.selected).toContain('qa/SKILL.md workflow');
+    expect(result.selected).not.toContain('qa/SKILL.md health rubric');
+    expect(result.selected.length).toBe(1);
+  });
+
+  test('root template does not select browse setup scenarios', () => {
+    const result = selectTests(['SKILL.md.tmpl'], ACTIVE_E2E_TOUCHFILES);
+    expect(result.selected).not.toContain('skillmd-setup-discovery');
+    expect(result.selected).not.toContain('contributor-mode');
+    expect(result.selected).not.toContain('session-awareness');
     expect(result.selected).not.toContain('plan-ceo-review');
     expect(result.selected).not.toContain('retro');
   });
 
+  test('browse template selects its setup discovery scenarios', () => {
+    const result = selectTests(['browse/SKILL.md.tmpl'], ACTIVE_E2E_TOUCHFILES);
+    expect(result.selected).toEqual(expect.arrayContaining([
+      'skillmd-setup-discovery',
+      'skillmd-no-local-binary',
+      'skillmd-outside-git',
+    ]));
+  });
+
   test('global touchfiles work for LLM-judge tests too', () => {
-    const result = selectTests(['scripts/gen-skill-docs.ts'], LLM_JUDGE_TOUCHFILES);
-    expect(result.selected.length).toBe(Object.keys(LLM_JUDGE_TOUCHFILES).length);
+    const result = selectTests(['scripts/gen-skill-docs.ts'], ACTIVE_LLM_JUDGE_TOUCHFILES);
+    expect(result.selected.length).toBe(Object.keys(ACTIVE_LLM_JUDGE_TOUCHFILES).length);
+  });
+
+  test('active inventories exclude every retired scenario', () => {
+    expect(Object.keys(ACTIVE_E2E_TOUCHFILES).length).toBe(19);
+    expect(Object.keys(ACTIVE_LLM_JUDGE_TOUCHFILES).length).toBe(6);
+    for (const testName of RETIRED_E2E_TESTS) {
+      expect(testName in ACTIVE_E2E_TOUCHFILES).toBe(false);
+    }
+    for (const testName of RETIRED_LLM_TESTS) {
+      expect(testName in ACTIVE_LLM_JUDGE_TOUCHFILES).toBe(false);
+    }
   });
 });
 
@@ -181,6 +218,41 @@ describe('detectBaseBranch', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'touchfiles-test-'));
     const result = detectBaseBranch(dir);
     expect(result).toBeNull();
+
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+  });
+});
+
+describe('getChangedFiles', () => {
+  test('includes committed, staged, unstaged, and untracked work', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'touchfiles-changes-'));
+    const run = (args: string[]) =>
+      spawnSync('git', args, { cwd: dir, stdio: 'pipe', timeout: 5000 });
+
+    run(['init', '-b', 'main']);
+    run(['config', 'user.email', 'test@test.com']);
+    run(['config', 'user.name', 'Test']);
+    fs.writeFileSync(path.join(dir, 'committed.txt'), 'base\n');
+    fs.writeFileSync(path.join(dir, 'staged.txt'), 'base\n');
+    fs.writeFileSync(path.join(dir, 'unstaged.txt'), 'base\n');
+    run(['add', '.']);
+    run(['commit', '-m', 'base']);
+
+    run(['checkout', '-b', 'feature']);
+    fs.writeFileSync(path.join(dir, 'committed.txt'), 'feature\n');
+    run(['add', 'committed.txt']);
+    run(['commit', '-m', 'feature']);
+    fs.writeFileSync(path.join(dir, 'staged.txt'), 'staged\n');
+    run(['add', 'staged.txt']);
+    fs.writeFileSync(path.join(dir, 'unstaged.txt'), 'unstaged\n');
+    fs.writeFileSync(path.join(dir, 'untracked.txt'), 'untracked\n');
+
+    expect(getChangedFiles('main', dir)).toEqual([
+      'committed.txt',
+      'staged.txt',
+      'unstaged.txt',
+      'untracked.txt',
+    ]);
 
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
   });

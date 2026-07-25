@@ -12,8 +12,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { spawnSync } from 'child_process';
+import type { AgentRunIdentity } from './agent-runner';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 const DEFAULT_EVAL_DIR = path.join(os.homedir(), '.skystack-dev', 'evals');
 
 // --- Interfaces ---
@@ -25,6 +26,8 @@ export interface EvalTestEntry {
   passed: boolean;
   duration_ms: number;
   cost_usd: number;
+  /** Exact provider, CLI, prompt, and skill identity used for this run. */
+  identity?: AgentRunIdentity;
 
   // E2E
   transcript?: any[];

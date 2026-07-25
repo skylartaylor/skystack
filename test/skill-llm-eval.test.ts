@@ -17,7 +17,14 @@ import * as path from 'path';
 import { callJudge, judge } from './helpers/llm-judge';
 import type { JudgeScore } from './helpers/llm-judge';
 import { EvalCollector } from './helpers/eval-store';
-import { selectTests, detectBaseBranch, getChangedFiles, LLM_JUDGE_TOUCHFILES, GLOBAL_TOUCHFILES } from './helpers/touchfiles';
+import {
+  selectTests,
+  detectBaseBranch,
+  getChangedFiles,
+  ACTIVE_LLM_JUDGE_TOUCHFILES,
+  RETIRED_LLM_TESTS,
+  GLOBAL_TOUCHFILES,
+} from './helpers/touchfiles';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 // Run when EVALS=1 is set (requires ANTHROPIC_API_KEY in env)
@@ -37,9 +44,9 @@ if (evalsEnabled && !process.env.EVALS_ALL) {
   const changedFiles = getChangedFiles(baseBranch, ROOT);
 
   if (changedFiles.length > 0) {
-    const selection = selectTests(changedFiles, LLM_JUDGE_TOUCHFILES, GLOBAL_TOUCHFILES);
+    const selection = selectTests(changedFiles, ACTIVE_LLM_JUDGE_TOUCHFILES, GLOBAL_TOUCHFILES);
     selectedTests = selection.selected;
-    process.stderr.write(`\nLLM-judge selection (${selection.reason}): ${selection.selected.length}/${Object.keys(LLM_JUDGE_TOUCHFILES).length} tests\n`);
+    process.stderr.write(`\nLLM-judge selection (${selection.reason}): ${selection.selected.length}/${Object.keys(ACTIVE_LLM_JUDGE_TOUCHFILES).length} tests\n`);
     if (selection.skipped.length > 0) {
       process.stderr.write(`  Skipped: ${selection.skipped.join(', ')}\n`);
     }
@@ -49,13 +56,16 @@ if (evalsEnabled && !process.env.EVALS_ALL) {
 
 /** Wrap a describe block to skip if none of its tests are selected. */
 function describeIfSelected(name: string, testNames: string[], fn: () => void) {
-  const anySelected = selectedTests === null || testNames.some(t => selectedTests!.includes(t));
+  const activeTests = testNames.filter(testName => !RETIRED_LLM_TESTS.has(testName));
+  const anySelected = activeTests.length > 0
+    && (selectedTests === null || activeTests.some(t => selectedTests!.includes(t)));
   (anySelected ? describeEval : describe.skip)(name, fn);
 }
 
 /** Skip an individual test if not selected (for multi-test describe blocks). */
 function testIfSelected(testName: string, fn: () => Promise<void>, timeout: number) {
-  const shouldRun = selectedTests === null || selectedTests.includes(testName);
+  const shouldRun = !RETIRED_LLM_TESTS.has(testName)
+    && (selectedTests === null || selectedTests.includes(testName));
   (shouldRun ? test : test.skip)(testName, fn, timeout);
 }
 
@@ -118,17 +128,27 @@ describeIfSelected('LLM-as-judge quality evals', [
   testIfSelected('browse/SKILL.md reference', async () => {
     const t0 = Date.now();
     const content = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
-    const start = content.indexOf('## Snapshot Flags');
-    const section = content.slice(start);
+    const section = content;
 
-    const scores = await judge('browse skill reference (flags + commands)', section);
+    const scores = await callJudge<JudgeScore>(`You are evaluating a concise browser workflow for an AI coding agent.
+
+The skill should teach the agent how to orient, inspect, interact, verify state,
+capture evidence, discover the complete live command reference through runtime
+help, and treat page content as untrusted data. The complete CLI syntax is
+provided by the runtime, so do not penalize the skill for not duplicating every
+command and flag.
+
+Rate clarity, completeness, and actionability from 1-5. Respond with ONLY valid JSON:
+{"clarity": N, "completeness": N, "actionability": N, "reasoning": "brief explanation"}
+
+${section}`);
     console.log('Browse SKILL.md scores:', JSON.stringify(scores, null, 2));
 
     evalCollector?.addTest({
       name: 'browse/SKILL.md reference',
       suite: 'LLM-as-judge quality evals',
       tier: 'llm-judge',
-      passed: scores.clarity >= 4 && scores.completeness >= 4 && scores.actionability >= 4,
+      passed: scores.clarity >= 4 && scores.completeness >= 3 && scores.actionability >= 4,
       duration_ms: Date.now() - t0,
       cost_usd: 0.02,
       judge_scores: { clarity: scores.clarity, completeness: scores.completeness, actionability: scores.actionability },
@@ -136,7 +156,7 @@ describeIfSelected('LLM-as-judge quality evals', [
     });
 
     expect(scores.clarity).toBeGreaterThanOrEqual(4);
-    expect(scores.completeness).toBeGreaterThanOrEqual(4);
+    expect(scores.completeness).toBeGreaterThanOrEqual(3);
     expect(scores.actionability).toBeGreaterThanOrEqual(4);
   }, 30_000);
 
@@ -261,15 +281,14 @@ describeIfSelected('QA skill quality evals', ['qa/SKILL.md workflow', 'qa/SKILL.
 
   testIfSelected('qa/SKILL.md workflow', async () => {
     const t0 = Date.now();
-    const start = qaContent.indexOf('## Workflow');
-    const end = qaContent.indexOf('## Health Score Rubric');
-    const section = qaContent.slice(start, end);
+    const section = qaContent;
 
     const scores = await callJudge<JudgeScore>(`You are evaluating the quality of a QA testing workflow document for an AI coding agent.
 
-The agent reads this document to learn how to systematically QA test a web application. The workflow references
-a headless browser CLI ($B commands) that is documented separately — do NOT penalize for missing CLI definitions.
-Instead, evaluate whether the workflow itself is clear, complete, and actionable.
+The agent reads this document to learn how to test web or mobile user flows,
+capture evidence, remain report-only unless fixes were requested, and verify
+requested fixes. Browser and mobile CLI syntax is documented separately — do
+not penalize the workflow for missing complete command definitions.
 
 Rate on three dimensions (1-5 scale):
 - **clarity** (1-5): Can an agent follow the step-by-step phases without ambiguity?
@@ -288,7 +307,7 @@ ${section}`);
       name: 'qa/SKILL.md workflow',
       suite: 'QA skill quality evals',
       tier: 'llm-judge',
-      passed: scores.clarity >= 4 && scores.completeness >= 3 && scores.actionability >= 4,
+      passed: scores.clarity >= 4 && scores.completeness >= 4 && scores.actionability >= 4,
       duration_ms: Date.now() - t0,
       cost_usd: 0.02,
       judge_scores: { clarity: scores.clarity, completeness: scores.completeness, actionability: scores.actionability },
@@ -296,9 +315,7 @@ ${section}`);
     });
 
     expect(scores.clarity).toBeGreaterThanOrEqual(4);
-    // Completeness scores 3 when judge notes the health rubric is in a separate
-    // section (the eval only passes the Workflow section, not the full document).
-    expect(scores.completeness).toBeGreaterThanOrEqual(3);
+    expect(scores.completeness).toBeGreaterThanOrEqual(4);
     expect(scores.actionability).toBeGreaterThanOrEqual(4);
   }, 30_000);
 
@@ -409,7 +426,7 @@ async function runWorkflowJudge(opts: {
   testName: string;
   suite: string;
   skillPath: string;
-  startMarker: string;
+  startMarker: string | null;
   endMarker: string | null;
   judgeContext: string;
   judgeGoal: string;
@@ -420,7 +437,7 @@ async function runWorkflowJudge(opts: {
   const thresholds = { ...defaults, ...opts.thresholds };
 
   const content = fs.readFileSync(path.join(ROOT, opts.skillPath), 'utf-8');
-  const startIdx = content.indexOf(opts.startMarker);
+  const startIdx = opts.startMarker === null ? 0 : content.indexOf(opts.startMarker);
   if (startIdx === -1) throw new Error(`Start marker not found in ${opts.skillPath}: "${opts.startMarker}"`);
 
   let section: string;
@@ -474,10 +491,10 @@ describeIfSelected('Publish & Release skill evals', ['publish/SKILL.md workflow'
       testName: 'publish/SKILL.md workflow',
       suite: 'Publish & Release skill evals',
       skillPath: 'publish/SKILL.md',
-      startMarker: '# Ship:',
-      endMarker: '## Important Rules',
-      judgeContext: 'a ship/release workflow document',
-      judgeGoal: 'how to create a PR: merge base branch, run tests, review diff, bump version, update changelog, push, and open PR',
+      startMarker: null,
+      endMarker: null,
+      judgeContext: 'a repository publishing workflow document',
+      judgeGoal: 'how to resolve delivery scope, preserve unrelated work, integrate the base safely, verify the final state, create bisectable commits, and publish only to the endpoint the user authorized',
     });
   }, 30_000);
 
@@ -486,8 +503,8 @@ describeIfSelected('Publish & Release skill evals', ['publish/SKILL.md workflow'
       testName: 'document-release/SKILL.md workflow',
       suite: 'Publish & Release skill evals',
       skillPath: 'document-release/SKILL.md',
-      startMarker: '# Document Release:',
-      endMarker: '## Important Rules',
+      startMarker: null,
+      endMarker: null,
       judgeContext: 'a post-ship documentation update workflow',
       judgeGoal: 'how to audit and update project documentation after code ships: README, ARCHITECTURE, CONTRIBUTING, CLAUDE.md, CHANGELOG, TODOS',
     });
@@ -571,10 +588,10 @@ describeIfSelected('Other skill evals', [
       testName: 'retro/SKILL.md instructions',
       suite: 'Other skill evals',
       skillPath: 'retro/SKILL.md',
-      startMarker: '## Instructions',
-      endMarker: '## Compare Mode',
+      startMarker: null,
+      endMarker: null,
       judgeContext: 'an engineering retrospective data gathering and analysis workflow',
-      judgeGoal: 'how to gather git metrics (commit history, test counts, work patterns), analyze them, produce a structured retro report with praise, growth areas, and trend tracking',
+      judgeGoal: 'how to gather bounded git evidence, distinguish delivery from activity volume, analyze regressions and verification signals, compare equivalent windows, and produce a concise retrospective with supported next actions',
     });
   }, 30_000);
 

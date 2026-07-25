@@ -13,8 +13,8 @@ import {
   selectTests,
   detectBaseBranch,
   getChangedFiles,
-  E2E_TOUCHFILES,
-  LLM_JUDGE_TOUCHFILES,
+  ACTIVE_E2E_TOUCHFILES,
+  ACTIVE_LLM_JUDGE_TOUCHFILES,
   GLOBAL_TOUCHFILES,
 } from '../test/helpers/touchfiles';
 
@@ -38,8 +38,8 @@ if (changedFiles.length === 0) {
   process.exit(0);
 }
 
-const e2eSelection = selectTests(changedFiles, E2E_TOUCHFILES, GLOBAL_TOUCHFILES);
-const llmSelection = selectTests(changedFiles, LLM_JUDGE_TOUCHFILES, GLOBAL_TOUCHFILES);
+const e2eSelection = selectTests(changedFiles, ACTIVE_E2E_TOUCHFILES, GLOBAL_TOUCHFILES);
+const llmSelection = selectTests(changedFiles, ACTIVE_LLM_JUDGE_TOUCHFILES, GLOBAL_TOUCHFILES);
 
 if (jsonMode) {
   console.log(JSON.stringify({
@@ -49,13 +49,13 @@ if (jsonMode) {
       selected: e2eSelection.selected,
       skipped: e2eSelection.skipped,
       reason: e2eSelection.reason,
-      count: `${e2eSelection.selected.length}/${Object.keys(E2E_TOUCHFILES).length}`,
+      count: `${e2eSelection.selected.length}/${Object.keys(ACTIVE_E2E_TOUCHFILES).length}`,
     },
     llm_judge: {
       selected: llmSelection.selected,
       skipped: llmSelection.skipped,
       reason: llmSelection.reason,
-      count: `${llmSelection.selected.length}/${Object.keys(LLM_JUDGE_TOUCHFILES).length}`,
+      count: `${llmSelection.selected.length}/${Object.keys(ACTIVE_LLM_JUDGE_TOUCHFILES).length}`,
     },
   }, null, 2));
 } else {
@@ -63,8 +63,8 @@ if (jsonMode) {
   console.log(`Changed files: ${changedFiles.length}`);
   console.log();
 
-  console.log(`E2E (${e2eSelection.reason}): ${e2eSelection.selected.length}/${Object.keys(E2E_TOUCHFILES).length} tests`);
-  if (e2eSelection.selected.length > 0 && e2eSelection.selected.length < Object.keys(E2E_TOUCHFILES).length) {
+  console.log(`E2E (${e2eSelection.reason}): ${e2eSelection.selected.length}/${Object.keys(ACTIVE_E2E_TOUCHFILES).length} tests`);
+  if (e2eSelection.selected.length > 0 && e2eSelection.selected.length < Object.keys(ACTIVE_E2E_TOUCHFILES).length) {
     console.log(`  Selected: ${e2eSelection.selected.join(', ')}`);
     console.log(`  Skipped:  ${e2eSelection.skipped.join(', ')}`);
   } else if (e2eSelection.selected.length === 0) {
@@ -74,8 +74,8 @@ if (jsonMode) {
   }
   console.log();
 
-  console.log(`LLM-judge (${llmSelection.reason}): ${llmSelection.selected.length}/${Object.keys(LLM_JUDGE_TOUCHFILES).length} tests`);
-  if (llmSelection.selected.length > 0 && llmSelection.selected.length < Object.keys(LLM_JUDGE_TOUCHFILES).length) {
+  console.log(`LLM-judge (${llmSelection.reason}): ${llmSelection.selected.length}/${Object.keys(ACTIVE_LLM_JUDGE_TOUCHFILES).length} tests`);
+  if (llmSelection.selected.length > 0 && llmSelection.selected.length < Object.keys(ACTIVE_LLM_JUDGE_TOUCHFILES).length) {
     console.log(`  Selected: ${llmSelection.selected.join(', ')}`);
     console.log(`  Skipped:  ${llmSelection.skipped.join(', ')}`);
   } else if (llmSelection.selected.length === 0) {

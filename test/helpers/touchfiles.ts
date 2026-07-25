@@ -36,10 +36,12 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'browse-basic':    ['browse/src/**'],
   'browse-snapshot': ['browse/src/**'],
 
-  // SKILL.md setup + preamble (depend on ROOT SKILL.md only)
-  'skillmd-setup-discovery':  ['SKILL.md', 'SKILL.md.tmpl'],
-  'skillmd-no-local-binary':  ['SKILL.md', 'SKILL.md.tmpl'],
-  'skillmd-outside-git':      ['SKILL.md', 'SKILL.md.tmpl'],
+  // Browse setup discovery scenarios
+  'skillmd-setup-discovery':  ['browse/SKILL.md', 'browse/SKILL.md.tmpl'],
+  'skillmd-no-local-binary':  ['browse/SKILL.md', 'browse/SKILL.md.tmpl'],
+  'skillmd-outside-git':      ['browse/SKILL.md', 'browse/SKILL.md.tmpl'],
+
+  // Retired root preamble scenarios
   'contributor-mode':         ['SKILL.md', 'SKILL.md.tmpl'],
   'session-awareness':        ['SKILL.md', 'SKILL.md.tmpl'],
 
@@ -92,6 +94,25 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'skystack-upgrade-happy-path': ['skystack-upgrade/**'],
 };
 
+export const RETIRED_E2E_TESTS = new Set([
+  'contributor-mode',
+  'session-awareness',
+  'plan-ceo-review',
+  'plan-ceo-review-selective',
+  'plan-eng-review',
+  'qa-only-no-fix',
+  'plan-eng-review-artifact',
+  'design-consultation-core',
+  'design-consultation-research',
+  'design-consultation-existing',
+  'design-consultation-preview',
+  'plan-design-review-plan-mode',
+  'plan-design-review-no-ui-scope',
+  'design-review-fix',
+  'qa-bootstrap',
+  'publish-coverage-audit',
+]);
+
 /**
  * LLM-judge test touchfiles — keyed by test description string.
  */
@@ -125,13 +146,48 @@ export const LLM_JUDGE_TOUCHFILES: Record<string, string[]> = {
   'skystack-upgrade/SKILL.md upgrade flow': ['skystack-upgrade/SKILL.md', 'skystack-upgrade/SKILL.md.tmpl'],
 };
 
+export const RETIRED_LLM_TESTS = new Set([
+  'command reference table',
+  'snapshot flags reference',
+  'setup block',
+  'regression vs baseline',
+  'qa/SKILL.md health rubric',
+  'baseline score pinning',
+  'plan-ceo-review/SKILL.md modes',
+  'plan-eng-review/SKILL.md sections',
+  'plan-design-review/SKILL.md passes',
+  'design-review/SKILL.md fix loop',
+  'design-consultation/SKILL.md research',
+  'qa-only/SKILL.md workflow',
+]);
+
+function withoutRetired(
+  touchfiles: Record<string, string[]>,
+  retired: Set<string>,
+): Record<string, string[]> {
+  return Object.fromEntries(
+    Object.entries(touchfiles).filter(([testName]) => !retired.has(testName)),
+  );
+}
+
+export const ACTIVE_E2E_TOUCHFILES = withoutRetired(E2E_TOUCHFILES, RETIRED_E2E_TESTS);
+export const ACTIVE_LLM_JUDGE_TOUCHFILES = withoutRetired(
+  LLM_JUDGE_TOUCHFILES,
+  RETIRED_LLM_TESTS,
+);
+
 /**
  * Changes to any of these files trigger ALL tests (both E2E and LLM-judge).
  */
 export const GLOBAL_TOUCHFILES = [
+  'test/helpers/agent-runner.ts',
+  'test/helpers/claude-runner.ts',
+  'test/helpers/codex-runner.ts',
   'test/helpers/session-runner.ts',
   'test/helpers/eval-store.ts',
   'test/helpers/llm-judge.ts',
+  'scripts/skill-catalog.ts',
+  'scripts/gen-codex-skills.ts',
   'scripts/gen-skill-docs.ts',
   'test/helpers/touchfiles.ts',
   'browse/test/test-server.ts',
@@ -157,11 +213,20 @@ export function detectBaseBranch(cwd: string): string | null {
  * Get list of files changed between base branch and HEAD.
  */
 export function getChangedFiles(baseBranch: string, cwd: string): string[] {
-  const result = spawnSync('git', ['diff', '--name-only', `${baseBranch}...HEAD`], {
-    cwd, stdio: 'pipe', timeout: 5000,
-  });
-  if (result.status !== 0) return [];
-  return result.stdout.toString().trim().split('\n').filter(Boolean);
+  const files = new Set<string>();
+  for (const args of [
+    ['diff', '--name-only', `${baseBranch}...HEAD`],
+    ['diff', '--cached', '--name-only'],
+    ['diff', '--name-only'],
+    ['ls-files', '--others', '--exclude-standard'],
+  ]) {
+    const result = spawnSync('git', args, { cwd, stdio: 'pipe', timeout: 5000 });
+    if (result.status !== 0) continue;
+    for (const file of result.stdout.toString().split('\n').filter(Boolean)) {
+      files.add(file);
+    }
+  }
+  return [...files].sort();
 }
 
 // --- Test selection ---

@@ -40,7 +40,7 @@ describe('session-runner observability', () => {
     const expected = path.join(os.homedir(), '.skystack-dev', 'e2e-live.json');
     // Import the module and check HEARTBEAT_PATH exists in the file
     const sessionRunnerSrc = fs.readFileSync(
-      path.resolve(__dirname, 'session-runner.ts'), 'utf-8'
+      path.resolve(__dirname, 'agent-runner.ts'), 'utf-8'
     );
     expect(sessionRunnerSrc).toContain("'e2e-live.json'");
     expect(sessionRunnerSrc).toContain('atomicWriteSync');
@@ -49,7 +49,7 @@ describe('session-runner observability', () => {
   test('3: heartbeat JSON schema has expected fields', () => {
     // Verify the heartbeat write code includes all required fields
     const src = fs.readFileSync(
-      path.resolve(__dirname, 'session-runner.ts'), 'utf-8'
+      path.resolve(__dirname, 'agent-runner.ts'), 'utf-8'
     );
     for (const field of ['runId', 'startedAt', 'currentTest', 'status', 'turn', 'toolCount', 'lastTool', 'lastToolAt', 'elapsedSec']) {
       expect(src).toContain(field);
@@ -61,7 +61,7 @@ describe('session-runner observability', () => {
   test('4: progress.log format matches expected pattern', () => {
     // The progress line format is: "  [Ns] turn T tool #C: Name(...)"
     const src = fs.readFileSync(
-      path.resolve(__dirname, 'session-runner.ts'), 'utf-8'
+      path.resolve(__dirname, 'agent-runner.ts'), 'utf-8'
     );
     // Both stderr and progress.log use the same progressLine variable
     expect(src).toContain('progressLine');
@@ -71,7 +71,7 @@ describe('session-runner observability', () => {
 
   test('5: NDJSON file uses sanitized test name', () => {
     const src = fs.readFileSync(
-      path.resolve(__dirname, 'session-runner.ts'), 'utf-8'
+      path.resolve(__dirname, 'agent-runner.ts'), 'utf-8'
     );
     expect(src).toContain('safeName');
     expect(src).toContain('.ndjson');
@@ -79,7 +79,7 @@ describe('session-runner observability', () => {
 
   test('8: failure transcript goes to runDir when available', () => {
     const src = fs.readFileSync(
-      path.resolve(__dirname, 'session-runner.ts'), 'utf-8'
+      path.resolve(__dirname, 'agent-runner.ts'), 'utf-8'
     );
     // Should use runDir as primary, workingDirectory as fallback
     expect(src).toContain('runDir || path.join(workingDirectory');
@@ -88,7 +88,7 @@ describe('session-runner observability', () => {
 
   test('11: all new I/O is wrapped in try/catch (non-fatal)', () => {
     const src = fs.readFileSync(
-      path.resolve(__dirname, 'session-runner.ts'), 'utf-8'
+      path.resolve(__dirname, 'agent-runner.ts'), 'utf-8'
     );
     // Count non-fatal comments — should be present for each new I/O path
     const nonFatalCount = (src.match(/\/\* non-fatal \*\//g) || []).length;
@@ -123,7 +123,7 @@ describe('eval-store observability', () => {
     expect(partial.tests).toHaveLength(1);
     expect(partial.tests[0].name).toBe('test-one');
     expect(partial.tests[0].exit_reason).toBe('success');
-    expect(partial.schema_version).toBe(1);
+    expect(partial.schema_version).toBe(2);
     expect(partial.total_tests).toBe(1);
     expect(partial.passed).toBe(1);
   });

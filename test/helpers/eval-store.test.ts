@@ -41,7 +41,7 @@ function makeEntry(overrides?: Partial<EvalTestEntry>): EvalTestEntry {
 
 function makeResult(overrides?: Partial<EvalResult>): EvalResult {
   return {
-    schema_version: 1,
+    schema_version: 2,
     version: '0.3.6',
     branch: 'main',
     git_sha: 'abc1234',
@@ -89,7 +89,7 @@ describe('EvalCollector', () => {
     const filepath = await collector.finalize();
 
     const data: EvalResult = JSON.parse(fs.readFileSync(filepath, 'utf-8'));
-    expect(data.schema_version).toBe(1);
+    expect(data.schema_version).toBe(2);
     expect(data.tier).toBe('e2e');
     expect(data.total_tests).toBe(2);
     expect(data.passed).toBe(1);
@@ -98,6 +98,37 @@ describe('EvalCollector', () => {
     expect(data.total_duration_ms).toBe(3000);
     expect(data.timestamp).toBeTruthy();
     expect(data.hostname).toBeTruthy();
+  });
+
+  test('persists provider and prompt identity for reproducible runs', async () => {
+    const collector = new EvalCollector('e2e', tmpDir);
+    collector.addTest(makeEntry({
+      identity: {
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        effort: 'high',
+        cli_version: 'codex-cli 0.145.0',
+        prompt_sha256: 'prompt-digest',
+        working_directory: '/tmp/project',
+        skill_root: '/tmp/skills',
+        skill_sha256: 'skill-digest',
+        skill_git_sha: 'abc123',
+      },
+    }));
+
+    const filepath = await collector.finalize();
+    const data: EvalResult = JSON.parse(fs.readFileSync(filepath, 'utf-8'));
+    expect(data.tests[0].identity).toEqual({
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      effort: 'high',
+      cli_version: 'codex-cli 0.145.0',
+      prompt_sha256: 'prompt-digest',
+      working_directory: '/tmp/project',
+      skill_root: '/tmp/skills',
+      skill_sha256: 'skill-digest',
+      skill_git_sha: 'abc123',
+    });
   });
 
   test('finalize creates directory if missing', async () => {
