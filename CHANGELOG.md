@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.7.0] - 2026-07-24 — Leaner skills for Claude 5 and GPT-5.6
+
+### Changed
+
+- **Skystack now gets to work with 69% less generated Claude skill context.**
+  The root skill is a small router, browser syntax comes from live `--help`, and
+  workflow skills keep the decisions and safety boundaries that affect results
+  without repeatedly loading process tutorials.
+- **QA, review, and security respect the requested outcome.** QA reports findings
+  unless fixes were requested; reviews and security audits remain read-only by
+  default. When fixes are requested, each workflow still verifies the exact
+  behavior it changed.
+- **`/pm` has two meaningful checkpoints instead of constant ceremony.** You
+  approve product direction, then Skystack works autonomously through planning,
+  implementation, and verification until the final publish decision.
+- **`/publish` follows the repository instead of imposing a release framework.**
+  It discovers the project's existing checks, preserves unrelated work, creates
+  bisectable commits, and crosses push, PR, release, or deployment boundaries
+  only when requested.
+- **Large workflows use parallel specialists only when the work is genuinely
+  independent.** Normal reviews and plans stay cohesive; broad security,
+  performance, or UI work can still fan out with explicit ownership.
+- **The Claude `/codex` skill now uses GPT-5.6 Sol through the current Codex CLI.**
+  Review, challenge, and consultation modes are fresh, read-only by default, and
+  no longer maintain a separate long-lived session layer.
+
+### Removed
+
+- **Global session tracking, vocabulary policing, mandatory plan approval, and
+  automatic test-framework bootstrapping no longer tax every workflow.** The
+  relevant behavior now lives in the skill that owns it, or is inferred from the
+  repository when needed.
+- **Root and browser skills no longer duplicate the complete command and snapshot
+  reference.** `$B --help` remains the single current command interface.
+
+### For contributors
+
+- Claude and Codex generation, health checks, watch mode, and validation now use
+  one canonical skill catalog covering 24 Claude skills and 12 Codex skills.
+- Paid E2E infrastructure can run Claude Fable 5 and GPT-5.6 Sol in isolated
+  homes with explicit provider, model, effort, CLI, prompt, and skill identity.
+- Diff-based eval selection now includes committed, staged, unstaged, and
+  untracked changes while excluding retired prompt-coupled scenarios.
+- Generated Claude skill content is guarded by a 30,000-word footprint budget.
+
 ## [0.6.11.1] - 2026-04-10
 
 ### Fixed

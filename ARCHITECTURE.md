@@ -4,13 +4,15 @@ This document explains **why** skystack is built the way it is. For setup and co
 
 ## The core idea
 
-skystack gives Claude Code a persistent browser and a set of opinionated workflow skills. The browser is the hard part — everything else is Markdown.
+skystack gives Claude Code and Codex a persistent browser plus a curated set of
+workflow skills. The browser is the hard part; the skill surfaces are generated
+Markdown tailored to each agent.
 
 The key insight: an AI agent interacting with a browser needs **sub-second latency** and **persistent state**. If every command cold-starts a browser, you're waiting 3-5 seconds per tool call. If the browser dies between commands, you lose cookies, tabs, and login sessions. So skystack runs a long-lived Chromium daemon that the CLI talks to over localhost HTTP.
 
 ```
-Claude Code                     skystack
-─────────                      ──────
+AI agent                        skystack
+────────                       ──────
                                ┌──────────────────────┐
   Tool call: $B snapshot -i    │  CLI (compiled binary)│
   ─────────────────────────→   │  • reads state file   │
@@ -39,7 +41,10 @@ First call starts everything (~3s). Every call after: ~100-200ms.
 
 Node.js would work. Bun is better here for three reasons:
 
-1. **Compiled binaries.** `bun build --compile` produces a single ~58MB executable. No `node_modules` at runtime, no `npx`, no PATH configuration. The binary just runs. This matters because skystack installs into `~/.claude/skills/` where users don't expect to manage a Node.js project.
+1. **Compiled binaries.** `bun build --compile` produces a single executable. No
+   `node_modules` at runtime, no `npx`, no PATH configuration. The binary just
+   runs. This matters because skystack is invoked from Claude or Codex skill
+   directories where users do not expect to manage a Node.js project.
 
 2. **Native SQLite.** Cookie decryption reads Chromium's SQLite cookie database directly. Bun has `new Database()` built in — no `better-sqlite3`, no native addon compilation, no gyp. One less thing that breaks on different machines.
 
@@ -180,49 +185,60 @@ The `console`, `network`, and `dialog` commands read from the in-memory buffers,
 
 ### The problem
 
-SKILL.md files tell Claude how to use the browse commands. If the docs list a flag that doesn't exist, or miss a command that was added, the agent hits errors. Hand-maintained docs always drift from code.
+SKILL.md files tell agents how to use skystack. If a skill lists a flag that
+doesn't exist or misses a required workflow constraint, the agent hits errors.
+Hand-maintained generated output always drifts from its source.
 
 ### The solution
 
 ```
-SKILL.md.tmpl          (human-written prose + placeholders)
-       ↓
-gen-skill-docs.ts      (reads source code metadata)
-       ↓
-SKILL.md               (committed, auto-generated sections)
+scripts/skill-catalog.ts       (canonical product inventory)
+          ├─────────────────────────────────────┐
+          ▼                                     ▼
+Claude SKILL.md.tmpl                    gen-codex-skills.ts
+          │                            (Codex-native definitions)
+          ▼                                     │
+gen-skill-docs.ts                               ▼
+          │                            .agents/skills/*/SKILL.md
+          ▼
+committed Claude SKILL.md
 ```
 
-Templates contain the workflows, tips, and examples that require human judgment. Placeholders are filled from source code at build time:
+Claude templates contain the workflow prose that requires human judgment.
+Placeholders are resolved only when a template requests them. Codex skills are
+authored separately in `gen-codex-skills.ts` because the two agents have
+different tool, interaction, and discovery conventions. The catalog drives both
+generators, health checks, watch mode, and inventory tests.
 
 | Placeholder | Source | What it generates |
 |-------------|--------|-------------------|
-| `{{COMMAND_REFERENCE}}` | `commands.ts` | Categorized command table |
-| `{{SNAPSHOT_FLAGS}}` | `snapshot.ts` | Flag reference with examples |
-| `{{PREAMBLE}}` | `gen-skill-docs.ts` | Startup block: update check, session tracking, contributor mode, AskUserQuestion format |
 | `{{BROWSE_SETUP}}` | `gen-skill-docs.ts` | Binary discovery + setup instructions |
-| `{{BASE_BRANCH_DETECT}}` | `gen-skill-docs.ts` | Dynamic base branch detection for PR-targeting skills (ship, review, qa, plan-ceo-review) |
-| `{{QA_METHODOLOGY}}` | `gen-skill-docs.ts` | Shared QA methodology block for /qa and /qa-only |
-| `{{DESIGN_METHODOLOGY}}` | `gen-skill-docs.ts` | Shared design audit methodology for /plan-design-review and /design-review |
-| `{{REVIEW_DASHBOARD}}` | `gen-skill-docs.ts` | Review Readiness Dashboard for /ship pre-flight |
-| `{{TEST_BOOTSTRAP}}` | `gen-skill-docs.ts` | Test framework detection, bootstrap, CI/CD setup for /qa, /ship, /design-review |
+| `{{MOBILE_SETUP}}` | `gen-skill-docs.ts` | Mobile driver discovery for native QA |
+| `{{BASE_BRANCH_DETECT}}` | `gen-skill-docs.ts` | Dynamic base branch detection for diff-targeting workflows |
+| `{{STACK_DETECT}}` | `gen-skill-docs.ts` | Project stack discovery where a workflow needs it |
+| `{{LEARNINGS_SEARCH}}` / `{{LEARNINGS_LOG}}` | `gen-skill-docs.ts` | Optional project learning retrieval and persistence |
+| `{{PREAMBLE}}` / `{{VOICE_GUIDE}}` | `gen-skill-docs.ts` | Compatibility context for templates that still request it |
 
-This is structurally sound — if a command exists in code, it appears in docs. If it doesn't exist, it can't appear.
+The root and browse skills intentionally avoid embedding the complete command
+reference. They route to the relevant skill and use `browse --help` for
+on-demand command discovery, keeping initial prompt context small.
 
-### The preamble
+### Progressive disclosure
 
-Every skill starts with a `{{PREAMBLE}}` block that runs before the skill's own logic. It handles four things in a single bash command:
-
-1. **Update check** — calls `skystack-update-check`, reports if an upgrade is available.
-2. **Session tracking** — touches `~/.skystack/sessions/$PPID` and counts active sessions (files modified in the last 2 hours). When 3+ sessions are running, all skills enter "ELI16 mode" — every question re-grounds the user on context because they're juggling windows.
-3. **Contributor mode** — reads `skystack_contributor` from config. When true, the agent files casual field reports to `~/.skystack/contributor-logs/` when skystack itself misbehaves.
-4. **AskUserQuestion format** — universal format: context, question, `RECOMMENDATION: Choose X because ___`, lettered options. Consistent across all skills.
+The root skill is a router, not a copy of every workflow. Each capability lives
+in its own skill, optional setup or reference material is loaded only when
+needed, and the browser's full command reference is discovered at runtime.
+Shared placeholders remain available for workflows that genuinely need them;
+new templates should not add universal context by default.
 
 ### Why committed, not generated at runtime?
 
 Three reasons:
 
-1. **Claude reads SKILL.md at skill load time.** There's no build step when a user invokes `/browse`. The file must already exist and be correct.
-2. **CI can validate freshness.** `gen:skill-docs --dry-run` + `git diff --exit-code` catches stale docs before merge.
+1. **Agents read SKILL.md at skill load time.** There is no build step when a
+   user invokes a skill. The file must already exist and be correct.
+2. **CI can validate freshness.** Both generators support `--dry-run`, and the
+   static suite checks catalog and generated-output consistency.
 3. **Git blame works.** You can see when a command was added and in which commit.
 
 ### Template test tiers
@@ -230,10 +246,13 @@ Three reasons:
 | Tier | What | Cost | Speed |
 |------|------|------|-------|
 | 1 — Static validation | Parse every `$B` command in SKILL.md, validate against registry | Free | <2s |
-| 2 — E2E via `claude -p` | Spawn real Claude session, run each skill, check for errors | ~$3.85 | ~20min |
-| 3 — LLM-as-judge | Sonnet scores docs on clarity/completeness/actionability | ~$0.15 | ~30s |
+| 2 — Agent E2E | Run outcome scenarios through an isolated CLI session | Paid | Minutes |
+| 3 — LLM-as-judge | Score documentation and outcome quality | Paid | Seconds |
 
-Tier 1 runs on every `bun test`. Tiers 2+3 are gated behind `EVALS=1`. The idea is: catch 95% of issues for free, use LLMs only for judgment calls.
+Tier 1 runs on every `bun test`. Tiers 2+3 are gated behind `EVALS=1`.
+The provider-neutral runner supports Claude and Codex; each scenario records the
+provider, model, effort, CLI version, prompt digest, skill digest, and source
+SHA so comparisons are reproducible.
 
 ## Command dispatch
 
@@ -269,17 +288,21 @@ The server doesn't try to self-heal. If Chromium crashes (`browser.on('disconnec
 
 ## E2E test infrastructure
 
-### Session runner (`test/helpers/session-runner.ts`)
+### Agent runner (`test/helpers/agent-runner.ts`)
 
-E2E tests spawn `claude -p` as a completely independent subprocess — not via the Agent SDK, which can't nest inside Claude Code sessions. The runner:
+E2E tests spawn Claude Code or Codex CLI as independent subprocesses.
+`session-runner.ts` remains a compatibility facade for older Claude-default
+scenarios; new scenarios call the provider-neutral runner explicitly. The
+runner:
 
-1. Writes the prompt to a temp file (avoids shell escaping issues)
-2. Spawns `sh -c 'cat prompt | claude -p --output-format stream-json --verbose'`
-3. Streams NDJSON from stdout for real-time progress
-4. Races against a configurable timeout
-5. Parses the full NDJSON transcript into structured results
+1. Creates an isolated scratch `HOME` and `SKYSTACK_HOME`
+2. Snapshots the selected runtime skill artifacts and forwards only provider authentication
+3. Starts the requested CLI with fresh-session and user-config isolation flags
+4. Streams JSON events for progress and races against a configurable timeout
+5. Parses provider output into one result shape and records exact run identity
 
-The `parseNDJSON()` function is pure — no I/O, no side effects — making it independently testable.
+Provider-specific command construction and parsers live in
+`claude-runner.ts` and `codex-runner.ts`.
 
 ### Observability data flow
 
@@ -344,10 +367,12 @@ The `EvalCollector` accumulates test results and writes them in two ways:
 | Tier | What | Cost | Speed |
 |------|------|------|-------|
 | 1 — Static validation | Parse `$B` commands, validate against registry, observability unit tests | Free | <5s |
-| 2 — E2E via `claude -p` | Spawn real Claude session, run each skill, scan for errors | ~$3.85 | ~20min |
-| 3 — LLM-as-judge | Sonnet scores docs on clarity/completeness/actionability | ~$0.15 | ~30s |
+| 2 — Agent E2E | Run isolated outcome scenarios through Claude or Codex CLI | Paid | Minutes |
+| 3 — LLM-as-judge | Score docs and planted-bug outcomes | Paid | Seconds |
 
-Tier 1 runs on every `bun test`. Tiers 2+3 are gated behind `EVALS=1`. The idea: catch 95% of issues for free, use LLMs only for judgment calls and integration testing.
+Tier 1 runs on every `bun test`. Tiers 2+3 are gated behind `EVALS=1`.
+Paid runs are diff-selected by default and persist schema-versioned evidence for
+comparison.
 
 ## What's intentionally not here
 

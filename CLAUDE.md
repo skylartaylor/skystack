@@ -5,14 +5,15 @@
 ```bash
 bun install          # install dependencies
 bun test             # run free tests (browse + snapshot + skill validation)
-bun run test:evals   # run paid evals: LLM judge + E2E (diff-based, ~$4/run max)
+bun run test:evals   # run paid evals: LLM judge + E2E (diff-based)
 bun run test:evals:all  # run ALL paid evals regardless of diff
-bun run test:e2e     # run E2E tests only (diff-based, ~$3.85/run max)
+bun run test:e2e     # run E2E tests only (diff-based)
 bun run test:e2e:all # run ALL E2E tests regardless of diff
 bun run eval:select  # show which tests would run based on current diff
 bun run dev <cmd>    # run CLI in dev mode, e.g. bun run dev goto https://example.com
 bun run build        # gen docs + compile binaries
 bun run gen:skill-docs  # regenerate SKILL.md files from templates
+bun run gen:codex-skills # regenerate Codex-native skills in .agents/skills
 bun run skill:check  # health dashboard for all skills
 bun run dev:skill    # watch mode: auto-regen + validate on change
 bun run eval:list    # list all eval runs from ~/.skystack-dev/evals/
@@ -20,15 +21,15 @@ bun run eval:compare # compare two eval runs (auto-picks most recent)
 bun run eval:summary # aggregate stats across all eval runs
 ```
 
-`test:evals` requires `ANTHROPIC_API_KEY`. E2E tests stream progress in real-time
-(tool-by-tool via `--output-format stream-json --verbose`). Results are persisted
-to `~/.skystack-dev/evals/` with auto-comparison against the previous run.
+The LLM judge in `test:evals` requires `ANTHROPIC_API_KEY`. Agent E2E tests use
+the selected Claude Code or Codex CLI authentication, stream tool progress, and
+persist results to `~/.skystack-dev/evals/`.
 
 **Diff-based test selection:** `test:evals` and `test:e2e` auto-select tests based
 on `git diff` against the base branch. Each test declares its file dependencies in
-`test/helpers/touchfiles.ts`. Changes to global touchfiles (session-runner, eval-store,
-llm-judge, gen-skill-docs) trigger all tests. Use `EVALS_ALL=1` or the `:all` script
-variants to force all tests. Run `eval:select` to preview which tests would run.
+`test/helpers/touchfiles.ts`. Changes to global runner, store, judge, catalog, or
+generator files trigger all tests. Use `EVALS_ALL=1` or the `:all` variants to
+force all tests. Run `eval:select` to preview the selection.
 
 ## Project structure
 
@@ -41,16 +42,20 @@ skystack/
 │   ├── test/        # Integration tests + fixtures
 │   └── dist/        # Compiled binary
 ├── scripts/         # Build + DX tooling
+│   ├── skill-catalog.ts   # canonical Claude/Codex product inventory
 │   ├── gen-skill-docs.ts  # Template → SKILL.md generator
+│   ├── gen-codex-skills.ts # Codex-native generator
 │   ├── skill-check.ts     # Health dashboard
 │   └── dev-skill.ts       # Watch mode
 ├── test/            # Skill validation + eval tests
-│   ├── helpers/     # skill-parser.ts, session-runner.ts, llm-judge.ts, eval-store.ts
+│   ├── helpers/     # provider runners, judge, touchfiles, eval store
 │   ├── fixtures/    # Ground truth JSON, planted-bug fixtures, eval baselines
 │   ├── skill-validation.test.ts  # Tier 1: static validation (free, <1s)
 │   ├── gen-skill-docs.test.ts    # Tier 1: generator quality (free, <1s)
-│   ├── skill-llm-eval.test.ts   # Tier 3: LLM-as-judge (~$0.15/run)
-│   └── skill-e2e.test.ts         # Tier 2: E2E via claude -p (~$3.85/run)
+│   ├── skill-llm-eval.test.ts   # Tier 3: paid LLM-as-judge
+│   └── skill-e2e.test.ts         # Tier 2: isolated agent E2E scenarios
+├── .agents/skills/  # generated Codex-native skill folders
+├── mobile/          # native app driver CLI
 ├── pm/              # /pm skill (idea → shipped feature, orchestrates crew)
 ├── design/          # /design skill (design consultation + review)
 ├── review/          # /review skill (dev code review + architecture review)
@@ -60,13 +65,14 @@ skystack/
 ├── retro/           # /retro skill (retrospective)
 ├── research/        # /research skill (update reference files)
 ├── diagnose/        # /diagnose skill (systematic root-cause debugging)
-├── security/        # /security skill (infrastructure-first security audit)
+├── security/        # /security skill (evidence-driven security audit)
 ├── benchmark/       # /benchmark skill (performance regression detection)
 ├── devops/          # /devops skill (safe infrastructure management + incident tracking)
 ├── docs/            # documentation (skills.md, architecture guides)
 ├── document-release/ # /document-release skill (post-ship doc updates)
 ├── skystack-upgrade/ # /skystack-upgrade skill
-├── setup            # One-time setup: build binary + symlink skills
+├── setup            # Claude setup: build binaries + symlink skills
+├── setup-codex      # Codex setup: generate, build, and link skills
 ├── SKILL.md         # Generated from SKILL.md.tmpl (don't edit directly)
 ├── SKILL.md.tmpl    # Template: edit this, run gen:skill-docs
 └── package.json     # Build scripts for browse
@@ -74,34 +80,45 @@ skystack/
 
 ## SKILL.md workflow
 
-SKILL.md files are **generated** from `.tmpl` templates. To update docs:
+Claude SKILL.md files are generated from `.tmpl` templates:
 
 1. Edit the `.tmpl` file (e.g. `SKILL.md.tmpl` or `browse/SKILL.md.tmpl`)
 2. Run `bun run gen:skill-docs` (or `bun run build` which does it automatically)
 3. Commit both the `.tmpl` and generated `.md` files
 
+Codex skills are separately authored in `scripts/gen-codex-skills.ts`. Run
+`bun run gen:codex-skills` and commit the source plus `.agents/skills/` output.
+Add or remove product skills through `scripts/skill-catalog.ts`; generators,
+tests, health checks, and watch mode consume that catalog.
+
 To add a new browse command: add it to `browse/src/commands.ts` and rebuild.
 To add a snapshot flag: add it to `SNAPSHOT_FLAGS` in `browse/src/snapshot.ts` and rebuild.
 
-### Available placeholders
+### Placeholders used by current templates
 
 | Placeholder | Resolved by | Used in |
 |-------------|------------|---------|
-| `{{PREAMBLE}}` | `generatePreamble()` | All skills |
-| `{{VOICE_GUIDE}}` | `resolveVoiceGuide(tmplPath)` | All skills — tier 1 (lightweight) for utility skills, tier 2 (full voice with banned vocabulary) for conversational skills |
-| `{{TASTE_MEMORY}}` | `generateTasteMemory()` | design, review, codex, qa — loads persistent user preferences from `~/.skystack/projects/$SLUG/taste.json` |
-| `{{BASE_BRANCH_DETECT}}` | `generateBaseBranchDetect()` | PR-targeting skills (publish, review, codex, security) |
-| `{{STACK_DETECT}}` | `generateStackDetect()` | Skills that need project stack context |
 | `{{BROWSE_SETUP}}` | `generateBrowseSetup()` | Skills using the browse binary |
-| `{{COMMAND_REFERENCE}}` | `generateCommandReference()` | Root SKILL.md, browse SKILL.md |
-| `{{SNAPSHOT_FLAGS}}` | `generateSnapshotFlags()` | Root SKILL.md, browse SKILL.md |
+| `{{MOBILE_SETUP}}` | `generateMobileSetup()` | Native mobile QA |
+| `{{BASE_BRANCH_DETECT}}` | `generateBaseBranchDetect()` | Diff-targeting workflows |
+| `{{STACK_DETECT}}` | `generateStackDetect()` | Workflows that need stack discovery |
+| `{{TASTE_MEMORY}}` | `generateTasteMemory()` | Design preference context |
+| `{{LEARNINGS_SEARCH}}` / `{{LEARNINGS_LOG}}` | generator helpers | Stateful workflows that explicitly need project learnings |
+| `{{PREAMBLE}}` / `{{VOICE_GUIDE}}` | generator helpers | Compatibility context for templates that still request it |
 
 ## Writing SKILL templates
 
-SKILL.md.tmpl files are **prompt templates read by Claude**, not bash scripts.
-Each bash code block runs in a separate shell — variables do not persist between blocks.
+Claude `SKILL.md.tmpl` files are prompt templates, not bash scripts. Codex skills
+are authored separately rather than mechanically translating Claude prompts.
+Each bash code block runs in a separate shell, so variables do not persist
+between blocks.
 
 Rules:
+- **Start lean.** Assume the model knows general engineering practice. Keep only
+  repository-specific workflow, safety, tool, and output requirements.
+- **Use progressive disclosure.** The root skill routes; capability skills own
+  their workflows; detailed command discovery belongs in `$B --help` or a
+  narrowly loaded reference.
 - **Use natural language for logic and state.** Don't use shell variables to pass
   state between code blocks. Instead, tell Claude what to remember and reference
   it in prose (e.g., "the base branch detected in Step 0").
@@ -112,6 +129,9 @@ Rules:
   If a block needs context from a previous step, restate it in the prose above.
 - **Express conditionals as English.** Instead of nested `if/elif/else` in bash,
   write numbered decision steps: "1. If X, do Y. 2. Otherwise, do Z."
+- **Test outcomes, not prompt wording.** Static marker tests are appropriate for
+  hard safety contracts; behavioral evals should measure completed actions,
+  evidence, regressions, and unnecessary approval stops.
 
 ## Browser interaction
 
@@ -122,17 +142,18 @@ project uses.
 
 ## Vendored symlink awareness
 
-When developing skystack, `.claude/skills/skystack` may be a symlink back to this
-working directory (gitignored). This means skill changes are **live immediately** —
+When developing skystack, project-local entries under `.claude/skills/` may
+symlink back to this working directory (gitignored). This means generated Claude
+skill changes are **live immediately** —
 great for rapid iteration, risky during big refactors where half-written skills
 could break other Claude Code sessions using skystack concurrently.
 
-**Check once per session:** Run `ls -la .claude/skills/skystack` to see if it's a
-symlink or a real copy. If it's a symlink to your working directory, be aware that:
+**Check once per session:** Run `ls -la .claude/skills` and resolve the skystack
+and individual skill links. If they point to your working directory:
 - Template changes + `bun run gen:skill-docs` immediately affect all skystack invocations
 - Breaking changes to SKILL.md.tmpl files can break concurrent skystack sessions
-- During large refactors, remove the symlink (`rm .claude/skills/skystack`) so the
-  global install at `~/.claude/skills/skystack/` is used instead
+- During large refactors, use a separate worktree or tear down dev mode so the
+  global install is used instead
 
 **For plan reviews:** When reviewing plans that modify skill templates or the
 gen-skill-docs pipeline, consider whether the changes should be tested in isolation
@@ -154,13 +175,14 @@ Examples of good bisection:
 When the user says "bisect commit" or "bisect and push," split staged/unstaged
 changes into logical commits and push.
 
-## Subagent & worktree patterns
+## Subagent and worktree patterns
 
-Skills should leverage Claude Code's Agent tool for parallel work. Two key parameters:
+Use subagents when independent work benefits from parallelism or context
+isolation. Do not require fan-out as ceremony.
 
 **When to use subagents:**
-- Independent parallel work (e.g., /review dispatches 3 specialist reviewers simultaneously)
-- Protecting the main context from noise (e.g., /pm dispatches implementers per task)
+- Independent parallel work across distinct domains or file ownership
+- Protecting the main context from large research or implementation traces
 - Structured output (subagent returns findings in a specific format, main skill synthesizes)
 
 **When to use `isolation: "worktree"`:**
@@ -178,32 +200,27 @@ Skills should leverage Claude Code's Agent tool for parallel work. Two key param
 - Small sequential tasks where subagent overhead exceeds the work
 - Tasks where accumulated context matters (debugging hypotheses)
 
-**Existing patterns to follow:**
-- `/pm`: parallel implementers with worktree isolation, sequential review gates
-- `/review`: 3 parallel read-only specialist subagents (security, performance, coverage)
-- `/research`: 4 parallel read-only subagents (one per reference file)
-- `/qa`: single verification subagent after fixes
+**Current patterns to follow:**
+- `/pm`: parallel writers only for genuinely independent file ownership; the
+  main session integrates and verifies
+- `/review`: one cohesive pass by default; optional read-only specialists for
+  large cross-domain changes
+- `/research`: independent reference-file research can fan out
+- `/qa`: parallel writers only for independent bugs with explicit ownership
 
 ## Harness simplification
 
 Every skill component encodes an assumption about what the model can't do alone.
 As models improve, stress-test those assumptions periodically.
 
-**Candidates for simplification testing:**
-- Does `/review` still need 3 parallel specialist subagents, or can a single
-  pass with the full checklist match quality? (Test: run both, compare findings)
-- Does `/pm` still need the plan-reviewer subagent, or is the plan consistently
-  good without it? (Test: skip plan review for 5 features, track quality)
-- Does the test bootstrap interactive framework selection add value, or should
-  we just auto-pick the obvious choice? (Test: auto-pick for 10 projects)
-- Does the coverage audit need the full ASCII diagram, or is a simple gap list
-  sufficient? (Test: compare user satisfaction with both formats)
+Candidates include universal preambles, repeated command references, mandatory
+approval checkpoints, duplicated methodology, and fixed specialist fan-out.
 
 **How to test:** Remove the component on a branch, run the skill 3-5 times on
 real tasks, compare output quality against the version with the component.
 If quality doesn't meaningfully degrade, ship the simpler version.
 
-**When to test:** After each major model upgrade (new Opus/Sonnet release),
+**When to test:** After each major agent-model upgrade,
 or when a skill feels sluggish.
 
 ## CHANGELOG style
@@ -216,8 +233,8 @@ CHANGELOG.md is **for users**, not contributors. Write it like product release n
   details.** These are invisible to users and meaningless to them.
 - Put contributor/internal changes in a separate "For contributors" section at the bottom.
 - Every entry should make someone think "oh nice, I want to try that."
-- No jargon: say "every question now tells you which project and branch you're in" not
-  "AskUserQuestion format standardized across skill templates via preamble resolver."
+- No jargon: say "the skill now starts with the work instead of setup
+  instructions" rather than "removed universal preamble injection."
 
 ## AI effort compression
 
@@ -244,7 +261,7 @@ that may be ready to promote to TODOs or implement.
 
 When an E2E eval fails during `/publish` or any other workflow, **never claim "not
 related to our changes" without proving it.** These systems have invisible couplings —
-a preamble text change affects agent behavior, a new helper changes timing, a
+shared prompt text affects agent behavior, a new helper changes timing, and a
 regenerated SKILL.md shifts prompt context.
 
 **Required before attributing a failure to "pre-existing":**
@@ -257,13 +274,20 @@ regenerated SKILL.md shifts prompt context.
 
 ## Deploying to the active skill
 
-The active skill lives at `~/.claude/skills/skystack/`. After making changes:
+Claude installs normally live at `~/.claude/skills/skystack/`; Codex installs
+link generated skills into `${CODEX_HOME:-$HOME/.codex}/skills/`.
+
+After changing Claude templates:
 
 1. Push your branch
 2. Fetch and reset in the skill directory: `cd ~/.claude/skills/skystack && git fetch origin && git reset --hard origin/main`
 3. Rebuild: `cd ~/.claude/skills/skystack && bun run build`
 
 Or copy the binary directly: `cp browse/dist/browse ~/.claude/skills/skystack/browse/dist/browse`
+
+After changing Codex definitions, run `bun run gen:codex-skills` and
+`./setup-codex`. Restart Codex CLI when adding, renaming, or removing skills so
+it rescans the catalog.
 
 **When to re-run `./setup`:** The setup script creates per-skill symlinks
 (`~/.claude/skills/<name>` → `skystack/<name>`) so Claude Code discovers each skill.

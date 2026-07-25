@@ -4,68 +4,31 @@ Thanks for wanting to make skystack better. Whether you're fixing a typo in a sk
 
 ## Quick start
 
-skystack skills are Markdown files that Claude Code discovers from a `skills/` directory. Normally they live at `~/.claude/skills/skystack/` (your global install). But when you're developing skystack itself, you want Claude Code to use the skills *in your working tree* — so edits take effect instantly without copying or deploying anything.
+skystack ships separate generated skill surfaces for Claude Code and Codex.
+Claude skills normally live under `~/.claude/skills/`; Codex skills live under
+`$CODEX_HOME/skills` (default `~/.codex/skills/`). During development, use the
+generated skills from your working tree so template changes can be exercised
+before release.
 
-That's what dev mode does. It symlinks your repo into the local `.claude/skills/` directory so Claude Code reads skills straight from your checkout.
+Claude dev mode symlinks the checkout into the repository-local
+`.claude/skills/` directory. Codex-native skills are generated into
+`.agents/skills/`.
 
 ```bash
 git clone <repo> && cd skystack
 bun install                    # install dependencies
 bin/dev-setup                  # activate dev mode
+bun run gen:codex-skills       # refresh Codex-native skills
 ```
 
-**Recommended:** install [semgrep](https://github.com/semgrep/semgrep) (Apache 2.0) for static analysis in `/review` and `/publish`:
-
-```bash
-brew install semgrep       # macOS
-# or: pip install semgrep
-```
-
-semgrep runs zero-token static analysis on changed files using community rules. The `/review` and `/publish` skills use it automatically if it's on your PATH.
-
-Now edit any `SKILL.md`, invoke it in Claude Code (e.g. `/review`), and see your changes live. When you're done developing:
+Edit a Claude `SKILL.md.tmpl` or the Codex definitions in
+`scripts/gen-codex-skills.ts`, regenerate, then invoke the generated skill in
+the matching agent. Never hand-edit generated `SKILL.md` files. When you're done
+with Claude dev mode:
 
 ```bash
 bin/dev-teardown               # deactivate — back to your global install
 ```
-
-## Contributor mode
-
-Contributor mode turns skystack into a self-improving tool. Enable it and Claude Code
-will periodically reflect on its skystack experience — rating it 0-10 at the end of
-each major workflow step. When something isn't a 10, it thinks about why and files
-a report to `~/.skystack/contributor-logs/` with what happened, repro steps, and what
-would make it better.
-
-```bash
-~/.claude/skills/skystack/bin/skystack-config set skystack_contributor true
-```
-
-The logs are for **you**. When something bugs you enough to fix, the report is
-already written. Fork skystack, symlink your fork into the project where you hit
-the issue, fix it, and open a PR.
-
-### The contributor workflow
-
-1. **Use skystack normally** — contributor mode reflects and logs issues automatically
-2. **Check your logs:** `ls ~/.skystack/contributor-logs/`
-3. **Fork and clone skystack** (if you haven't already)
-4. **Symlink your fork into the project where you hit the bug:**
-   ```bash
-   # In your core project (the one where skystack annoyed you)
-   ln -sfn /path/to/your/skystack-fork .claude/skills/skystack
-   cd .claude/skills/skystack && bun install && bun run build
-   ```
-5. **Fix the issue** — your changes are live immediately in this project
-6. **Test by actually using skystack** — do the thing that annoyed you, verify it's fixed
-7. **Open a PR from your fork**
-
-This is the best way to contribute: fix skystack while doing your real work, in the
-project where you actually felt the pain.
-
-### Session awareness
-
-When you have 3+ skystack sessions open simultaneously, every question tells you which project, which branch, and what's happening. No more staring at a question thinking "wait, which window is this?" The format is consistent across all 13 skills.
 
 ## Working on skystack inside the skystack repo
 
@@ -77,14 +40,13 @@ your local edits instead of the global install.
 ```
 skystack/                          <- your working tree
 ├── .claude/skills/              <- created by dev-setup (gitignored)
-│   ├── skystack -> ../../         <- symlink back to repo root
 │   ├── review -> skystack/review
-│   ├── ship -> skystack/ship
-│   └── ...                      <- one symlink per skill
+│   ├── publish -> skystack/publish
+│   └── ...                      <- working-tree skill links
 ├── review/
-│   └── SKILL.md                 <- edit this, test with /review
-├── ship/
-│   └── SKILL.md
+│   ├── SKILL.md.tmpl            <- edit this
+│   └── SKILL.md                 <- generated; test with /review
+├── .agents/skills/              <- generated Codex-native skills
 ├── browse/
 │   ├── src/                     <- TypeScript source
 │   └── dist/                    <- compiled binary (gitignored)
@@ -97,16 +59,21 @@ skystack/                          <- your working tree
 # 1. Enter dev mode
 bin/dev-setup
 
-# 2. Edit a skill
-vim review/SKILL.md
+# 2. Edit a Claude skill template and regenerate
+vim review/SKILL.md.tmpl
+bun run gen:skill-docs
 
-# 3. Test it in Claude Code — changes are live
+# 3. Test it in Claude Code
 #    > /review
 
-# 4. Editing browse source? Rebuild the binary
+# 4. Editing a Codex skill? Edit its generator source and regenerate
+vim scripts/gen-codex-skills.ts
+bun run gen:codex-skills
+
+# 5. Editing browse source? Rebuild the binary
 bun run build
 
-# 5. Done for the day? Tear down
+# 6. Done for the day? Tear down Claude dev mode
 bin/dev-teardown
 ```
 
@@ -115,54 +82,63 @@ bin/dev-teardown
 ### Setup
 
 ```bash
-# 1. Copy .env.example and add your API key
+# Optional: copy .env.example when running the paid Anthropic judge
 cp .env.example .env
 # Edit .env → set ANTHROPIC_API_KEY=sk-ant-...
 
-# 2. Install deps (if you haven't already)
+# Install deps
 bun install
 ```
 
-Bun auto-loads `.env` — no extra config. Conductor workspaces inherit `.env` from the main worktree automatically (see "Conductor workspaces" below).
+Bun auto-loads `.env`. Agent E2E runs may also use existing Claude Code or Codex
+CLI authentication; each required CLI must be installed and authenticated.
+Conductor workspaces inherit `.env` from the main worktree automatically.
 
 ### Test tiers
 
 | Tier | Command | Cost | What it tests |
 |------|---------|------|---------------|
-| 1 — Static | `bun test` | Free | Command validation, snapshot flags, SKILL.md correctness, TODOS-format.md refs, observability unit tests |
-| 2 — E2E | `bun run test:e2e` | ~$3.85 | Full skill execution via `claude -p` subprocess |
-| 3 — LLM eval | `bun run test:evals` | ~$0.15 standalone | LLM-as-judge scoring of generated SKILL.md docs |
-| 2+3 | `bun run test:evals` | ~$4 combined | E2E + LLM-as-judge (runs both) |
+| 1 — Static | `bun test` | Free | Browser behavior, catalog/generator freshness, prompt contracts, runner and persistence tests |
+| 2 — E2E | `bun run test:e2e` | Paid | Outcome scenarios through an isolated agent CLI |
+| 2+3 | `bun run test:evals` | Paid | E2E plus the pinned LLM judge |
 
 ```bash
 bun test                     # Tier 1 only (runs on every commit, <5s)
-bun run test:e2e             # Tier 2: E2E only (needs EVALS=1, can't run inside Claude Code)
-bun run test:evals           # Tier 2 + 3 combined (~$4/run)
+bun run eval:select          # preview diff-selected paid scenarios
+bun run test:e2e             # Tier 2: selected E2E scenarios
+bun run test:evals           # Tier 2 + 3 combined
+bun run test:e2e:all         # force the complete E2E matrix
 ```
 
 ### Tier 1: Static validation (free)
 
 Runs automatically with `bun test`. No API keys needed.
 
-- **Skill parser tests** (`test/skill-parser.test.ts`) — Extracts every `$B` command from SKILL.md bash code blocks and validates against the command registry in `browse/src/commands.ts`. Catches typos, removed commands, and invalid snapshot flags.
-- **Skill validation tests** (`test/skill-validation.test.ts`) — Validates that SKILL.md files reference only real commands and flags, and that command descriptions meet quality thresholds.
-- **Generator tests** (`test/gen-skill-docs.test.ts`) — Tests the template system: verifies placeholders resolve correctly, output includes value hints for flags (e.g. `-d <N>` not just `-d`), enriched descriptions for key commands (e.g. `is` lists valid states, `press` lists key examples).
+- **Browser tests** (`browse/test/`) exercise the compiled CLI and server behavior.
+- **Skill validation tests** (`test/skill-validation.test.ts`) validate command
+  usage and outcome-oriented workflow contracts.
+- **Generator tests** (`test/gen-skill-docs.test.ts`) validate the canonical
+  catalog, both generated surfaces, placeholder resolution, and prompt budgets.
+- **Runner/store tests** validate provider command construction, scratch-home
+  isolation, run identity, and schema-versioned evidence.
 
-### Tier 2: E2E via `claude -p` (~$3.85/run)
+### Tier 2: agent E2E
 
-Spawns `claude -p` as a subprocess with `--output-format stream-json --verbose`, streams NDJSON for real-time progress, and scans for browse errors. This is the closest thing to "does this skill actually work end-to-end?"
+The provider-neutral runner can spawn Claude Code or Codex CLI, streams
+provider JSON events for progress, and normalizes them into one result shape.
+Every run gets a scratch `HOME` and `SKYSTACK_HOME`; only authentication and a
+runtime-only snapshot of the explicit skill root cross that boundary. Existing compatibility scenarios
+default to Claude unless they select a provider explicitly.
 
 ```bash
-# Must run from a plain terminal — can't nest inside Claude Code or Conductor
 EVALS=1 bun test test/skill-e2e.test.ts
 ```
 
 - Gated by `EVALS=1` env var (prevents accidental expensive runs)
-- Auto-skips if running inside Claude Code (`claude -p` can't nest)
-- API connectivity pre-check — fails fast on ConnectionRefused before burning budget
 - Real-time progress to stderr: `[Ns] turn T tool #C: Name(...)`
-- Saves full NDJSON transcripts and failure JSON for debugging
-- Tests live in `test/skill-e2e.test.ts`, runner logic in `test/helpers/session-runner.ts`
+- Saves full transcripts, failure JSON, and provider/model/effort/CLI/prompt/skill identity
+- Tests live in `test/skill-e2e.test.ts`; new runner logic lives in
+  `test/helpers/agent-runner.ts`
 
 ### E2E observability
 
@@ -173,7 +149,8 @@ When E2E tests run, they produce machine-readable artifacts in `~/.skystack-dev/
 | Heartbeat | `e2e-live.json` | Current test status (updated per tool call) |
 | Partial results | `evals/_partial-e2e.json` | Completed tests (survives kills) |
 | Progress log | `e2e-runs/{runId}/progress.log` | Append-only text log |
-| NDJSON transcripts | `e2e-runs/{runId}/{test}.ndjson` | Raw `claude -p` output per test |
+| JSON event transcripts | `e2e-runs/{runId}/{test}.ndjson` | Raw provider output per test |
+| Run identity | `e2e-runs/{runId}/{test}-metadata.json` | Provider, model, effort, CLI and prompt/skill digests |
 | Failure JSON | `e2e-runs/{runId}/{test}-failure.json` | Diagnostic data on failure |
 
 **Live dashboard:** Run `bun run eval:watch` in a second terminal to see a live dashboard showing completed tests, the currently running test, and cost. Use `--tail` to also show the last 10 lines of progress.log.
@@ -190,9 +167,10 @@ bun run eval:summary         # aggregate stats + per-test efficiency averages ac
 
 Artifacts are never cleaned up — they accumulate in `~/.skystack-dev/` for post-mortem debugging and trend analysis.
 
-### Tier 3: LLM-as-judge (~$0.15/run)
+### Tier 3: LLM-as-judge
 
-Uses Claude Sonnet to score generated SKILL.md docs on three dimensions:
+Uses the judge model pinned in `test/helpers/llm-judge.ts` to score generated
+SKILL.md docs and outcome reports. Documentation scoring covers:
 
 - **Clarity** — Can an AI agent understand the instructions without ambiguity?
 - **Completeness** — Are all commands, flags, and usage patterns documented?
@@ -204,13 +182,14 @@ Each dimension is scored 1-5. Threshold: every dimension must score **≥ 4**. T
 # Needs ANTHROPIC_API_KEY in .env — included in bun run test:evals
 ```
 
-- Uses `claude-sonnet-4-6` for scoring stability
 - Tests live in `test/skill-llm-eval.test.ts`
-- Calls the Anthropic API directly (not `claude -p`), so it works from anywhere including inside Claude Code
+- Calls the Anthropic API directly and therefore requires `ANTHROPIC_API_KEY`
 
 ### CI
 
-A GitHub Action (`.github/workflows/skill-docs.yml`) runs `bun run gen:skill-docs --dry-run` on every push and PR. If the generated SKILL.md files differ from what's committed, CI fails. This catches stale docs before they merge.
+A GitHub Action (`.github/workflows/skill-docs.yml`) regenerates Claude
+SKILL.md files on every push and PR and fails on a diff. The free test suite also
+checks the canonical Claude and Codex inventories and generation contracts.
 
 Tests run against the browse binary directly — they don't require dev mode.
 
@@ -252,7 +231,6 @@ When Conductor creates a new workspace, `bin/dev-setup` runs automatically. It d
 ## Things to know
 
 - **SKILL.md files are generated.** Edit the `.tmpl` template, not the `.md`. Run `bun run gen:skill-docs` to regenerate.
-- **TODOS.md is the unified backlog.** Organized by skill/component with P0-P4 priorities. `/ship` auto-detects completed items. All planning/review/retro skills read it for context.
 - **Browse source changes need a rebuild.** If you touch `browse/src/*.ts`, run `bun run build`.
 - **Dev mode shadows your global install.** Project-local skills take priority over `~/.claude/skills/skystack`. `bin/dev-teardown` restores the global one.
 - **Conductor workspaces are independent.** Each workspace is its own git worktree. `bin/dev-setup` runs automatically via `conductor.json`.
@@ -274,6 +252,10 @@ cd .claude/skills/skystack && bun install && bun run build
 Now every skystack skill invocation in this project uses your working tree. Edit a
 template, run `bun run gen:skill-docs`, and the next `/review` or `/qa` call picks
 it up immediately.
+
+For Codex, run `bun run gen:codex-skills` and use the repository's
+`.agents/skills/` output, or run `./setup-codex` to link the generated catalog
+into `$CODEX_HOME/skills` (default `~/.codex/skills/`).
 
 **To go back to the stable global install**, just remove the symlink:
 
@@ -300,8 +282,7 @@ This affects all projects. To revert: `git checkout main && git pull && bun run 
 
 When you're happy with your skill edits:
 
-```bash
-/ship
-```
-
-This runs tests, reviews the diff, triages Greptile comments (with 2-tier escalation), manages TODOS.md, bumps the version, and opens a PR. See `ship/SKILL.md` for the full workflow.
+Run the checks appropriate to your change, regenerate both affected skill
+surfaces, and open a focused pull request. Claude users can invoke `/publish`
+for the repository's verify/commit/push/PR workflow. See
+`publish/SKILL.md.tmpl` for its source.

@@ -1,14 +1,19 @@
 # skystack
 
-**skystack** is a fork of [gstack](https://github.com/garrytan/gstack), adapted for my work: flutter mobile apps (iOS/Android) alongside web projects.
+**skystack** is a workflow and browser toolkit for Claude Code and OpenAI Codex,
+adapted from [gstack](https://github.com/garrytan/gstack) for Flutter mobile apps
+(iOS/Android) alongside web projects.
 
-It turns Claude Code into a small group of collaborators: a planner, a designer, a dev who reviews your code, and a tester who breaks things before users do. All slash commands, all Markdown.
+It gives your coding agent focused workflows for planning, implementation,
+review, QA, publishing, debugging, infrastructure, and edit safety. Skills load
+only when the task calls for them, so a browser check does not drag an entire
+release process into context.
 
 skystack strips out the founder-tech-bro framing from gstack and makes it work for solo devs.
 
 ## get started
 
-1. Install skystack (30 seconds — see below)
+1. Install skystack for Claude Code or Codex
 2. Run `/pm "your feature idea"` to plan a feature
 3. Run `/review` on any branch with changes
 4. Run `/qa` on your staging URL
@@ -16,76 +21,112 @@ skystack strips out the founder-tech-bro framing from gstack and makes it work f
 
 ## install
 
-**requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+
+**requirements:** [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+,
+and either [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or the
+[Codex CLI](https://developers.openai.com/codex/cli/).
 
-### step 1: install on your machine
+### Claude Code
 
 Open Claude Code and paste this. Claude does the rest.
 
-> Install skystack: run **`git clone https://github.com/skylartaylor/skystack.git ~/.claude/skills/skystack && cd ~/.claude/skills/skystack && ./setup`** then add a "skystack" section to CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp__claude-in-chrome__* tools, and lists the available skills: /pm, /design, /review, /qa, /diagnose, /devops, /docs, /research, /publish, /browse, /setup-browser-cookies, /retro, /codex, /security, /benchmark, /canary, /checkpoint, /health, /skystack-upgrade. Then ask the user if they also want to add skystack to the current project so teammates get it.
+> Install skystack: run **`git clone https://github.com/skylartaylor/skystack.git ~/.claude/skills/skystack && cd ~/.claude/skills/skystack && ./setup`** then add a "skystack" section to CLAUDE.md that says to use the /browse skill from skystack for browser automation, never use mcp__claude-in-chrome__* tools, and run `/skystack` when help choosing a workflow is needed.
 
-### step 2: add to your repo for collaborators (optional)
+To vendor it for collaborators:
 
-> Add skystack to this project: run **`cp -Rf ~/.claude/skills/skystack .claude/skills/skystack && rm -rf .claude/skills/skystack/.git && cd .claude/skills/skystack && ./setup`** then add a "skystack" section to this project's CLAUDE.md that says to use the /browse skill from skystack for all web browsing, never use mcp__claude-in-chrome__* tools, lists the available skills: /pm, /design, /review, /qa, /diagnose, /devops, /docs, /research, /publish, /browse, /setup-browser-cookies, /retro, /codex, /security, /benchmark, /canary, /checkpoint, /health, /skystack-upgrade, and tells Claude that if skystack skills aren't working, run `cd .claude/skills/skystack && ./setup` to build the binary and register skills.
+> Add skystack to this project: run **`cp -Rf ~/.claude/skills/skystack .claude/skills/skystack && rm -rf .claude/skills/skystack/.git && cd .claude/skills/skystack && ./setup`** then add the same skystack guidance to the project's CLAUDE.md.
 
 Real files get committed to your repo, not a submodule, so `git clone` just works. Everything lives inside `.claude/`. Nothing touches your PATH or runs in the background.
 
-## the team
+### Codex
 
-Four collaborators:
+Clone the repository anywhere and run:
 
-| Skill | | What they do |
-|-------|--|--------------|
-| `/pm` | **the planner** | Takes a feature from idea to shipped code. Does the research, writes the spec, coordinates the designer and dev for feedback, builds it, publishes it. |
-| `/design` | **the designer** | Builds design systems or audits what you've built. Catches AI slop, proposes fixes, generates previews. |
-| `/review` | **the dev** | Reads your diff, presents a review plan, catches bugs that pass CI. Auto-fixes the obvious ones, asks about the rest. |
-| `/qa` | **the tester** | Opens a real browser, clicks through your app, presents a test plan, finds bugs. Fixes them or reports only — your choice. |
+```bash
+git clone https://github.com/skylartaylor/skystack.git
+cd skystack
+./setup-codex
+```
 
-tools:
+This generates the Codex-native skills, builds the browser and mobile drivers,
+and links the skills into `$CODEX_HOME/skills` (`~/.codex/skills` by default).
+Restart Codex after setup.
+
+## the workflows
 
 | Skill | What it does |
-|-------|-------------|
-| `/codex` | Get a second opinion from OpenAI's Codex CLI. Code review, adversarial challenge, or open-ended consult. |
-| `/security` | Infrastructure-first security audit. Secrets archaeology, supply chain, CI/CD, OWASP, STRIDE. |
-| `/docs` | Writes new docs, updates existing ones after shipping, audits for staleness. |
-| `/research` | Searches developer docs and forums, updates reference files for your stack. |
-| `/publish` | Sync main, run tests, audit coverage, bump version, push, open PR. One command. |
-| `/browse` | Give the agent a real browser. Chromium, real clicks, real screenshots. ~100ms per command. |
-| `/setup-browser-cookies` | Import cookies from your browser into the headless session for authenticated testing. |
-| `/retro` | Weekly retro. Shipping streaks, test health trends. |
-| `/devops` | Safe infrastructure management. Servers, nginx, DNS, Docker, k8s/Helm. Backs up before changes, creates runbooks, tracks incidents. |
-| `/diagnose` | Systematic root-cause debugging. Iron Law: no fixes without root cause. |
-| `/benchmark` | Performance regression detection. Baselines page load times and Core Web Vitals, compares before/after on every PR. |
-| `/canary` | Post-deploy monitoring. Watches the live app for console errors, performance regressions, and page failures. |
-| `/checkpoint` | Save and resume working state. Captures git state, decisions, and remaining work so you can pick up where you left off. |
-| `/health` | Code quality dashboard. Wraps your existing tools into a weighted 0-10 composite score with trend tracking. Read-only. |
-| `/skystack-upgrade` | Upgrade skystack to the latest version. Detects global vs vendored install, shows what's new. |
+|-------|--------------|
+| `/pm` | Turns an idea into an approved spec and verified implementation, then asks what to publish. |
+| `/design` | Builds or audits a design system and catches generic AI-made UI patterns. |
+| `/review` | Reviews a diff, plan, or architecture. Read-only unless you explicitly request fixes. |
+| `/qa` | Exercises real browser or mobile flows and captures evidence. Fixes only when requested. |
+| `/publish` | Verifies and delivers the exact endpoint you authorized: local commits, push, PR, merge, deploy, tag, or release. |
+| `/diagnose` | Confirms a root cause before implementing and verifying a fix. |
+| `/devops` | Operates infrastructure directly, asking only before destructive or hard-to-reverse actions. |
+| `/security` | Finds realistic attack paths across code, infrastructure, dependencies, and AI/tool boundaries. Read-only by default. |
+| `/codex` | Gets an independent Codex review, adversarial challenge, or focused consultation from Claude Code. |
+| `/document-release` | Writes new docs, updates shipped behavior, or audits existing docs for drift. |
+| `/research` | Refreshes project-specific design, engineering, and testing references. |
+| `/retro` | Reviews recent engineering activity and quality trends. |
 
-**[Deep dives with examples and philosophy for every skill →](docs/skills.md)**
+browser and project tools:
+
+| Skill | What it does |
+|-------|--------------|
+| `/browse` | Fast persistent Chromium navigation, interaction, inspection, and screenshots. Run `$B --help` for the current command reference. |
+| `/setup-browser-cookies` | Imports selected cookies from a real browser for authenticated testing. |
+| `/benchmark` | Measures page-load and Core Web Vitals regressions between two states. |
+| `/canary` | Watches a deployment for console errors, page failures, visual changes, and performance regressions. |
+| `/health` | Runs the project's existing quality tools and reports a read-only 0–10 dashboard. |
+| `/checkpoint` | Saves and restores git state, decisions, and remaining work. |
+| `/skystack-upgrade` | Updates a global or vendored installation and rebuilds its tools. |
+
+edit-safety helpers:
+
+| Skill | What it does |
+|-------|--------------|
+| `/careful` | Warns before destructive shell commands. |
+| `/freeze` | Restricts edits to one approved directory. |
+| `/guard` | Combines destructive-command warnings with a directory edit boundary. |
+| `/unfreeze` | Clears the current edit boundary. |
+
+**[Current skill catalog and behavior →](docs/skills.md)**
 
 ## differences from gstack
 
-**No corporate hierarchy.** gstack frames everything as CEO reviews, eng manager gates, and staff engineer audits. skystack uses a friend-group model: a planner, a designer, a dev, and a tester who collaborate and give each other feedback.
+**No corporate hierarchy.** gstack frames workflows as CEO reviews, manager gates,
+and staff-engineer audits. skystack names the job directly.
 
-**Stack-aware.** skystack auto-detects your project's tech stack — Flutter, SwiftUI, React, Rails, and more — and tailors recommendations to match.
+**Progressive disclosure.** The root skill routes to the narrowest workflow.
+Browser commands come from `$B --help`; release details stay in `/publish`;
+mobile QA details stay in `/qa`.
 
-**Every skill presents a plan first.** No agent goes off and does work without checking in. The Designer proposes what to audit, the Dev says what they'll review, and the Tester presents a test plan. You approve, adjust, or redirect before they start.
+**Autonomous inside the boundary.** Safe, reversible work proceeds without
+ceremonial approvals. Skills ask when a decision changes the outcome or an
+action is destructive, externally visible, or hard to undo.
 
-**`/pm` is the orchestrator.** One command takes a feature from idea to published code: research, spec, design feedback, architecture review, implementation, QA, and release.
+**`/pm` has two real checkpoints.** You approve product direction, it builds and
+verifies autonomously, then you choose whether to publish. It uses specialists
+only when the feature genuinely crosses independent domains.
 
-**`/qa` gives the agent eyes.** It opens a real browser, clicks through your app, finds bugs, fixes them with atomic commits, and writes regression tests.
+**`/qa` gives the agent eyes.** It opens a real browser or mobile simulator,
+performs actions, observes results, and captures evidence. It stays report-only
+unless you asked for fixes.
 
-**`/research` keeps everyone sharp.** Each agent works from a reference file for your stack. `/research` updates those with current best practices.
+**`/publish` respects the requested endpoint.** It does not assume every change
+needs a version bump, changelog, framework bootstrap, PR, or deployment. It
+discovers the repository's actual checks and conventions, verifies the final
+state, and performs only the authorized delivery actions.
 
-**test everything.** `/publish` bootstraps test frameworks from scratch if you don't have one. Every `/qa` bug fix generates a regression test. Tests make vibe coding safer.
-
-**works the way you actually work.** No feature branch required. `/review` works on `main` with staged or unstaged changes. `/publish` pushes directly when you're already on the base branch. `/docs` uses recent commit history when there's no PR to diff against. Working on main is fine.
+**Works with the repository you have.** No feature branch is required. Review
+can inspect committed, staged, unstaged, and relevant untracked changes.
+Publishing preserves unrelated dirt and follows the repository's own branching,
+testing, documentation, and release rules.
 
 ## documentation
 
 | Doc | What it covers |
 |-----|---------------|
-| [Skill Deep Dives](docs/skills.md) | Philosophy, examples, and workflow for every skill |
+| [Skill Guide](docs/skills.md) | Current Claude and Codex catalogs, behavior, and workflow boundaries |
 | [Architecture](ARCHITECTURE.md) | Design decisions and system internals |
 | [Browser Reference](BROWSER.md) | Full command reference for `/browse` |
 | [Contributing](CONTRIBUTING.md) | Dev setup, testing, contributor mode, and dev mode |
@@ -101,10 +142,8 @@ tools:
 
 ```md
 ## skystack
-Use /browse from skystack for all web browsing. Never use mcp__claude-in-chrome__* tools.
-Available skills: /pm, /design, /review, /qa, /diagnose, /devops, /docs, /research, /publish,
-/browse, /setup-browser-cookies, /retro, /codex, /security, /benchmark, /canary, /checkpoint,
-/health, /skystack-upgrade.
+Use /browse from skystack for browser automation. Never use mcp__claude-in-chrome__* tools.
+Run /skystack when help choosing a skystack workflow is needed.
 If skystack skills aren't working, run `cd .claude/skills/skystack && ./setup`.
 ```
 

@@ -1,7 +1,7 @@
 {
   "name": "skystack",
-  "version": "0.3.3",
-  "description": "skystack — Claude Code skills + fast headless browser. One repo, one install, entire AI engineering workflow.",
+  "version": "0.7.0",
+  "description": "Skystack — lean Claude Code and Codex skills plus a fast headless browser.",
   "license": "MIT",
   "type": "module",
   "bin": {
