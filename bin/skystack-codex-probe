@@ -3,6 +3,7 @@
 # Sourced from template bash blocks; never execute directly.
 #
 # Functions (all prefixed with _skystack_codex_ for namespace hygiene):
+#   _skystack_codex_resolve         — select newest compatible installed CLI
 #   _skystack_codex_auth_probe      — multi-signal auth check (env + file)
 #   _skystack_codex_version_check   — warn on known-bad Codex CLI versions
 #   _skystack_codex_timeout_wrapper — gtimeout -> timeout -> unwrapped fallback
@@ -13,6 +14,67 @@
 #   - All internal vars prefix with _SKYSTACK_CODEX_.
 #   - All functions prefix with _skystack_codex_.
 #   - No command execution at source time (only function defs).
+
+# --- Binary resolution ------------------------------------------------------
+
+_skystack_codex_version_of() {
+  local _bin="$1"
+  "$_bin" --version 2>/dev/null \
+    | sed -nE 's/.*codex-cli[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' \
+    | head -1
+}
+
+_skystack_codex_version_is_newer() {
+  awk -v left="$1" -v right="$2" 'BEGIN {
+    split(left, l, ".")
+    split(right, r, ".")
+    for (i = 1; i <= 3; i++) {
+      if ((l[i] + 0) > (r[i] + 0)) exit 0
+      if ((l[i] + 0) < (r[i] + 0)) exit 1
+    }
+    exit 1
+  }'
+}
+
+_skystack_codex_resolve() {
+  # An explicit override wins. Otherwise inspect common official install
+  # locations in addition to PATH and select the newest stable CLI. This avoids
+  # a pinned wrapper (for example Fugu) shadowing a newer compatible install.
+  if [ -n "${SKYSTACK_CODEX_BIN:-}" ]; then
+    if [ -x "$SKYSTACK_CODEX_BIN" ]; then
+      printf '%s\n' "$SKYSTACK_CODEX_BIN"
+      return 0
+    fi
+    echo "SKYSTACK_CODEX_BIN is not executable: $SKYSTACK_CODEX_BIN" >&2
+    return 127
+  fi
+
+  if [ "$#" -eq 0 ]; then
+    local _path_bin _npm_prefix
+    _path_bin=$(command -v codex 2>/dev/null || true)
+    _npm_prefix=$(npm prefix -g 2>/dev/null || true)
+    set -- \
+      "$_path_bin" \
+      "$HOME/.local/bin/codex" \
+      "/opt/homebrew/bin/codex" \
+      "/usr/local/bin/codex" \
+      "${_npm_prefix:+$_npm_prefix/bin/codex}"
+  fi
+
+  local _candidate _version _best="" _best_version=""
+  for _candidate in "$@"; do
+    [ -n "$_candidate" ] && [ -x "$_candidate" ] || continue
+    _version=$(_skystack_codex_version_of "$_candidate")
+    [ -n "$_version" ] || continue
+    if [ -z "$_best" ] || _skystack_codex_version_is_newer "$_version" "$_best_version"; then
+      _best="$_candidate"
+      _best_version="$_version"
+    fi
+  done
+
+  [ -n "$_best" ] || return 127
+  printf '%s\n' "$_best"
+}
 
 # --- Auth probe -------------------------------------------------------------
 
@@ -38,11 +100,16 @@ _skystack_codex_version_check() {
   # positives like 0.120.10 or 0.120.20 from matching.
   # Update this list when a new Codex CLI version regresses.
   # 0.120.0-0.120.2: stdin deadlock (OpenAI codex#972).
-  local _ver
-  _ver=$(codex --version 2>/dev/null | head -1)
+  # 0.142.2: cannot parse the current GPT-5.6 Sol model-cache schema.
+  local _bin="${1:-}" _ver
+  [ -n "$_bin" ] || _bin=$(_skystack_codex_resolve 2>/dev/null || true)
+  [ -n "$_bin" ] || return 0
+  _ver=$("$_bin" --version 2>/dev/null | head -1)
   [ -z "$_ver" ] && return 0
   if echo "$_ver" | grep -Eq '(^|[^0-9.])0\.120\.(0|1|2)([^0-9.]|$)'; then
     echo "WARN: Codex CLI $_ver has known stdin deadlock bugs. Run: npm install -g @openai/codex@latest"
+  elif echo "$_ver" | grep -Eq '(^|[^0-9.])0\.142\.2([^0-9.]|$)'; then
+    echo "WARN: Codex CLI $_ver cannot read the current GPT-5.6 Sol model cache. Upgrade Codex before running /codex."
   fi
 }
 

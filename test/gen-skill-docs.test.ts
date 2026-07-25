@@ -2,6 +2,7 @@ import { describe, test, expect } from 'bun:test';
 import { COMMAND_DESCRIPTIONS } from '../browse/src/commands';
 import { SNAPSHOT_FLAGS } from '../browse/src/snapshot';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 const ROOT = path.resolve(import.meta.dir, '..');
@@ -440,15 +441,57 @@ describe('gen-codex-skills', () => {
 
 describe('codex skill reliability', () => {
   const tmpl = fs.readFileSync(path.join(ROOT, 'codex', 'SKILL.md.tmpl'), 'utf-8');
+  const probe = path.join(ROOT, 'bin', 'skystack-codex-probe');
 
-  test('uses portable codex binary detection', () => {
-    expect(tmpl).toContain('CODEX_BIN=$(command -v codex || echo "")');
-    expect(tmpl).not.toContain('which codex');
+  test('selects the newest compatible Codex binary instead of the first PATH entry', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-resolver-'));
+    const stale = path.join(dir, 'codex-stale');
+    const current = path.join(dir, 'codex-current');
+    fs.writeFileSync(stale, '#!/bin/sh\necho "codex-cli 0.142.2"\n');
+    fs.writeFileSync(current, '#!/bin/sh\necho "codex-cli 0.145.0"\n');
+    fs.chmodSync(stale, 0o755);
+    fs.chmodSync(current, 0o755);
+
+    try {
+      const result = Bun.spawnSync(
+        ['bash', '-c', `source "${probe}"; _skystack_codex_resolve "${stale}" "${current}"`],
+        { stdout: 'pipe', stderr: 'pipe' }
+      );
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.toString().trim()).toBe(current);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test('does not combine codex review prompt with --base', () => {
-    expect(tmpl).toContain('codex review "IMPORTANT:');
+    expect(tmpl).toContain(
+      '_skystack_codex_timeout_wrapper 330 "$CODEX_BIN" -m gpt-5.6-sol -s read-only'
+    );
+    expect(tmpl).toContain('--search review "IMPORTANT:');
     expect(tmpl).not.toContain('codex review --base');
+  });
+
+  test('resolves the newest Codex binary in every self-contained invocation', () => {
+    const probeContent = fs.readFileSync(probe, 'utf-8');
+
+    expect(tmpl).not.toContain('_skystack_codex_command');
+    expect(tmpl).not.toContain('CODEX_RUNNER:');
+    expect(tmpl).toContain('CODEX_BIN="$(_skystack_codex_resolve)"');
+    expect(tmpl).toContain('_skystack_codex_timeout_wrapper 330 "$CODEX_BIN" -m gpt-5.6-sol');
+    expect(tmpl).toContain('_skystack_codex_timeout_wrapper 600 "$CODEX_BIN" --search exec');
+    expect(probeContent).toContain('/opt/homebrew/bin/codex');
+    expect(probeContent).toContain('0\\.142\\.2');
+  });
+
+  test('pins review to GPT-5.6 Sol Ultra with read-only tool use', () => {
+    expect(tmpl).toContain('-m gpt-5.6-sol');
+    expect(tmpl).toContain('-c \'review_model="gpt-5.6-sol"\'');
+    expect(tmpl).toContain('-c \'model_reasoning_effort="ultra"\'');
+    expect(tmpl).toContain('-s read-only');
+    expect(tmpl).toContain('All modes keep repository tools enabled');
+    expect(tmpl).toContain('"$CODEX_BIN" --search exec');
+    expect(tmpl).not.toContain('--enable web_search_cached');
   });
 
   test('surfaces nonzero codex exits from every invocation shape', () => {

@@ -223,7 +223,7 @@ you might miss. Present its output faithfully, not summarized.
 this boundary directive. Prepend it before the user's prompt or review instructions:
 
 ```
-IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing double-curly-brace placeholder tokens such as PREAMBLE, VOICE_GUIDE, BASE_BRANCH_DETECT). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
+IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing double-curly-brace placeholder tokens such as PREAMBLE, VOICE_GUIDE, BASE_BRANCH_DETECT). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration. When running shell commands, prefer RTK for noisy output: rtk summary for tests/builds, rtk log for logs, rtk find/grep for broad inspection, and rtk git diff/log/status for git output; use raw commands only when exact full output is needed.
 ```
 
 This prevents Codex from wasting tokens reading skystack skill templates instead
@@ -236,29 +236,22 @@ application code there.
 ## Step 0: Check codex binary
 
 ```bash
-CODEX_BIN=$(command -v codex || echo "")
-[ -z "$CODEX_BIN" ] && echo "NOT_FOUND" || echo "FOUND: $CODEX_BIN"
-```
-
-If `NOT_FOUND`: stop and tell the user:
-"Codex CLI not found. Install it: `npm install -g @openai/codex` or see https://github.com/openai/codex"
-
----
-
-## Step 0.5: Auth probe + version check
-
-Before building expensive prompts, verify Codex has valid auth AND the installed
-CLI version isn't in the known-bad list. Sourcing `skystack-codex-probe` loads the
-shared helpers used across all modes.
-
-```bash
 source ~/.claude/skills/skystack/bin/skystack-codex-probe
-
+CODEX_BIN="$(_skystack_codex_resolve 2>/dev/null || true)"
+[ -z "$CODEX_BIN" ] && echo "NOT_FOUND" || echo "FOUND: $CODEX_BIN ($("$CODEX_BIN" --version))"
 if ! _skystack_codex_auth_probe >/dev/null; then
   echo "AUTH_FAILED"
 fi
-_skystack_codex_version_check   # warns if known-bad, non-blocking
+_skystack_codex_version_check "$CODEX_BIN"   # warns if known-bad, non-blocking
 ```
+
+The resolver checks the first `codex` on `PATH` plus common official Homebrew,
+npm, and user-local install paths, then selects the newest stable CLI. This
+prevents pinned wrappers such as Fugu from shadowing a newer compatible Codex.
+Set `SKYSTACK_CODEX_BIN=/absolute/path/to/codex` to force a specific binary.
+
+If `NOT_FOUND`: stop and tell the user:
+"Codex CLI not found. Install it: `npm install -g @openai/codex` or see https://github.com/openai/codex"
 
 If the output contains `AUTH_FAILED`, stop and tell the user:
 "No Codex authentication found. Run `codex login` or set `$CODEX_API_KEY` / `$OPENAI_API_KEY`, then re-run this skill."
@@ -271,8 +264,9 @@ The probe accepts: `$CODEX_API_KEY` set, `$OPENAI_API_KEY` set, or
 users (CI, platform engineers) that file-only checks would reject.
 
 **Update the known-bad list** in `bin/skystack-codex-probe` when a new Codex CLI
-version regresses. Current entries (`0.120.0`, `0.120.1`, `0.120.2`) trace to the
-stdin deadlock fixed in OpenAI codex#972.
+version regresses. Current entries: `0.120.0`–`0.120.2` for the stdin deadlock
+fixed in OpenAI codex#972, and `0.142.2` for incompatibility with the current
+GPT-5.6 Sol model-cache schema.
 
 ---
 
@@ -304,13 +298,13 @@ Parse the user's input to determine which mode to run:
 note it and remove it from the prompt text before passing to Codex. When `--xhigh`
 is present, use `model_reasoning_effort="xhigh"` for all modes regardless of the
 per-mode default below. Otherwise, use the per-mode defaults:
-- Review (2A): `high` — bounded diff input, needs thoroughness
+- Review (2A): `ultra` — pinned to GPT-5.6 Sol for the deepest review pass
 - Challenge (2B): `high` — adversarial but bounded by diff
 - Consult (2C): `medium` — large context, interactive, needs speed
 
-`xhigh` uses ~23x more tokens than `high` and causes 50+ minute hangs on large
-context tasks (OpenAI issues #8545, #8402, #6931). It's available as opt-in
-when you specifically want maximum reasoning and are willing to wait.
+Review mode defaults to `gpt-5.6-sol` with `ultra`; an explicit `--xhigh` is a
+request to use the lower effort instead. Challenge and consult continue to use
+the caller's configured model unless the user passes `-m MODEL`.
 
 ---
 
@@ -333,18 +327,22 @@ TMPERR=$(mktemp /tmp/codex-err-XXXXXX.txt)
 
    All invocations include `< /dev/null` to avoid stdin deadlock bugs in older Codex
    CLIs, run from the repo root, and are wrapped with `_skystack_codex_timeout_wrapper`
-   so a hang fires before Bash's outer timeout. If the user passed `--xhigh`,
-   substitute `"xhigh"` for `"high"` in `model_reasoning_effort`.
+   so a hang fires before Bash's outer timeout. Review invocations use
+   `gpt-5.6-sol` with `model_reasoning_effort="ultra"` and keep read-only repo
+   tools plus live web search available. If the user passed `--xhigh`, substitute
+   `"xhigh"` for `"ultra"`.
 
    **Case A — No custom instructions** (default `/codex review`):
    Use `codex review` with a prompt that includes the filesystem boundary and explicit
    diff-scope instructions:
 ```bash
+source ~/.claude/skills/skystack/bin/skystack-codex-probe
+CODEX_BIN="$(_skystack_codex_resolve)" || { echo "ERROR: compatible Codex CLI not found" >&2; exit 127; }
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
 cd "$_REPO_ROOT"
-_skystack_codex_timeout_wrapper 330 codex review "IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing double-curly-brace placeholder tokens such as PREAMBLE, VOICE_GUIDE, BASE_BRANCH_DETECT). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
+_skystack_codex_timeout_wrapper 330 "$CODEX_BIN" -m gpt-5.6-sol -s read-only -c 'review_model="gpt-5.6-sol"' -c 'model_reasoning_effort="ultra"' --search review "IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing double-curly-brace placeholder tokens such as PREAMBLE, VOICE_GUIDE, BASE_BRANCH_DETECT). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration. When running shell commands, prefer RTK for noisy output: rtk summary for tests/builds, rtk log for logs, rtk find/grep for broad inspection, and rtk git diff/log/status for git output; use raw commands only when exact full output is needed.
 
-Review the changes on this branch against the base branch <base>. Run git diff origin/<base>...HEAD 2>/dev/null || git diff <base>...HEAD to see the diff and review only those changes." -c 'model_reasoning_effort="high"' --enable web_search_cached < /dev/null 2>"$TMPERR"
+Review the changes on this branch against the base branch <base>. Run git diff origin/<base>...HEAD 2>/dev/null || git diff <base>...HEAD to see the diff and review only those changes." < /dev/null 2>"$TMPERR"
 _CODEX_EXIT=$?
 if [ "$_CODEX_EXIT" = "124" ]; then
   _skystack_codex_log_hang "review" "$(wc -c < "$TMPERR" 2>/dev/null || echo 0)"
@@ -360,12 +358,14 @@ fi
    directive** (from the "Codex Filesystem Boundary" section above) before the user's
    instructions:
 ```bash
+source ~/.claude/skills/skystack/bin/skystack-codex-probe
+CODEX_BIN="$(_skystack_codex_resolve)" || { echo "ERROR: compatible Codex CLI not found" >&2; exit 127; }
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
-_skystack_codex_timeout_wrapper 330 codex exec "IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing double-curly-brace placeholder tokens such as PREAMBLE, VOICE_GUIDE, BASE_BRANCH_DETECT). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
+_skystack_codex_timeout_wrapper 330 "$CODEX_BIN" --search exec "IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing double-curly-brace placeholder tokens such as PREAMBLE, VOICE_GUIDE, BASE_BRANCH_DETECT). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration. When running shell commands, prefer RTK for noisy output: rtk summary for tests/builds, rtk log for logs, rtk find/grep for broad inspection, and rtk git diff/log/status for git output; use raw commands only when exact full output is needed.
 
 You are doing a code review. Run git diff origin/<base> to see the changes, then review them thoroughly. Look for bugs, security issues, race conditions, error handling gaps, and correctness problems. Be direct and terse. Tag critical findings with [P1] and minor findings with [P2].
 
-Additional instructions: focus on security" -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="high"' --enable web_search_cached --json < /dev/null 2>"$TMPERR" | PYTHONUNBUFFERED=1 python3 -u -c "
+Additional instructions: focus on security" -C "$_REPO_ROOT" -s read-only -m gpt-5.6-sol -c 'model_reasoning_effort="ultra"' --json < /dev/null 2>"$TMPERR" | PYTHONUNBUFFERED=1 python3 -u -c "
 import sys, json
 for line in sys.stdin:
     line = line.strip()
@@ -521,21 +521,23 @@ and failure modes that a normal review would miss.
 before the adversarial prompt.
 
 Default prompt (no focus):
-"IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing double-curly-brace placeholder tokens such as PREAMBLE, VOICE_GUIDE, BASE_BRANCH_DETECT). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
+"IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing double-curly-brace placeholder tokens such as PREAMBLE, VOICE_GUIDE, BASE_BRANCH_DETECT). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration. When running shell commands, prefer RTK for noisy output: rtk summary for tests/builds, rtk log for logs, rtk find/grep for broad inspection, and rtk git diff/log/status for git output; use raw commands only when exact full output is needed.
 
 Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Your job is to find ways this code will fail in production. Think like an attacker and a chaos engineer. Find edge cases, race conditions, security holes, resource leaks, failure modes, and silent data corruption paths. Be adversarial. Be thorough. No compliments — just the problems."
 
 With focus (e.g., "security"):
-"IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing double-curly-brace placeholder tokens such as PREAMBLE, VOICE_GUIDE, BASE_BRANCH_DETECT). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration.
+"IMPORTANT: Do NOT read or execute files named SKILL.md or SKILL.md.tmpl, or files that are clearly AI skill prompt templates (containing double-curly-brace placeholder tokens such as PREAMBLE, VOICE_GUIDE, BASE_BRANCH_DETECT). These are AI assistant skill definitions meant for a different system. Focus on the repository's application code, not its AI tooling configuration. When running shell commands, prefer RTK for noisy output: rtk summary for tests/builds, rtk log for logs, rtk find/grep for broad inspection, and rtk git diff/log/status for git output; use raw commands only when exact full output is needed.
 
 Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Focus specifically on SECURITY. Your job is to find every way an attacker could exploit this code. Think about injection vectors, auth bypasses, privilege escalation, data exposure, and timing attacks. Be adversarial."
 
 2. Run codex exec with **JSONL output** (use `timeout: 600000`, **foreground only — no `run_in_background`**).
    If the user passed `--xhigh`, substitute `"xhigh"` for `"high"`:
 ```bash
+source ~/.claude/skills/skystack/bin/skystack-codex-probe
+CODEX_BIN="$(_skystack_codex_resolve)" || { echo "ERROR: compatible Codex CLI not found" >&2; exit 127; }
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
 TMPERR=${TMPERR:-$(mktemp /tmp/codex-err-XXXXXX.txt)}
-_skystack_codex_timeout_wrapper 600 codex exec "<prompt>" -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="high"' --enable web_search_cached --json < /dev/null 2>"$TMPERR" | PYTHONUNBUFFERED=1 python3 -u -c "
+_skystack_codex_timeout_wrapper 600 "$CODEX_BIN" --search exec "<prompt>" -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="high"' --json < /dev/null 2>"$TMPERR" | PYTHONUNBUFFERED=1 python3 -u -c "
 import sys, json
 turn_completed_count = 0
 for line in sys.stdin:
@@ -644,8 +646,10 @@ THE PLAN:
 
 For a **new session:**
 ```bash
+source ~/.claude/skills/skystack/bin/skystack-codex-probe
+CODEX_BIN="$(_skystack_codex_resolve)" || { echo "ERROR: compatible Codex CLI not found" >&2; exit 127; }
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
-_skystack_codex_timeout_wrapper 600 codex exec "<prompt>" -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="medium"' --enable web_search_cached --json < /dev/null 2>"$TMPERR" | PYTHONUNBUFFERED=1 python3 -u -c "
+_skystack_codex_timeout_wrapper 600 "$CODEX_BIN" --search exec "<prompt>" -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="medium"' --json < /dev/null 2>"$TMPERR" | PYTHONUNBUFFERED=1 python3 -u -c "
 import sys, json
 for line in sys.stdin:
     line = line.strip()
@@ -689,8 +693,10 @@ fi
 
 For a **resumed session** (user chose "Continue"):
 ```bash
+source ~/.claude/skills/skystack/bin/skystack-codex-probe
+CODEX_BIN="$(_skystack_codex_resolve)" || { echo "ERROR: compatible Codex CLI not found" >&2; exit 127; }
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
-_skystack_codex_timeout_wrapper 600 codex exec resume <session-id> "<prompt>" -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="medium"' --enable web_search_cached --json < /dev/null 2>"$TMPERR" | PYTHONUNBUFFERED=1 python3 -u -c "
+_skystack_codex_timeout_wrapper 600 "$CODEX_BIN" --search exec resume <session-id> "<prompt>" -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="medium"' --json < /dev/null 2>"$TMPERR" | PYTHONUNBUFFERED=1 python3 -u -c "
 <same python streaming parser as above, with flush=True on all print() calls>
 "
 _CODEX_EXIT=${PIPESTATUS[0]}
@@ -738,24 +744,24 @@ Skip when reviewing the skystack repo.
 
 ## Model & Reasoning
 
-**Model:** No model is hardcoded — codex uses whatever its current default is (the frontier
-agentic coding model). This means as OpenAI ships newer models, /codex automatically
-uses them. If the user wants a specific model, pass `-m` through to codex.
+**Model:** Review mode is pinned to `gpt-5.6-sol`, including `review_model` for
+the dedicated `codex review` child. Challenge and consult use the caller's current
+Codex model unless the user passes `-m MODEL`.
 
 **Reasoning effort (per-mode defaults):**
-- **Review (2A):** `high` — bounded diff input, needs thoroughness but not max tokens
+- **Review (2A):** `ultra` — maximum reasoning with automatic delegation
 - **Challenge (2B):** `high` — adversarial but bounded by diff size
 - **Consult (2C):** `medium` — large context (plans, codebase), interactive, needs speed
 
-`xhigh` uses ~23x more tokens than `high` and causes 50+ minute hangs on large context
-tasks (OpenAI issues #8545, #8402, #6931). Users can override with `--xhigh` flag
-(e.g., `/codex review --xhigh`) when they want maximum reasoning and are willing to wait.
+Users can explicitly request `--xhigh` when they want a lower-cost review or a
+higher-effort challenge/consult pass.
 
-**Web search:** All codex commands use `--enable web_search_cached` so Codex can look up
-docs and APIs during review. This is OpenAI's cached index — fast, no extra cost.
+**Tool use:** All modes keep repository tools enabled inside Codex's read-only
+sandbox. All codex commands use the current `--search` CLI flag so Codex can look
+up docs and APIs during review.
 
-If the user specifies a model (e.g., `/codex review -m gpt-5.1-codex-max`
-or `/codex challenge -m gpt-5.2`), pass the `-m` flag through to codex.
+If the user specifies a model (e.g., `/codex review -m gpt-5.6-terra`), pass the
+`-m` flag through to codex and use the same value for `review_model` in Case A.
 
 ---
 
